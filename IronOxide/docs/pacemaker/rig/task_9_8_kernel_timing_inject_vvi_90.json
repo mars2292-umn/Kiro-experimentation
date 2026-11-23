@@ -1,0 +1,66 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:849b58a13010fc15f762e16a1f7ad887003e51358ac11c6b54492b344d025a77",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "delta_hm",
+      "cycles": 5848,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one fault entry applying the Partition's fault response (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 75,
+        "max_observed": 4678,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_restart",
+      "cycles": 7107,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "an entry that restarted a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 150,
+        "max_observed": 5685,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_enforce",
+      "cycles": 7107,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 75,
+        "max_observed": 5685,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    }
+  ]
+}

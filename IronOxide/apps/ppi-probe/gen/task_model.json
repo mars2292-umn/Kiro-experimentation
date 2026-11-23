@@ -1,0 +1,338 @@
+{
+  "schema": "rsk-task-model/1",
+  "profile": {
+    "version": "0.6",
+    "variant": "Ravenscar"
+  },
+  "generator": "0.0.0",
+  "kernel": "0.0.0",
+  "target": "nrf52840",
+  "core_revision": "r0p1",
+  "clock": {
+    "cpu_hz": 64000000,
+    "tick_hz": 16000000
+  },
+  "config_checksum": "0x2f83b95c",
+  "layout_checksum": "0x93d4b774",
+  "operating_duration_ticks": 115200000000,
+  "safe_state": "crate::halt",
+  "fp_flush_to_zero": false,
+  "kernel_levels": [
+    0
+  ],
+  "priority_map": [
+    {
+      "level": 1,
+      "nvic": 224
+    },
+    {
+      "level": 2,
+      "nvic": 192
+    }
+  ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
+  ],
+  "capacities": {
+    "lock_stack": 1,
+    "timer_slots": 8,
+    "event_log": 32,
+    "derived": true
+  },
+  "layout": {
+    "kernel_flash": {
+      "base": 0,
+      "size_log2": 17,
+      "srd": 0,
+      "usable_bytes": 131072
+    },
+    "shared_code": {
+      "base": 131072,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "kernel_ram": {
+      "base": 536870912,
+      "size_log2": 15,
+      "srd": 0,
+      "usable_bytes": 32768
+    },
+    "kernel_windows": [
+      {
+        "base": 3758096384,
+        "size_log2": 20,
+        "srd": 0,
+        "peripherals": [
+          "PPB"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073741824,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CLOCK"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073774592,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "TIMER0"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073807360,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "WDT"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073868800,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "PPI"
+        ],
+        "read_only": false
+      }
+    ],
+    "derived": true
+  },
+  "partitions": [
+    {
+      "id": "timer",
+      "crate": "ppi_probe_timer",
+      "level": "B",
+      "fault": "END_JOB",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "TIMER3",
+        "GPIOTE"
+      ],
+      "mpu": {
+        "code": {
+          "base": 229376,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536936448,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1073766400,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "GPIOTE"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1073848320,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "TIMER3"
+            ],
+            "read_only": false
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "timer.pulse"
+      ],
+      "resources": [],
+      "signals": []
+    },
+    {
+      "id": "outsider",
+      "crate": "ppi_probe_outsider",
+      "level": "C",
+      "fault": "END_JOB",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "P0"
+      ],
+      "mpu": {
+        "code": {
+          "base": 196608,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536903680,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1342177280,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "P0"
+            ],
+            "read_only": false
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "outsider.poke"
+      ],
+      "resources": [],
+      "signals": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "timer.pulse",
+      "core": 0,
+      "partition": "timer",
+      "priority": 2,
+      "vector": 36,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 160000,
+      "source": null,
+      "deadline_ticks": 160000,
+      "budget_cycles": 128000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 0,
+        "deadline": 1,
+        "budget": 2
+      },
+      "cs_sites": [],
+      "entry": "::ppi_probe_timer::rsk_jobs::pulse",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "outsider.poke",
+      "core": 0,
+      "partition": "outsider",
+      "priority": 1,
+      "vector": 37,
+      "kind": "periodic",
+      "offset_ticks": 80000,
+      "period_ticks": 160000,
+      "source": null,
+      "deadline_ticks": 160000,
+      "budget_cycles": 128000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [],
+      "entry": "::ppi_probe_outsider::rsk_jobs::poke",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    }
+  ],
+  "resources": [],
+  "signals": [],
+  "endpoints": [],
+  "chains": [],
+  "conversions": [],
+  "ppi": [
+    {
+      "id": "pulse_start",
+      "channel": 0,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 320,
+        "address": "0x4001a140"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 48,
+        "address": "0x40006030"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 56,
+        "address": "0x40006038"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "pulse_end",
+      "channel": 1,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 336,
+        "address": "0x4001a150"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 96,
+        "address": "0x40006060"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 104,
+        "address": "0x40006068"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    }
+  ]
+}

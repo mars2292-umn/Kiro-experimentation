@@ -40,6 +40,7 @@ pub mod gen;
 pub mod hil;
 pub mod manifest;
 pub mod mutations;
+pub mod pm_measure;
 pub mod policy;
 pub mod profile;
 pub mod profile_gen;

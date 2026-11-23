@@ -1,0 +1,403 @@
+{
+  "items": [
+    {
+      "branch_outcomes": 92,
+      "own": {
+        "branch_outcomes": 10,
+        "taken": 8
+      },
+      "percent": 65,
+      "shared": {
+        "branch_outcomes": 82,
+        "taken": 52
+      },
+      "taken": 60,
+      "task": "therapy.pace"
+    },
+    {
+      "branch_outcomes": 88,
+      "own": {
+        "branch_outcomes": 6,
+        "taken": 3
+      },
+      "percent": 62,
+      "shared": {
+        "branch_outcomes": 82,
+        "taken": 52
+      },
+      "taken": 55,
+      "task": "therapy.sense_v"
+    },
+    {
+      "branch_outcomes": 88,
+      "own": {
+        "branch_outcomes": 6,
+        "taken": 3
+      },
+      "percent": 62,
+      "shared": {
+        "branch_outcomes": 82,
+        "taken": 52
+      },
+      "taken": 55,
+      "task": "therapy.sense_a"
+    },
+    {
+      "branch_outcomes": 194,
+      "own": {
+        "branch_outcomes": 112,
+        "taken": 57
+      },
+      "percent": 56,
+      "shared": {
+        "branch_outcomes": 82,
+        "taken": 52
+      },
+      "taken": 109,
+      "task": "therapy.control"
+    }
+  ],
+  "not_taken": [
+    {
+      "branch_outcomes": 8,
+      "file": "apps/pacemaker/therapy/src/board_nrf.rs",
+      "function": "_<pacemaker_therapy::board_nrf::Board$u20$as$u20$pm_hw::Board>::configure",
+      "not_taken": [
+        "166:15 false",
+        "173:16 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 12,
+      "file": "crates/pm-hw/src/lib.rs",
+      "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::arm",
+      "not_taken": [
+        "283:12 true",
+        "289:15 false",
+        "290:16 true",
+        "307:16 false",
+        "315:12 true",
+        "315:12 false",
+        "328:12 true",
+        "328:12 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-hw/src/lib.rs",
+      "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::disarm",
+      "not_taken": [
+        "341:12 true",
+        "341:12 false",
+        "344:12 true",
+        "344:12 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 12,
+      "file": "crates/pm-hw/src/lib.rs",
+      "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::fired",
+      "not_taken": [
+        "372:35 true",
+        "375:27 false",
+        "382:20 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-hw/src/lib.rs",
+      "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::refresh",
+      "not_taken": [
+        "355:36 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 8,
+      "file": "crates/pm-hw/src/lib.rs",
+      "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::sensed",
+      "not_taken": [
+        "399:15 false",
+        "413:12 true"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::init",
+      "not_taken": [
+        "273:12 true",
+        "278:20 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::on_control",
+      "not_taken": [
+        "295:12 true"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 10,
+      "file": "apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::on_pace",
+      "not_taken": [
+        "241:49 true",
+        "242:24 true"
+      ],
+      "of": "pace"
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::on_sense",
+      "not_taken": [
+        "257:12 true",
+        "257:25 true",
+        "261:16 false"
+      ],
+      "of": "sense_v, sense_a"
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::event",
+      "not_taken": [
+        "209:24 true"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 20,
+      "file": "apps/pacemaker/therapy/src/sets.rs",
+      "function": "pacemaker_therapy::sets::from_text",
+      "not_taken": [
+        "49:18 true",
+        "49:18 false",
+        "49:33 true",
+        "49:33 false",
+        "51:12 true",
+        "51:12 false",
+        "51:25 true",
+        "51:25 false",
+        "53:16 true",
+        "53:16 false",
+        "58:19 true",
+        "58:19 false",
+        "61:12 true",
+        "61:12 false",
+        "61:25 true",
+        "61:25 false",
+        "62:16 true",
+        "62:16 false",
+        "62:28 true",
+        "62:28 false"
+      ],
+      "of": "not counted: evaluated by the compiler only"
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "crates/pm-core/src/state.rs",
+      "function": "pm_core::state::State::params",
+      "not_taken": [
+        "201:35 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/step.rs",
+      "function": "pm_core::step::account",
+      "not_taken": [
+        "56:25 true"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "crates/pm-core/src/step.rs",
+      "function": "pm_core::step::apply_pace",
+      "not_taken": [
+        "47:21 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "crates/pm-core/src/step.rs",
+      "function": "pm_core::step::arm_from",
+      "not_taken": [
+        "94:8 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 16,
+      "file": "crates/pm-core/src/step.rs",
+      "function": "pm_core::step::step",
+      "not_taken": [
+        "134:28 true",
+        "134:47 false",
+        "138:16 false",
+        "138:35 true",
+        "138:35 false",
+        "162:16 false"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "crates/pm-core/src/step.rs",
+      "function": "pm_core::step::tick",
+      "not_taken": [
+        "111:15 true"
+      ],
+      "of": "shared"
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::delivered_in_e1",
+      "not_taken": [
+        "170:5 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_amplitude",
+      "not_taken": [
+        "116:5 true",
+        "116:20 true"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_atr_duration",
+      "not_taken": [
+        "137:5 true",
+        "137:17 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_lrl",
+      "not_taken": [
+        "109:5 true",
+        "109:32 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_rate_smoothing",
+      "not_taken": [
+        "144:5 false",
+        "144:21 true",
+        "144:21 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_sensitivity",
+      "not_taken": [
+        "130:5 true",
+        "130:25 true"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_width",
+      "not_taken": [
+        "123:5 true"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::stepped",
+      "not_taken": [
+        "102:5 false"
+      ],
+      "of": "control"
+    },
+    {
+      "branch_outcomes": 66,
+      "file": "crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::validate",
+      "not_taken": [
+        "183:8 true",
+        "187:18 false",
+        "188:12 false",
+        "189:12 false",
+        "190:12 false",
+        "191:12 false",
+        "192:12 false",
+        "193:13 false",
+        "193:47 true",
+        "193:47 false",
+        "194:12 false",
+        "195:12 false",
+        "196:12 false",
+        "197:12 false",
+        "198:12 false",
+        "199:12 false",
+        "200:12 false",
+        "201:12 false",
+        "202:12 false",
+        "203:13 false",
+        "203:46 true",
+        "203:46 false",
+        "204:13 false",
+        "204:34 true",
+        "204:34 false",
+        "205:12 false",
+        "206:12 false",
+        "207:12 false",
+        "208:12 false",
+        "209:12 false",
+        "210:12 false",
+        "211:12 false",
+        "213:8 true",
+        "219:8 true",
+        "219:34 true",
+        "219:55 true"
+      ],
+      "of": "control"
+    }
+  ],
+  "sets": [
+    {
+      "binary_hash": "sha256:a3c4adb40d72cf7d7461cf82bec967f06990fe94691bea0743ef7ede3e70fc38",
+      "scenario": "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)",
+      "set": "vvi-90"
+    },
+    {
+      "binary_hash": "sha256:1cfb98d446f0f003bceb4ffb7b3095238beb9a6ef9d61842c4c7c8021228871e",
+      "scenario": "nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)",
+      "set": "aai-90"
+    }
+  ],
+  "task": "9.9",
+  "threshold_percent": 50,
+  "verdict": "pass"
+}

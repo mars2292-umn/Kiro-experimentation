@@ -154,3 +154,13 @@ fn conduction_is_shorter_than_every_atrial_interval() {
         }
     }
 }
+
+#[test]
+fn the_numbers_of_a_scenario_given_as_text() {
+    use heart_sim_part::scenario::numbers;
+    assert_eq!(numbers("0,0,200,845,0"), [0, 0, 200, 845, 0]);
+    assert_eq!(numbers("200,800"), [200, 800, 0, 0, 0]);
+    assert_eq!(numbers(""), [0; 5]);
+    // A sixth number is dropped.
+    assert_eq!(numbers("1,2,3,4,5,6"), [1, 2, 3, 4, 5]);
+}

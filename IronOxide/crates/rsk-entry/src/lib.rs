@@ -8,7 +8,8 @@
 //! of the Application, selected by exactly one `app-*` cargo feature: the
 //! P1 demo's `rsk_system` by default, the HIL_Rig's stimulus Application
 //! with `app-hil-stimulus`, task 7.1, the PACEMAKER experiment's
-//! Heart_Simulator with `app-heart-sim`). The Application never defines a
+//! Heart_Simulator with `app-heart-sim`, its PPI probe with
+//! `app-ppi-probe`, its pulse generator with `app-pacemaker`). The Application never defines a
 //! link-level symbol (R24.2).
 //!
 //! The linker script provides the memory initialization tables
@@ -25,14 +26,25 @@ use rsk_system::Sys;
 use hil_stimulus_system::Sys;
 #[cfg(feature = "app-heart-sim")]
 use heart_sim_system::Sys;
+#[cfg(feature = "app-ppi-probe")]
+use ppi_probe_system::Sys;
+#[cfg(feature = "app-pacemaker")]
+use pacemaker_system::Sys;
 #[cfg(any(
     all(feature = "app-p1-demo", feature = "app-hil-stimulus"),
     all(feature = "app-p1-demo", feature = "app-heart-sim"),
-    all(feature = "app-hil-stimulus", feature = "app-heart-sim")
+    all(feature = "app-p1-demo", feature = "app-ppi-probe"),
+    all(feature = "app-p1-demo", feature = "app-pacemaker"),
+    all(feature = "app-hil-stimulus", feature = "app-heart-sim"),
+    all(feature = "app-hil-stimulus", feature = "app-ppi-probe"),
+    all(feature = "app-hil-stimulus", feature = "app-pacemaker"),
+    all(feature = "app-heart-sim", feature = "app-ppi-probe"),
+    all(feature = "app-heart-sim", feature = "app-pacemaker"),
+    all(feature = "app-ppi-probe", feature = "app-pacemaker")
 ))]
-compile_error!("rsk-entry binds exactly one Application: enable one of `app-p1-demo`, `app-hil-stimulus` and `app-heart-sim`");
-#[cfg(not(any(feature = "app-p1-demo", feature = "app-hil-stimulus", feature = "app-heart-sim")))]
-compile_error!("rsk-entry binds exactly one Application: enable `app-p1-demo` (the default), `app-hil-stimulus` or `app-heart-sim`");
+compile_error!("rsk-entry binds exactly one Application: enable one of `app-p1-demo`, `app-hil-stimulus`, `app-heart-sim`, `app-ppi-probe` and `app-pacemaker`");
+#[cfg(not(any(feature = "app-p1-demo", feature = "app-hil-stimulus", feature = "app-heart-sim", feature = "app-ppi-probe", feature = "app-pacemaker")))]
+compile_error!("rsk-entry binds exactly one Application: enable `app-p1-demo` (the default), `app-hil-stimulus`, `app-heart-sim`, `app-ppi-probe` or `app-pacemaker`");
 
 /// A vector-table entry: a handler or a reserved word.
 #[repr(C)]
@@ -147,6 +159,10 @@ pub unsafe extern "C" fn Reset() -> ! {
     arch::trace_expect(hil_stimulus_system::TRACE_EXPECT.0, hil_stimulus_system::TRACE_EXPECT.1, hil_stimulus_system::TRACE_EXPECT.2);
     #[cfg(feature = "app-heart-sim")]
     arch::trace_expect(heart_sim_system::TRACE_EXPECT.0, heart_sim_system::TRACE_EXPECT.1, heart_sim_system::TRACE_EXPECT.2);
+    #[cfg(feature = "app-ppi-probe")]
+    arch::trace_expect(ppi_probe_system::TRACE_EXPECT.0, ppi_probe_system::TRACE_EXPECT.1, ppi_probe_system::TRACE_EXPECT.2);
+    #[cfg(feature = "app-pacemaker")]
+    arch::trace_expect(pacemaker_system::TRACE_EXPECT.0, pacemaker_system::TRACE_EXPECT.1, pacemaker_system::TRACE_EXPECT.2);
     if !arch::boot::<Sys>() {
         Sys::safe_state();
     }

@@ -1,0 +1,528 @@
+{
+  "schema": "rsk-task-model/1",
+  "profile": {
+    "version": "0.6",
+    "variant": "Ravenscar"
+  },
+  "generator": "0.0.0",
+  "kernel": "0.0.0",
+  "target": "nrf52840",
+  "core_revision": "r0p1",
+  "clock": {
+    "cpu_hz": 64000000,
+    "tick_hz": 16000000
+  },
+  "config_checksum": "0x15f7c4b2",
+  "layout_checksum": "0x9227c258",
+  "operating_duration_ticks": 115200000000,
+  "safe_state": "crate::safe_state",
+  "fp_flush_to_zero": false,
+  "kernel_levels": [
+    0
+  ],
+  "priority_map": [
+    {
+      "level": 4,
+      "nvic": 128
+    },
+    {
+      "level": 5,
+      "nvic": 96
+    },
+    {
+      "level": 6,
+      "nvic": 64
+    },
+    {
+      "level": 7,
+      "nvic": 32
+    }
+  ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
+  ],
+  "capacities": {
+    "lock_stack": 4,
+    "timer_slots": 14,
+    "event_log": 32,
+    "derived": true
+  },
+  "layout": {
+    "kernel_flash": {
+      "base": 0,
+      "size_log2": 17,
+      "srd": 0,
+      "usable_bytes": 131072
+    },
+    "shared_code": {
+      "base": 131072,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "kernel_ram": {
+      "base": 536870912,
+      "size_log2": 15,
+      "srd": 0,
+      "usable_bytes": 32768
+    },
+    "kernel_windows": [
+      {
+        "base": 3758096384,
+        "size_log2": 20,
+        "srd": 0,
+        "peripherals": [
+          "PPB"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073741824,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CLOCK"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073774592,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "TIMER0"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073807360,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "WDT"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073868800,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "PPI"
+        ],
+        "read_only": false
+      }
+    ],
+    "derived": true
+  },
+  "partitions": [
+    {
+      "id": "therapy",
+      "crate": "pacemaker_therapy",
+      "level": "A",
+      "fault": "RESTART_PARTITION",
+      "overrun": "RECORD_AND_CONTINUE",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 8192,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "GPIOTE",
+        "P0",
+        "TIMER1",
+        "TIMER2",
+        "TIMER3"
+      ],
+      "mpu": {
+        "code": {
+          "base": 196608,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536903680,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1073766400,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "GPIOTE"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1342177280,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "P0"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1073778688,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "TIMER1"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1073782784,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "TIMER2"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1073848320,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "TIMER3"
+            ],
+            "read_only": false
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "therapy.pace",
+        "therapy.sense_v",
+        "therapy.sense_a",
+        "therapy.control"
+      ],
+      "resources": [
+        "therapy.timing"
+      ],
+      "signals": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "therapy.pace",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 7,
+      "vector": 36,
+      "kind": "sporadic",
+      "mit_ticks": 320000,
+      "mit_policy": "defer",
+      "source": {
+        "interrupt": "TIMER3",
+        "irq": 26
+      },
+      "deadline_ticks": 32000,
+      "budget_cycles": 25600,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 0,
+        "deadline": 1,
+        "budget": 2
+      },
+      "cs_sites": [
+        "therapy.pace#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::pace",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.sense_v",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 6,
+      "vector": 37,
+      "kind": "sporadic",
+      "mit_ticks": 800000,
+      "mit_policy": "defer",
+      "source": {
+        "interrupt": "TIMER2",
+        "irq": 10
+      },
+      "deadline_ticks": 48000,
+      "budget_cycles": 25600,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [
+        "therapy.sense_v#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_v",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.sense_a",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 5,
+      "vector": 38,
+      "kind": "sporadic",
+      "mit_ticks": 800000,
+      "mit_policy": "defer",
+      "source": {
+        "interrupt": "TIMER1",
+        "irq": 9
+      },
+      "deadline_ticks": 64000,
+      "budget_cycles": 25600,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 6,
+        "deadline": 7,
+        "budget": 8
+      },
+      "cs_sites": [
+        "therapy.sense_a#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_a",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.control",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 4,
+      "vector": 39,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 320000,
+      "source": null,
+      "deadline_ticks": 320000,
+      "budget_cycles": 320000,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 9,
+        "deadline": 10,
+        "budget": 11
+      },
+      "cs_sites": [
+        "therapy.control#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::control",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "therapy.timing",
+      "core": 0,
+      "partition": "therapy",
+      "ceiling": 7,
+      "accessors": [
+        "therapy.pace",
+        "therapy.sense_v",
+        "therapy.sense_a",
+        "therapy.control"
+      ],
+      "type": "crate :: Timing",
+      "derived": [
+        "ceiling"
+      ]
+    }
+  ],
+  "signals": [],
+  "endpoints": [],
+  "chains": [],
+  "conversions": [],
+  "ppi": [
+    {
+      "id": "sense_a_edge",
+      "channel": 0,
+      "event": {
+        "peripheral": "GPIOTE",
+        "offset": 256,
+        "address": "0x40006100"
+      },
+      "task": {
+        "peripheral": "TIMER3",
+        "offset": 72,
+        "address": "0x4001a048"
+      },
+      "fork": {
+        "peripheral": "TIMER1",
+        "offset": 8,
+        "address": "0x40009008"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "sense_v_edge",
+      "channel": 1,
+      "event": {
+        "peripheral": "GPIOTE",
+        "offset": 260,
+        "address": "0x40006104"
+      },
+      "task": {
+        "peripheral": "TIMER3",
+        "offset": 76,
+        "address": "0x4001a04c"
+      },
+      "fork": {
+        "peripheral": "TIMER2",
+        "offset": 8,
+        "address": "0x4000a008"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "pace_a_start",
+      "channel": 2,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 320,
+        "address": "0x4001a140"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 56,
+        "address": "0x40006038"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 64,
+        "address": "0x40006040"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "pace_v_start",
+      "channel": 3,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 324,
+        "address": "0x4001a144"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 60,
+        "address": "0x4000603c"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 68,
+        "address": "0x40006044"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "pace_a_end",
+      "channel": 4,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 336,
+        "address": "0x4001a150"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 104,
+        "address": "0x40006068"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 112,
+        "address": "0x40006070"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    },
+    {
+      "id": "pace_v_end",
+      "channel": 5,
+      "event": {
+        "peripheral": "TIMER3",
+        "offset": 340,
+        "address": "0x4001a154"
+      },
+      "task": {
+        "peripheral": "GPIOTE",
+        "offset": 108,
+        "address": "0x4000606c"
+      },
+      "fork": {
+        "peripheral": "GPIOTE",
+        "offset": 116,
+        "address": "0x40006074"
+      },
+      "derived": [
+        "channel",
+        "address"
+      ]
+    }
+  ]
+}

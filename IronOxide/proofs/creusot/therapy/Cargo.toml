@@ -1,0 +1,34 @@
+[package]
+name = "pacemaker-therapy-proof"
+description = "Creusot proof of the PACEMAKER experiment's Therapy_Partition Task bodies (the real source, compiled under the App_Prover; docs/pacemaker task 9.6)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "../../../apps/pacemaker/therapy/src/lib.rs"
+
+[dependencies]
+pacemaker-decl = { path = "../../../apps/pacemaker/decl" }
+pm-core = { path = "../../../crates/pm-core", features = ["creusot"] }
+pm-hw = { path = "../../../crates/pm-hw", features = ["creusot"] }
+rsk = { path = "../../../crates/rsk", features = ["creusot"] }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]
+
+# The Partition's features as this configuration enables them (the others
+# named so that the compiler knows them).
+[features]
+default = []
+nrf52840 = []
+set-vvi-90 = []
+set-voo-60 = []
+set-aai-90 = []
+set-aoo-90 = []
+qemu-voo = []
+qemu-aoo = []
+qemu-aai = []
+sweep = []

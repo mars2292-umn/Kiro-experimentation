@@ -1,0 +1,21 @@
+[package]
+name = "pacemaker-decl"
+description = "PACEMAKER experiment: the App_Declaration of the pulse generator (docs/pacemaker/design.md, Tables 1 and 2), one variant per Target"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# The nRF52840-DK variant of the declaration (`src/nrf52840.rs`); without
+# it, the QEMU variant of `src/lib.rs`.
+nrf52840 = []
+# The arming sweep's declaration (`src/nrf52840_sweep.rs`, task 7.2).
+nrf52840_sweep = ["nrf52840"]
+# The measurement runs' declaration (`src/nrf52840_measure.rs`, task 9.2).
+nrf52840_measure = ["nrf52840"]
+# The rig runs' declaration (`src/nrf52840_rig.rs`, tasks 9.4 and 9.5).
+nrf52840_rig = ["nrf52840"]
+
+[dependencies]
+rsk = { path = "../../../crates/rsk" }

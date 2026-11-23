@@ -487,6 +487,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacemaker"
+version = "0.0.0"
+dependencies = [
+ "rsk-entry",
+]
+
+[[package]]
+name = "pacemaker-decl"
+version = "0.0.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "pacemaker-system"
+version = "0.0.0"
+dependencies = [
+ "pacemaker-decl",
+ "pacemaker-therapy",
+ "pm-core",
+ "rsk",
+ "rsk-kernel",
+]
+
+[[package]]
+name = "pacemaker-therapy"
+version = "0.0.0"
+dependencies = [
+ "pacemaker-decl",
+ "pm-core",
+ "pm-hw",
+ "rsk",
+]
+
+[[package]]
 name = "pearlite-syn"
 version = "0.15.0-dev"
 source = "git+file:///Users/mars2292/repos/Kiro-experimentation/creusot?rev=18f2d371ecb0019d37ecbd25e67f474bed2dda00#18f2d371ecb0019d37ecbd25e67f474bed2dda00"
@@ -505,11 +540,15 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 [[package]]
 name = "pm-core"
 version = "0.0.0"
+dependencies = [
+ "creusot-std",
+]
 
 [[package]]
 name = "pm-hw"
 version = "0.0.0"
 dependencies = [
+ "creusot-std",
  "pm-core",
 ]
 
@@ -521,6 +560,47 @@ dependencies = [
  "pm-core",
  "rsk-digest",
  "serde_json",
+]
+
+[[package]]
+name = "ppi-probe"
+version = "0.0.0"
+dependencies = [
+ "rsk-entry",
+]
+
+[[package]]
+name = "ppi-probe-decl"
+version = "0.0.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "ppi-probe-outsider"
+version = "0.0.0"
+dependencies = [
+ "ppi-probe-decl",
+ "rsk",
+]
+
+[[package]]
+name = "ppi-probe-system"
+version = "0.0.0"
+dependencies = [
+ "ppi-probe-decl",
+ "ppi-probe-outsider",
+ "ppi-probe-timer",
+ "rsk",
+ "rsk-kernel",
+]
+
+[[package]]
+name = "ppi-probe-timer"
+version = "0.0.0"
+dependencies = [
+ "ppi-probe-decl",
+ "rsk",
 ]
 
 [[package]]
@@ -716,6 +796,8 @@ version = "0.0.0"
 dependencies = [
  "heart-sim-system",
  "hil-stimulus-system",
+ "pacemaker-system",
+ "ppi-probe-system",
  "rsk-kernel",
  "rsk-system",
 ]

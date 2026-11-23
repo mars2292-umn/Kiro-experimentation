@@ -645,6 +645,11 @@ pub fn run(root: &Path, options: Options) -> bool {
         qemu_cmds,
     );
 
+    // ------------------------------------------------ 10c. PACEMAKER on QEMU
+    job.heading("the PACEMAKER Application on QEMU (docs/pacemaker task 9.1)");
+    let pacemaker_cmds = pacemaker_qemu(&ws, &target_dir, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "test-qemu-pacemaker-step", "PACEMAKER on QEMU step", &[], pacemaker_cmds);
+
     // ------------------------------------------- 10b-rig. HIL_Rig self-test
     job.heading("HIL: rig self-test (task 7.1, hil-rig)");
     let rig = match crate::hil::rig(root) {
@@ -771,6 +776,83 @@ pub fn run(root: &Path, options: Options) -> bool {
     job.drain(&mut report);
 
     job.finish()
+}
+
+/// The QEMU runs of the PACEMAKER experiment's pulse generator
+/// (docs/pacemaker PM26.2, task 9.1): one per Mode of stage E1, as
+/// `(name, features)`; without features the binary's default, VVI. Each
+/// build plays the script of Senses of its Chamber, and its safe state
+/// reports `PM-OK` and exits 0 exactly when the event ring is the sequence
+/// the Mode must give (`apps/pacemaker/system`).
+pub const PACEMAKER_QEMU_MODES: [(&str, Option<&str>); 4] = [("vvi", None), ("aai", Some("qemu-aai")), ("voo", Some("qemu-voo")), ("aoo", Some("qemu-aoo"))];
+
+/// Step 10c: builds the pulse generator for QEMU in each stage E1 Mode
+/// (its own cargo invocation and target directory per Mode: the binary is
+/// bound to its Application by `rsk-entry`, apart from the Target build's
+/// Flight_Build roots), runs it, and writes one Test Evidence_Item per
+/// Mode with the console log as its artifact. The items cover no criterion
+/// of rsk's requirements: the experiment's own traceability table
+/// (`docs/pacemaker/traceability.md`) names them.
+fn pacemaker_qemu(ws: &Workspace, target_dir: &Path, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    const BIN: &str = "pacemaker";
+    if !ws.packages.values().any(|p| p.name == BIN) {
+        return commands;
+    }
+    let Some(version) = crate::qemu::version() else {
+        report.warn("qemu-system-arm not installed: the PACEMAKER Application was not run");
+        return commands;
+    };
+    for (mode, features) in PACEMAKER_QEMU_MODES {
+        let dir = target_dir.join(format!("pacemaker-qemu-{mode}"));
+        let mut build = Cmd::cargo_frozen("build").args(["--quiet", "--release", "--target", &ws.policy.target, "-p", BIN]);
+        if let Some(f) = features {
+            build = build.args(["--no-default-features", "--features", f]);
+        }
+        let build = build.arg("--manifest-path").arg(ws.root.join("Cargo.toml")).arg("--target-dir").arg(&dir).env("CARGO_ENCODED_RUSTFLAGS", target_rustflags(&ws.root));
+        commands.push(build.display());
+        let elf = dir.join(&ws.policy.target).join("release").join(BIN);
+        let log_name = format!("qemu-pacemaker-{mode}.log");
+        let mut item_commands = vec![build.display()];
+        let (ok, note) = match build.status(None) {
+            Ok(true) => {
+                commands.push(crate::qemu::command_line(&elf));
+                item_commands.push(crate::qemu::command_line(&elf));
+                match crate::qemu::run_elf(&elf, 120) {
+                    Ok(run) => {
+                        let _ = store.write_artifact(&log_name, &run.log);
+                        (run.exit_code == 0 && run.log.contains("PM-OK"), format!("{mode}: exit {} after {:.1}s", run.exit_code, run.seconds))
+                    }
+                    Err(e) => {
+                        let _ = store.write_artifact(&log_name, &e);
+                        (false, format!("{mode}: {e}"))
+                    }
+                }
+            }
+            Ok(false) => (false, format!("{mode}: the Target build failed")),
+            Err(e) => (false, format!("{mode}: cannot run cargo: {e}")),
+        };
+        if ok {
+            report.note(format!("PACEMAKER on QEMU, Mode `{mode}`: the expected sequence (QEMU {version}, {note})"));
+        } else {
+            report.error(Rule::Step, None, format!("PACEMAKER on QEMU, Mode `{mode}` failed: {note} (see {log_name})"));
+        }
+        let mut item = Item::new(
+            &format!("test-qemu-pacemaker-{mode}"),
+            Kind::Test,
+            &format!("the PACEMAKER Application on QEMU, Mode {mode}"),
+            Tool { name: "qemu-system-arm".to_string(), version: version.clone(), solvers: vec![] },
+            Verdict::from_bool(ok),
+        );
+        item.command_lines = item_commands;
+        item.notes = vec![note, format!("machine {}, cpu cortex-m4; the logic, not timing claims (docs/pacemaker PM26.2)", crate::qemu::MACHINE)];
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    commands
 }
 
 /// Step 10b: runs every QEMU spike binary of the Target build and writes
@@ -1261,10 +1343,24 @@ mod creusot_members_tests {
     #[test]
     fn hil_members_are_the_twenty_three_configurations_outside_the_defaults() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
+        let mut members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
+        // The PACEMAKER experiment's members follow (the test below).
+        members.truncate(23);
         let dirs: Vec<&str> = members.iter().map(|(d, _)| d.as_str()).collect();
         assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-measure", "part0-response", "part0-isolation", "part0-cycles", "part0-cycles-fpu", "part1-nrf52840", "part1-timing", "part1-stress", "part1-measure", "part1-response", "part1-isolation", "part1-cycles", "part1-cycles-fpu", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-measure", "part2-isolation", "part2-cycles-fpu"]);
         assert!(members.iter().all(|(d, p)| *p == format!("p1-demo-{d}-proof")));
+    }
+
+    /// docs/pacemaker task 9.6: after the P1 demo's twenty-three, the proof
+    /// workspace holds the PACEMAKER experiment's four members (the therapy
+    /// logic, the hardware layer, and the Therapy_Partition on each
+    /// Target), which the job proves by name like the others.
+    #[test]
+    fn the_pacemaker_members_follow_the_demos() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
+        let rest: Vec<(&str, &str)> = members.iter().skip(23).map(|(d, p)| (d.as_str(), p.as_str())).collect();
+        assert_eq!(rest, [("pm-core", "pm-core-proof"), ("pm-hw", "pm-hw-proof"), ("therapy", "pacemaker-therapy-proof"), ("therapy-nrf52840", "pacemaker-therapy-nrf52840-proof")]);
     }
 }
 

@@ -1,0 +1,94 @@
+{
+  "binaries": [
+    {
+      "config_checksum": "0x1ede60dc",
+      "file": "pacemaker",
+      "hash": "sha256:ee4854b0f28ae8eb40994dcd865fdd23035d85712a9a1dc7dc44c68c67834619",
+      "loadable_bytes": 54676,
+      "package": "pacemaker",
+      "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet)"
+    }
+  ],
+  "build": {
+    "cargo_profile": "release",
+    "icache": "off",
+    "panic": "abort",
+    "target": "thumbv7em-none-eabihf"
+  },
+  "generated_config_checksum": "0x1ede60dc",
+  "hil_binaries": [
+    {
+      "config_checksum": "0xec5fe19d",
+      "file": "pacemaker",
+      "hash": "sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1",
+      "loadable_bytes": 68660,
+      "package": "pacemaker",
+      "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-vvi-90)"
+    },
+    {
+      "config_checksum": "0xec5fe19d",
+      "file": "pacemaker",
+      "hash": "sha256:849b58a13010fc15f762e16a1f7ad887003e51358ac11c6b54492b344d025a77",
+      "loadable_bytes": 68808,
+      "package": "pacemaker",
+      "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,inject,set-vvi-90)"
+    },
+    {
+      "config_checksum": "0xec5fe19d",
+      "file": "pacemaker",
+      "hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+      "loadable_bytes": 68660,
+      "package": "pacemaker",
+      "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-aai-90)"
+    },
+    {
+      "config_checksum": "0x91aa4b48",
+      "file": "p1-demo",
+      "hash": "sha256:a63abe327e18059846b70abbd4970dd2131183afee3c09cb896d94d048ec873d",
+      "loadable_bytes": 79064,
+      "package": "p1-demo",
+      "target": "p1-demo (nrf52840, nrf52840,debug-port,quiet,trace-ram,trace-pins,cycles)"
+    }
+  ],
+  "lock_file": {
+    "hash": "sha256:23f70eaec86bbcf2b4012831baa647a01b6ba53663df671a3cf8f669004fcb0d"
+  },
+  "profile": {
+    "variant": "Ravenscar",
+    "version": "0.6"
+  },
+  "schema": "rsk-build-manifest/1",
+  "source": {
+    "dirty": true,
+    "revision": "908de88563c49a49addb9aa476e311ee874e7c2e",
+    "tracked": true
+  },
+  "toolchain": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "creusot": {
+      "commit": "18f2d371ecb0019d37ecbd25e67f474bed2dda00",
+      "solvers": {
+        "alt-ergo": "2.6.4",
+        "cvc4": "1.8",
+        "cvc5": "1.4.1",
+        "z3": "5.1.0"
+      },
+      "toolchain": "nightly-2026-08-03",
+      "version": "0.15.0-dev",
+      "why3": "1.8.2+git",
+      "why3find": "1.3.0+dev"
+    },
+    "kani": {
+      "cbmc": "6.11.0",
+      "version": "0.68.0 (cargo plugin)"
+    },
+    "loom": "0.7.2",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "shuttle": "0.9.8",
+    "verus": {
+      "toolchain": "1.98.1-aarch64-apple-darwin (overridden by environment variable RUSTUP_TOOLCHAIN)",
+      "version": "0.2026.10.04.426d8b0",
+      "z3": "Z3 version 4.16.0 - 64 bit"
+    }
+  }
+}

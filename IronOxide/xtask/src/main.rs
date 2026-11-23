@@ -54,6 +54,16 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
+  pm-measure --set <vvi-90|aai-90> [--scenario <name>] [--inject | --coverage] | --coverage-report | --analyze
+      The PACEMAKER experiment's measurement (docs/pacemaker, task 9.2): the
+      pulse generator's measurement build run for 300 s on the rig's target
+      board against the Heart_Simulator on the stimulus board (named by
+      --scenario, not flashed here), its Kernel_Timing_Parameters and
+      WCET_Records written under docs/pacemaker/rig/; --inject runs the
+      build whose `control` overruns and faults, for the Kernel's fault
+      paths (task 9.8); --coverage runs the coverage build and writes the
+      branch coverage of each Task entry (task 9.9); --analyze runs the
+      Analyzer on the records of the sets measured.
   hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --stack [--release-timing | --plain | --response | --isolation] | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation] | --flight] [--lean]
       --lean: the HIL build without the trace ring and the trace pins
       (feature record-only; task 19.2, R34.7), its records written as
@@ -63,7 +73,7 @@ commands:
       the linker script and memory map, the configuration summary and the
       manifests into the application's gen/ directory (R24.3, R25.1).
       --check only compares them with the tree (R24.4).
-  qemu [--bin <name>] [--timeout <seconds>] [--flood]
+  qemu [--bin <name>] [--timeout <seconds>] [--flood | --features <list>]
       Task 3.1 dispatch spike: build the Flight_Build binary (default
       p1-demo) for the Target and run it on QEMU's mps2-an386 Cortex-M4
       board with semihosting; the exit status is the binary's semihosting
@@ -113,6 +123,7 @@ fn main() -> ExitCode {
         "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
         "hil" => hil_command(rest),
+        "pm-measure" => pm_measure_command(rest),
         "nightly" => nightly_command(rest),
         "probe-network" => match probe_network() {
             ProbeResult::Denied(detail) => {
@@ -478,6 +489,56 @@ fn uppaal_corpus_command(args: &[String]) -> ExitCode {
 /// capturing, and prints the self-test report. `--spike-only` builds and
 /// runs one binary on the target alone and prints its console (task 3.1's
 /// hardware half); without `hil-rig.toml` that is all there is.
+/// `cargo xtask pm-measure --set <vvi-90|aai-90> [--scenario <name>]` or
+/// `--analyze` (docs/pacemaker/tasks.md, task 9.2): see `xtask::pm_measure`.
+fn pm_measure_command(args: &[String]) -> ExitCode {
+    let mut report = Report::default();
+    let root = xtask::repository_root();
+    let Some(ws) = xtask::workspace::Workspace::load(&root, &mut report) else {
+        return print_report(&report, "pm-measure");
+    };
+    let ok = match args {
+        [flag] if flag == "--analyze" => xtask::pm_measure::analyze(&ws, &mut report),
+        [flag] if flag == "--coverage-report" => {
+            let threshold = match xtask::hil::rig(&root) {
+                Some(Ok(rig)) => rig.coverage_branch_percent,
+                _ => 50,
+            };
+            xtask::pm_measure::coverage_report(&ws, threshold, &mut report)
+        }
+        [flag, set, rest @ ..] if flag == "--set" && xtask::pm_measure::SETS.contains(&set.as_str()) => {
+            let mut scenario = "fixed";
+            let mut kind = xtask::pm_measure::Kind::Records;
+            let mut rest = rest.iter();
+            while let Some(a) = rest.next() {
+                match a.as_str() {
+                    "--scenario" => match rest.next() {
+                        Some(name) => scenario = name.as_str(),
+                        None => return usage_error("--scenario takes a name"),
+                    },
+                    "--inject" => kind = xtask::pm_measure::Kind::Inject,
+                    "--coverage" => kind = xtask::pm_measure::Kind::Coverage,
+                    _ => return usage_error("pm-measure --set <set> takes `--scenario <name>`, `--inject` or `--coverage`"),
+                }
+            }
+            match xtask::hil::rig(&root) {
+                Some(Ok(rig)) => xtask::pm_measure::measure(&ws, &rig, set, scenario, kind, &mut report),
+                Some(Err(e)) => {
+                    report.error(xtask::diag::Rule::Step, None, e);
+                    false
+                }
+                None => {
+                    report.error(xtask::diag::Rule::Step, None, "no rig description (hil-rig.toml)".to_string());
+                    false
+                }
+            }
+        }
+        _ => return usage_error("pm-measure takes `--set <vvi-90|aai-90> [--scenario <name>] [--inject | --coverage]`, `--coverage-report` or `--analyze`"),
+    };
+    let code = print_report(&report, "pm-measure done");
+    if ok { code } else { ExitCode::FAILURE }
+}
+
 fn hil_command(args: &[String]) -> ExitCode {
     let mut bin = "p1-demo".to_string();
     let mut timeout = 60u64;
@@ -1736,6 +1797,7 @@ fn qemu_command(args: &[String]) -> ExitCode {
     let mut bin = "p1-demo".to_string();
     let mut timeout = 60u64;
     let mut flood = false;
+    let mut named: Option<String> = None;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -1746,6 +1808,12 @@ fn qemu_command(args: &[String]) -> ExitCode {
             // The flood configuration (task 21.6, A-P7): the demo built
             // `--no-default-features --features qemu-flood`.
             "--flood" => flood = true,
+            // Any other feature set in place of the binary's defaults
+            // (docs/pacemaker task 9.1: the pulse generator's Modes).
+            "--features" => match args.next() {
+                Some(f) => named = Some(f.clone()),
+                None => return usage_error("--features takes a feature list"),
+            },
             "--timeout" => match args.next().and_then(|t| t.parse().ok()) {
                 Some(t) => timeout = t,
                 None => return usage_error("--timeout takes seconds"),
@@ -1753,7 +1821,7 @@ fn qemu_command(args: &[String]) -> ExitCode {
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
-    let features = if flood { Some("qemu-flood") } else { None };
+    let features = if flood { Some("qemu-flood") } else { named.as_deref() };
     match xtask::qemu::run_with(&xtask::repository_root(), &bin, timeout, features) {
         Ok(code) => ExitCode::from(code.min(255) as u8),
         Err(e) => {

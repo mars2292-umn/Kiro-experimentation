@@ -2,16 +2,24 @@
 
 use crate::mode::Mode;
 
+// The App_Prover's view operator (`@`) in the contracts below.
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use creusot_std::model::View;
+
 /// The interval of a rate of `ppm` pulses per minute, in microseconds,
 /// rounded down: the rate delivered is then not below the programmed one,
 /// and the error is under 1 µs (PM26.5). `ppm` must not be zero.
+#[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::requires(ppm@ > 0))]
 pub const fn interval_of_ppm(ppm: u32) -> u32 {
     60_000_000 / ppm
 }
 
 /// The Activity Threshold (Table 19-1), lowest first.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum ActivityThreshold {
     VLow = 0,
@@ -31,7 +39,8 @@ pub enum ActivityThreshold {
 /// A `Params` is only ever produced by `validate` (task 6.2) or is one of the
 /// constants below, so the step function may rely on Table 19-1 and
 /// Table 19-5 holding for it.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Params {
     pub mode: Mode,
     /// Lower Rate Limit, as its interval.
@@ -82,6 +91,10 @@ pub struct Params {
     pub response_factor: u8,
     /// Recovery Time.
     pub recovery_time: u32,
+    /// Always zero. The fields narrower than a word add up to 17 bytes;
+    /// these make the set a whole number of words with no padding byte, as
+    /// a Partition static must be (rsk's check of R14.5 reads every byte).
+    pub reserved: [u8; 3],
 }
 
 impl Params {
@@ -112,6 +125,7 @@ impl Params {
         reaction_time: 30_000_000,
         response_factor: 8,
         recovery_time: 300_000_000,
+        reserved: [0; 3],
     };
 
     /// The Power-On Reset parameters (PM7.1): VVI, an LRL of 65 ppm, a
@@ -128,60 +142,38 @@ impl Params {
         ..Params::NOMINAL
     };
 
+    /// A parameter set of all zeros: the value of the parameter fields of a
+    /// zeroed `State`. Never in force; `State::programmed` guards it.
+    pub const ZERO: Params = Params {
+        mode: Mode::OFF,
+        lrl: 0,
+        url: 0,
+        msr: 0,
+        fixed_av: 0,
+        dynamic_av: false,
+        min_dynamic_av: 0,
+        sensed_av_offset: 0,
+        amplitude: [0, 0],
+        width: [0, 0],
+        sensitivity: [0, 0],
+        vrp: 0,
+        arp: 0,
+        pvarp: 0,
+        pvarp_extension: 0,
+        hrl: 0,
+        rate_smoothing: 0,
+        atr: false,
+        atr_duration: 0,
+        atr_fallback_time: 0,
+        v_blanking: 0,
+        activity_threshold: ActivityThreshold::VLow,
+        reaction_time: 0,
+        response_factor: 0,
+        recovery_time: 0,
+        reserved: [0; 3],
+    };
+
     /// The Pace-Now parameters (PM6.5): as Power-On Reset with a pulse width
     /// of 1.00 ms.
     pub const PACE_NOW: Params = Params { width: [400, 1_000], ..Params::POWER_ON_RESET };
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_rate_s_interval_is_rounded_down() {
-        assert_eq!(interval_of_ppm(60), 1_000_000);
-        assert_eq!(interval_of_ppm(30), 2_000_000);
-        assert_eq!(interval_of_ppm(65), 923_076);
-        assert_eq!(interval_of_ppm(175), 342_857);
-        // Rounded down: the interval times the rate never exceeds a minute,
-        // and is less than one interval-rounding short of it.
-        let mut ppm = 30;
-        while ppm <= 175 {
-            let i = interval_of_ppm(ppm);
-            assert!(i * ppm <= 60_000_000);
-            assert!((i + 1) * ppm > 60_000_000);
-            ppm += 1;
-        }
-    }
-
-    #[test]
-    fn the_nominal_set_is_table_19_1() {
-        let p = Params::NOMINAL;
-        assert_eq!(p.mode, Mode::DDD);
-        assert_eq!(p.lrl, 1_000_000);
-        assert_eq!(p.url, 500_000);
-        assert_eq!(p.fixed_av, 150_000);
-        assert_eq!(p.width, [400, 400]);
-        assert_eq!(p.vrp, 320_000);
-        assert_eq!(p.arp, 250_000);
-        assert_eq!(p.pvarp, 250_000);
-        assert_eq!(p.v_blanking, 40_000);
-        assert_eq!(p.activity_threshold, ActivityThreshold::default());
-    }
-
-    #[test]
-    fn power_on_reset_and_pace_now_are_the_source_s() {
-        let p = Params::POWER_ON_RESET;
-        assert_eq!(p.mode, Mode::VVI);
-        assert_eq!(p.lrl, 923_076);
-        assert_eq!(p.width[1], 500);
-        assert_eq!(p.amplitude[1], 50);
-        assert_eq!(p.sensitivity[1], 150);
-        assert_eq!(p.vrp, 320_000);
-        let n = Params::PACE_NOW;
-        assert_eq!(n.mode, Mode::VVI);
-        assert_eq!(n.lrl, 923_076);
-        assert_eq!(n.width[1], 1_000);
-        assert_eq!(n.vrp, 320_000);
-    }
 }

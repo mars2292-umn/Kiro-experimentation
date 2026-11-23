@@ -25,6 +25,7 @@ trace-pins = ["rsk-kernel/trace-pins"]
 scenario-silent = ["heart-sim-part/scenario-silent"]
 scenario-fast = ["heart-sim-part/scenario-fast"]
 scenario-responsive = ["heart-sim-part/scenario-responsive"]
+scenario-env = ["heart-sim-part/scenario-env"]
 # The Tasks' debug prints are silent (see the rsk crate); the Heart_Simulator
 # prints nothing anyway.
 quiet = ["rsk/quiet"]

@@ -167,8 +167,8 @@ evidence = "The drivers verified here read configuration registers they then wri
 file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
 construct = "#[verifier::external_body]"
 item = "write"
-why = "A volatile word write of a register (hw::mmio_write, UJ-002); the specification is `write_step`: the NVIC's set and clear registers are write-one-to-set and write-one-to-clear on the enabled and pending lines (HW-05), TIMER0's INTENSET and INTENCLR likewise on its interrupt enable (nRF52840 PS 6.30), any other register keeps the value. That the silicon behaves so is not provable."
-evidence = "Hardware_Model rules HW-05 and HW-12 with their HIL differential tests; the Kani stub KS-11 implements the same semantics (docs/kani_stubs.toml) and the four step harnesses run the drivers on it; Lean's `RegFile.write` is the same function (Hw/Model.lean)."
+why = "A volatile word write of a register (hw::mmio_write, UJ-002); the specification is `write_step`: the NVIC's set and clear registers are write-one-to-set and write-one-to-clear on the enabled and pending lines (HW-05), TIMER0's INTENSET and INTENCLR likewise on its interrupt enable (nRF52840 PS 6.30), any other register keeps the value. That the silicon behaves so is not provable. Since 2026-11-22 the PPI's channel registers are written under it (`ppi::ppi_write`): CH[n].EEP, CH[n].TEP and FORK[n].TEP keep the value written, and CHENSET, which the specification treats as keeping its value, is in fact a set register of CHEN; the two agree for this one write because `boot_core` has cleared every channel before it."
+evidence = "Hardware_Model rules HW-05 and HW-12 with their HIL differential tests; the Kani stub KS-11 implements the same semantics (docs/kani_stubs.toml) and the four step harnesses run the drivers on it; Lean's `RegFile.write` is the same function (Hw/Model.lean). For the PPI's registers: read back on the nRF52840-DK after boot, the end-points as written and CHEN with the bits of exactly the declared channels (docs/pacemaker/rig/task_3_6_ppi_readback.json, 2026-11-22)."
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"

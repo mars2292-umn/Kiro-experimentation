@@ -20,17 +20,23 @@ app-hil-stimulus = ["dep:hil-stimulus-system"]
 # The PACEMAKER experiment's Heart_Simulator (docs/pacemaker task 4.2), for
 # the stimulus board; built in its own cargo invocation like the stimulus.
 app-heart-sim = ["dep:heart-sim-system"]
+# The PACEMAKER experiment's PPI probe (docs/pacemaker task 3.6), for the
+# target board; built in its own cargo invocation.
+app-ppi-probe = ["dep:ppi-probe-system"]
+# The PACEMAKER experiment's pulse generator (docs/pacemaker task 8.1);
+# built in its own cargo invocation.
+app-pacemaker = ["dep:pacemaker-system"]
 # The board, forwarded from the binary to the selected system crate.
-qemu-mps2 = ["rsk-system?/qemu-mps2"]
+qemu-mps2 = ["rsk-system?/qemu-mps2", "pacemaker-system?/qemu-mps2"]
 # The P1 demo's flood configuration (task 21.6, A-P7), on QEMU.
 qemu-flood = ["rsk-system?/qemu-flood"]
-nrf52840 = ["rsk-system?/nrf52840", "hil-stimulus-system?/nrf52840", "heart-sim-system?/nrf52840"]
+nrf52840 = ["rsk-system?/nrf52840", "hil-stimulus-system?/nrf52840", "heart-sim-system?/nrf52840", "ppi-probe-system?/nrf52840", "pacemaker-system?/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
-debug-port = ["rsk-system?/debug-port", "hil-stimulus-system?/debug-port", "heart-sim-system?/debug-port"]
+debug-port = ["rsk-system?/debug-port", "hil-stimulus-system?/debug-port", "heart-sim-system?/debug-port", "ppi-probe-system?/debug-port", "pacemaker-system?/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
-trace = ["rsk-system?/trace", "hil-stimulus-system?/trace", "heart-sim-system?/trace"]
-trace-ram = ["rsk-system?/trace-ram", "hil-stimulus-system?/trace-ram", "heart-sim-system?/trace-ram"]
-trace-pins = ["rsk-system?/trace-pins", "hil-stimulus-system?/trace-pins", "heart-sim-system?/trace-pins"]
+trace = ["rsk-system?/trace", "hil-stimulus-system?/trace", "heart-sim-system?/trace", "ppi-probe-system?/trace", "pacemaker-system?/trace"]
+trace-ram = ["rsk-system?/trace-ram", "hil-stimulus-system?/trace-ram", "heart-sim-system?/trace-ram", "ppi-probe-system?/trace-ram", "pacemaker-system?/trace-ram"]
+trace-pins = ["rsk-system?/trace-pins", "hil-stimulus-system?/trace-pins", "heart-sim-system?/trace-pins", "ppi-probe-system?/trace-pins", "pacemaker-system?/trace-pins"]
 # The P1 demo's release-timing configurations (task 7.3).
 timing = ["rsk-system?/timing"]
 timing-short = ["rsk-system?/timing-short"]
@@ -42,22 +48,38 @@ cycles = ["rsk-system?/cycles"]
 cycles-fpu = ["rsk-system?/cycles-fpu"]
 plain-measure = ["rsk-system?/plain-measure"]
 coverage-kernel = ["rsk-system?/coverage-kernel"]
-hw-dt = ["rsk-system?/hw-dt", "hil-stimulus-system?/hw-dt", "heart-sim-system?/hw-dt"]
+hw-dt = ["rsk-system?/hw-dt", "hil-stimulus-system?/hw-dt", "heart-sim-system?/hw-dt", "ppi-probe-system?/hw-dt", "pacemaker-system?/hw-dt"]
 boot-mutation = ["rsk-system?/boot-mutation"]
 defer-probe = ["rsk-system?/defer-probe"]
 defer-nofix = ["rsk-system?/defer-nofix"]
-record-only = ["rsk-system?/record-only", "hil-stimulus-system?/record-only", "heart-sim-system?/record-only"]
-coverage = ["rsk-system?/coverage"]
+record-only = ["rsk-system?/record-only", "hil-stimulus-system?/record-only", "heart-sim-system?/record-only", "ppi-probe-system?/record-only", "pacemaker-system?/record-only"]
+coverage = ["rsk-system?/coverage", "pacemaker-system?/coverage"]
 storm = ["hil-stimulus-system?/storm"]
 # The Heart_Simulator's scenarios (see heart-sim-part).
 scenario-silent = ["heart-sim-system?/scenario-silent"]
 scenario-fast = ["heart-sim-system?/scenario-fast"]
 scenario-responsive = ["heart-sim-system?/scenario-responsive"]
+scenario-env = ["heart-sim-system?/scenario-env"]
+# The pulse generator's parameter sets and its arming sweep (see pacemaker-therapy).
+set-vvi-90 = ["pacemaker-system?/set-vvi-90"]
+set-voo-60 = ["pacemaker-system?/set-voo-60"]
+set-aai-90 = ["pacemaker-system?/set-aai-90"]
+set-aoo-90 = ["pacemaker-system?/set-aoo-90"]
+sweep = ["pacemaker-system?/sweep"]
+measure = ["pacemaker-system?/measure"]
+rig = ["pacemaker-system?/rig"]
+inject = ["pacemaker-system?/inject"]
+set-env = ["pacemaker-system?/set-env"]
+qemu-voo = ["pacemaker-system?/qemu-voo"]
+qemu-aoo = ["pacemaker-system?/qemu-aoo"]
+qemu-aai = ["pacemaker-system?/qemu-aai"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
-quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet", "heart-sim-system?/quiet"]
+quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet", "heart-sim-system?/quiet", "ppi-probe-system?/quiet", "pacemaker-system?/quiet"]
 
 [dependencies]
 rsk-kernel.workspace = true
 rsk-system = { path = "../../apps/p1-demo/system", default-features = false, optional = true }
 hil-stimulus-system = { path = "../../apps/hil-stimulus/system", default-features = false, optional = true }
 heart-sim-system = { path = "../../apps/heart-sim/system", default-features = false, optional = true }
+ppi-probe-system = { path = "../../apps/ppi-probe/system", default-features = false, optional = true }
+pacemaker-system = { path = "../../apps/pacemaker/system", default-features = false, optional = true }

@@ -53,12 +53,56 @@ pub const RESPONSIVE: Scenario = Scenario {
 /// Every scenario, for the tests and the judge's cross-check.
 pub const ALL: [&Scenario; 4] = [&FIXED, &SILENT, &FAST, &RESPONSIVE];
 
+/// The numbers of a scenario given to the build as text (feature
+/// `scenario-env`, docs/pacemaker tasks 9.4 and 9.5): up to five decimal
+/// numbers separated by commas in the environment variable `PM_HEART` at
+/// build time: the atrial rhythm's first beat and interval, the
+/// ventricular rhythm's first beat and interval, and the conduction, all in
+/// milliseconds; a number left out is 0.
+#[rsk::bounds('text = 128)]
+pub const fn numbers(text: &str) -> [u32; 5] {
+    let b = text.as_bytes();
+    let mut out = [0u32; 5];
+    let mut k = 0;
+    let mut i = 0;
+    'text: while i < b.len() && i < 128 {
+        let c = b[i];
+        if c >= b'0' && c <= b'9' {
+            if k < 5 {
+                out[k] = out[k].saturating_mul(10).saturating_add((c - b'0') as u32);
+            }
+        } else if c == b',' {
+            k += 1;
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The scenario of `PM_HEART`: two free-running rhythms and a conduction,
+/// no deviation, and no answer to a Pace.
+#[cfg(feature = "scenario-env")]
+pub const ENV: Scenario = {
+    let n = numbers(env!("PM_HEART"));
+    Scenario {
+        name: "env",
+        atrial: Rhythm { first_ms: n[0], interval_ms: n[1] },
+        ventricular: Rhythm { first_ms: n[2], interval_ms: n[3] },
+        conduction_ms: n[4],
+        overrides: NO_OVERRIDES,
+        extras: NO_EXTRAS,
+        responsive: false,
+    }
+};
+
 /// The scenario this build plays.
-#[cfg(feature = "scenario-silent")]
+#[cfg(feature = "scenario-env")]
+pub const SELECTED: &Scenario = &ENV;
+#[cfg(all(feature = "scenario-silent", not(feature = "scenario-env")))]
 pub const SELECTED: &Scenario = &SILENT;
-#[cfg(all(feature = "scenario-fast", not(feature = "scenario-silent")))]
+#[cfg(all(feature = "scenario-fast", not(any(feature = "scenario-silent", feature = "scenario-env"))))]
 pub const SELECTED: &Scenario = &FAST;
-#[cfg(all(feature = "scenario-responsive", not(any(feature = "scenario-silent", feature = "scenario-fast"))))]
+#[cfg(all(feature = "scenario-responsive", not(any(feature = "scenario-silent", feature = "scenario-fast", feature = "scenario-env"))))]
 pub const SELECTED: &Scenario = &RESPONSIVE;
-#[cfg(not(any(feature = "scenario-silent", feature = "scenario-fast", feature = "scenario-responsive")))]
+#[cfg(not(any(feature = "scenario-silent", feature = "scenario-fast", feature = "scenario-responsive", feature = "scenario-env")))]
 pub const SELECTED: &Scenario = &FIXED;

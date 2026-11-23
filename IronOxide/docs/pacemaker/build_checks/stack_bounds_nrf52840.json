@@ -1,0 +1,1009 @@
+{
+  "functions": [
+    {
+      "address": "0x00000130",
+      "bounded": true,
+      "calls": [
+        "rsk_unwind",
+        "rsk_busfault_rust"
+      ],
+      "frame": 8,
+      "name": "rsk_busfault_entry",
+      "reason": null,
+      "usage": 880
+    },
+    {
+      "address": "0x00000154",
+      "bounded": true,
+      "calls": [
+        "rsk_unwind",
+        "rsk_irq_entry_rust"
+      ],
+      "frame": 128,
+      "name": "rsk_irq_entry",
+      "reason": null,
+      "usage": 1056
+    },
+    {
+      "address": "0x000001c8",
+      "bounded": true,
+      "calls": [
+        "rsk_unwind",
+        "rsk_memmanage_rust"
+      ],
+      "frame": 8,
+      "name": "rsk_memmanage_entry",
+      "reason": null,
+      "usage": 880
+    },
+    {
+      "address": "0x000001f8",
+      "bounded": true,
+      "calls": [
+        "rsk_unwind",
+        "rsk_svc_rust"
+      ],
+      "frame": 8,
+      "name": "rsk_svc_entry",
+      "reason": null,
+      "usage": 744
+    },
+    {
+      "address": "0x00000220",
+      "bounded": true,
+      "calls": [
+        "rsk_epilogue_rust"
+      ],
+      "frame": 16,
+      "name": "rsk_unwind",
+      "reason": null,
+      "usage": 736
+    },
+    {
+      "address": "0x00000264",
+      "bounded": true,
+      "calls": [
+        "rsk_unwind",
+        "rsk_usagefault_rust"
+      ],
+      "frame": 8,
+      "name": "rsk_usagefault_entry",
+      "reason": null,
+      "usage": 880
+    },
+    {
+      "address": "0x00000286",
+      "bounded": true,
+      "calls": [],
+      "frame": 32,
+      "name": "_ZN10rsk_kernel4arch3cm413unsafe_module2hw11boot_checks17ha1eada15e8da37fdE",
+      "reason": null,
+      "usage": 32
+    },
+    {
+      "address": "0x000003d6",
+      "bounded": true,
+      "calls": [],
+      "frame": 24,
+      "name": "_ZN10rsk_kernel4arch3cm413unsafe_module2hw8mpu_load17h74fb2ed432827341E",
+      "reason": null,
+      "usage": 24
+    },
+    {
+      "address": "0x000006fe",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm43ppi12ppi_checksum17h7da171d46ef79219E"
+      ],
+      "frame": 64,
+      "name": "_ZN10rsk_kernel4arch3cm413unsafe_module2hw8ppi_boot17h80c1feae86d48886E",
+      "reason": null,
+      "usage": 136
+    },
+    {
+      "address": "0x000008b4",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E"
+      ],
+      "frame": 48,
+      "name": "_ZN10rsk_kernel4arch3cm43ppi12ppi_checksum17h7da171d46ef79219E",
+      "reason": null,
+      "usage": 72
+    },
+    {
+      "address": "0x000009e0",
+      "bounded": true,
+      "calls": [],
+      "frame": 24,
+      "name": "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E",
+      "reason": null,
+      "usage": 24
+    },
+    {
+      "address": "0x00000b2a",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E"
+      ],
+      "frame": 16,
+      "name": "_ZN10rsk_kernel4arch5bound5Crc323u6417h731d24e73d4ae742E",
+      "reason": null,
+      "usage": 40
+    },
+    {
+      "address": "0x00000b40",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm413unsafe_module2hw11boot_checks17ha1eada15e8da37fdE"
+      ],
+      "frame": 8,
+      "name": "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$11boot_checks17h9502374af7792fcdE",
+      "reason": null,
+      "usage": 40
+    },
+    {
+      "address": "0x00000b50",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm413unsafe_module2hw8mpu_load17h74fb2ed432827341E"
+      ],
+      "frame": 16,
+      "name": "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+      "reason": null,
+      "usage": 40
+    },
+    {
+      "address": "0x00001184",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm413unsafe_module2hw8ppi_boot17h80c1feae86d48886E",
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$11boot_checks17h9502374af7792fcdE",
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$11boot_failed17h6996b010237d610dE",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$15config_checksum17h888cf0f2b08dbe45E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+        "_ZN9rsk_logic5logic3mpu15Layout$LT$_$GT$11check_apart17h2e68b8e2f24b251aE",
+        "_ZN9rsk_logic5logic3mpu15Layout$LT$_$GT$23validate_kernel_windows17hbf1d5fc998790262E",
+        "_ZN9rsk_logic5logic3mpu8Interval11check_rules17hb7d7ec5961d55fdbE",
+        "_ZN9rsk_logic5logic3mpu8Interval14check_disjoint17ha47370d74f2ef10cE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check",
+        "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero",
+        "__aeabi_memcpy4",
+        "__aeabi_memcpy8",
+        "__aeabi_memclr8",
+        "__aeabi_memcpy"
+      ],
+      "frame": 8,
+      "name": "Reset",
+      "reason": null,
+      "usage": 544
+    },
+    {
+      "address": "0x00003e10",
+      "bounded": true,
+      "calls": [
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E"
+      ],
+      "frame": 8,
+      "name": "_ZN10rsk_kernel4arch3cm410hard_fault17h6e6f6493e5e20d88E",
+      "reason": null,
+      "usage": 464
+    },
+    {
+      "address": "0x00003e2e",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$12next_compare17ha05b0028ecbb8393E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$6settle17h87975e80896445b3E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 176,
+      "name": "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+      "reason": null,
+      "usage": 536
+    },
+    {
+      "address": "0x0000412a",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$10serve_slot17h1e147648ba51b515E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 176,
+      "name": "_ZN10rsk_kernel4arch3cm45entry10timer_core17h925133b9de6b163bE",
+      "reason": null,
+      "usage": 712
+    },
+    {
+      "address": "0x000045bc",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E"
+      ],
+      "frame": 152,
+      "name": "_ZN10rsk_kernel4arch3cm45entry11arm_compare17hb9c4bf543ca3b73bE",
+      "reason": null,
+      "usage": 192
+    },
+    {
+      "address": "0x00004626",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E"
+      ],
+      "frame": 160,
+      "name": "_ZN10rsk_kernel4arch3cm45entry20stack_violation_core17h227086811d88e07dE",
+      "reason": null,
+      "usage": 696
+    },
+    {
+      "address": "0x000046ce",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 176,
+      "name": "_ZN10rsk_kernel4arch3cm45fault17h320d144d3dca5a8fE",
+      "reason": null,
+      "usage": 712
+    },
+    {
+      "address": "0x000047b6",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E"
+      ],
+      "frame": 16,
+      "name": "_ZN10rsk_kernel4arch3cm45panic17heb24613626a2ae2bE",
+      "reason": null,
+      "usage": 552
+    },
+    {
+      "address": "0x000047ce",
+      "bounded": true,
+      "calls": [],
+      "frame": 24,
+      "name": "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E",
+      "reason": null,
+      "usage": 24
+    },
+    {
+      "address": "0x00004918",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic5sched22Sched$LT$_$C$_$C$_$GT$7end_job17haaf9e625cc3f1c9fE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 32,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$10job_return17h14d9892d9e4f3da5E",
+      "reason": null,
+      "usage": 360
+    },
+    {
+      "address": "0x00004c0c",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 8,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$11basepri_now17h4ee37e1438916243E",
+      "reason": null,
+      "usage": 320
+    },
+    {
+      "address": "0x00004c74",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17h458d79c22f6debd8E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 16,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$11boot_failed17h6996b010237d610dE",
+      "reason": null,
+      "usage": 344
+    },
+    {
+      "address": "0x00004d5c",
+      "bounded": true,
+      "calls": [],
+      "frame": 24,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$12next_compare17ha05b0028ecbb8393E",
+      "reason": null,
+      "usage": 24
+    },
+    {
+      "address": "0x00005116",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch5bound5Crc323u6417h731d24e73d4ae742E",
+        "_ZN10rsk_kernel4arch5bound5Crc323u3217h4a8d118eb107b438E"
+      ],
+      "frame": 48,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$15config_checksum17h888cf0f2b08dbe45E",
+      "reason": null,
+      "usage": 88
+    },
+    {
+      "address": "0x00005baa",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 8,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$3top17ha56ff1a004985ce0E",
+      "reason": null,
+      "usage": 320
+    },
+    {
+      "address": "0x00005be8",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h5ecb6075792c4d60E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17h458d79c22f6debd8E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+      "reason": null,
+      "usage": 456
+    },
+    {
+      "address": "0x00005e70",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13deadline_miss17h171011e5ad7d0064E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13mit_violation17hfb7bd609c108ab71E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 64,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$6intake17h0817b5ea34cf2590E",
+      "reason": null,
+      "usage": 520
+    },
+    {
+      "address": "0x0000612a",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$6settle17h87975e80896445b3E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 32,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$8dispatch17hdce1949641948c1cE",
+      "reason": null,
+      "usage": 392
+    },
+    {
+      "address": "0x000062d6",
+      "bounded": true,
+      "calls": [],
+      "frame": 8,
+      "name": "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+      "reason": null,
+      "usage": 8
+    },
+    {
+      "address": "0x00006336",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 40,
+      "name": "_ZN9rsk_logic5logic3mpu15Layout$LT$_$GT$11check_apart17h2e68b8e2f24b251aE",
+      "reason": null,
+      "usage": 352
+    },
+    {
+      "address": "0x00006ccc",
+      "bounded": true,
+      "calls": [
+        "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero"
+      ],
+      "frame": 40,
+      "name": "_ZN9rsk_logic5logic3mpu15Layout$LT$_$GT$23validate_kernel_windows17hbf1d5fc998790262E",
+      "reason": null,
+      "usage": 352
+    },
+    {
+      "address": "0x00006f5e",
+      "bounded": true,
+      "calls": [
+        "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero"
+      ],
+      "frame": 8,
+      "name": "_ZN9rsk_logic5logic3mpu8Interval11check_rules17hb7d7ec5961d55fdbE",
+      "reason": null,
+      "usage": 320
+    },
+    {
+      "address": "0x00006fe4",
+      "bounded": true,
+      "calls": [],
+      "frame": 16,
+      "name": "_ZN9rsk_logic5logic3mpu8Interval14check_disjoint17ha47370d74f2ef10cE",
+      "reason": null,
+      "usage": 16
+    },
+    {
+      "address": "0x000070a4",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 16,
+      "name": "_ZN9rsk_logic5logic5sched22Sched$LT$_$C$_$C$_$GT$7end_job17haaf9e625cc3f1c9fE",
+      "reason": null,
+      "usage": 328
+    },
+    {
+      "address": "0x00007174",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$10arm_budget17hbc4826b076e5cd79E",
+      "reason": null,
+      "usage": 336
+    },
+    {
+      "address": "0x00007220",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13deadline_miss17h171011e5ad7d0064E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13mit_violation17hfb7bd609c108ab71E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h5ecb6075792c4d60E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17h458d79c22f6debd8E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 64,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$10serve_slot17h1e147648ba51b515E",
+      "reason": null,
+      "usage": 520
+    },
+    {
+      "address": "0x0000789a",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h5ecb6075792c4d60E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13deadline_miss17h171011e5ad7d0064E",
+      "reason": null,
+      "usage": 456
+    },
+    {
+      "address": "0x000079dc",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h5ecb6075792c4d60E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13mit_violation17hfb7bd609c108ab71E",
+      "reason": null,
+      "usage": 456
+    },
+    {
+      "address": "0x00007b0c",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14end_mit_window17h5e1817aa357246aaE",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17h458d79c22f6debd8E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$17restart_partition17h9cb1da43a47b294eE",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$18end_partition_jobs17h88ca1de6df08bf2fE",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$7end_top17hcef41380d83642beE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 32,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h5ecb6075792c4d60E",
+      "reason": null,
+      "usage": 432
+    },
+    {
+      "address": "0x00007dd8",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 16,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14end_mit_window17h5e1817aa357246aaE",
+      "reason": null,
+      "usage": 328
+    },
+    {
+      "address": "0x00007e76",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 16,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17h458d79c22f6debd8E",
+      "reason": null,
+      "usage": 328
+    },
+    {
+      "address": "0x00007f5c",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$18end_partition_jobs17h88ca1de6df08bf2fE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 16,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$17restart_partition17h9cb1da43a47b294eE",
+      "reason": null,
+      "usage": 400
+    },
+    {
+      "address": "0x00008056",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$7end_top17hcef41380d83642beE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$18end_partition_jobs17h88ca1de6df08bf2fE",
+      "reason": null,
+      "usage": 384
+    },
+    {
+      "address": "0x00008472",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$10arm_budget17hbc4826b076e5cd79E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$6settle17h87975e80896445b3E",
+      "reason": null,
+      "usage": 360
+    },
+    {
+      "address": "0x000086ac",
+      "bounded": true,
+      "calls": [
+        "_ZN9rsk_logic5logic5sched22Sched$LT$_$C$_$C$_$GT$7end_job17haaf9e625cc3f1c9fE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 32,
+      "name": "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$7end_top17hcef41380d83642beE",
+      "reason": null,
+      "usage": 360
+    },
+    {
+      "address": "0x000088f8",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45fault17h320d144d3dca5a8fE"
+      ],
+      "frame": 160,
+      "name": "rsk_busfault_rust",
+      "reason": null,
+      "usage": 872
+    },
+    {
+      "address": "0x00008922",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm410hard_fault17h6e6f6493e5e20d88E"
+      ],
+      "frame": 8,
+      "name": "rsk_default_entry",
+      "reason": null,
+      "usage": 472
+    },
+    {
+      "address": "0x0000892a",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$10job_return17h14d9892d9e4f3da5E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check",
+        "__aeabi_memcpy4"
+      ],
+      "frame": 184,
+      "name": "rsk_epilogue_rust",
+      "reason": null,
+      "usage": 720
+    },
+    {
+      "address": "0x00008be8",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN10rsk_kernel4arch3cm45entry10timer_core17h925133b9de6b163bE",
+        "_ZN10rsk_kernel4arch3cm45entry11arm_compare17hb9c4bf543ca3b73bE",
+        "_ZN10rsk_kernel4arch3cm45entry20stack_violation_core17h227086811d88e07dE",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$11basepri_now17h4ee37e1438916243E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$12next_compare17ha05b0028ecbb8393E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$3top17ha56ff1a004985ce0E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$6intake17h0817b5ea34cf2590E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$8dispatch17hdce1949641948c1cE",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check",
+        "__aeabi_memcpy4"
+      ],
+      "frame": 216,
+      "name": "rsk_irq_entry_rust",
+      "reason": null,
+      "usage": 928
+    },
+    {
+      "address": "0x000094cc",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45fault17h320d144d3dca5a8fE"
+      ],
+      "frame": 160,
+      "name": "rsk_memmanage_rust",
+      "reason": null,
+      "usage": 872
+    },
+    {
+      "address": "0x00009554",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45entry10apply_core17h62c83c26e37e6358E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$10job_return17h14d9892d9e4f3da5E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcf4b95f2aaa59249E",
+        "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf3684535fb246c91E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 176,
+      "name": "rsk_svc_rust",
+      "reason": null,
+      "usage": 712
+    },
+    {
+      "address": "0x00009c02",
+      "bounded": true,
+      "calls": [
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN10rsk_kernel4arch3cm45fault17h320d144d3dca5a8fE"
+      ],
+      "frame": 160,
+      "name": "rsk_usagefault_rust",
+      "reason": null,
+      "usage": 872
+    },
+    {
+      "address": "0x00020000",
+      "bounded": true,
+      "calls": [
+        "_ZN10rsk_kernel4arch3cm45panic17heb24613626a2ae2bE"
+      ],
+      "frame": 8,
+      "name": "_RNvCsfLfy6EI15iL_7___rustc17rust_begin_unwind",
+      "reason": null,
+      "usage": 248
+    },
+    {
+      "address": "0x00020014",
+      "bounded": true,
+      "calls": [],
+      "frame": 0,
+      "name": "job_end_trampoline",
+      "reason": null,
+      "usage": 0
+    },
+    {
+      "address": "0x00020018",
+      "bounded": false,
+      "calls": [],
+      "frame": 64,
+      "name": "_RNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB5_9Formatter12pad_integral",
+      "reason": "unresolved indirect call (5 site(s), no function address materialised in the body)",
+      "usage": 64
+    },
+    {
+      "address": "0x00020280",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt"
+      ],
+      "frame": 32,
+      "name": "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check",
+      "reason": null,
+      "usage": 312
+    },
+    {
+      "address": "0x000202a8",
+      "bounded": true,
+      "calls": [
+        "_RNvCsfLfy6EI15iL_7___rustc17rust_begin_unwind"
+      ],
+      "frame": 32,
+      "name": "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+      "reason": null,
+      "usage": 280
+    },
+    {
+      "address": "0x000202c4",
+      "bounded": true,
+      "calls": [],
+      "frame": 44,
+      "name": "_RNvNtNtCs7ldSeZOOJos_4core3str5count14do_count_chars",
+      "reason": null,
+      "usage": 44
+    },
+    {
+      "address": "0x000207ae",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt"
+      ],
+      "frame": 8,
+      "name": "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero",
+      "reason": null,
+      "usage": 288
+    },
+    {
+      "address": "0x000207c2",
+      "bounded": false,
+      "calls": [],
+      "frame": 24,
+      "name": "_RNvNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB7_9Formatter12pad_integral12write_prefix",
+      "reason": "unresolved indirect call (1 site(s), no function address materialised in the body)",
+      "usage": 24
+    },
+    {
+      "address": "0x00020808",
+      "bounded": false,
+      "calls": [
+        "_RNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB5_9Formatter12pad_integral"
+      ],
+      "frame": 64,
+      "name": "_RNvXs8_NtNtNtCs7ldSeZOOJos_4core3fmt3num3impmNtB9_7Display3fmt",
+      "reason": "calls unbounded `_RNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB5_9Formatter12pad_integral` (unresolved indirect call (5 site(s), no function address materialised in the body))",
+      "usage": 128
+    },
+    {
+      "address": "0x000208f2",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
+      ],
+      "frame": 16,
+      "name": "__aeabi_memcpy4",
+      "reason": null,
+      "usage": 100
+    },
+    {
+      "address": "0x0002098e",
+      "bounded": true,
+      "calls": [],
+      "frame": 84,
+      "name": "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy",
+      "reason": null,
+      "usage": 84
+    },
+    {
+      "address": "0x00020c68",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
+      ],
+      "frame": 16,
+      "name": "__aeabi_memcpy8",
+      "reason": null,
+      "usage": 100
+    },
+    {
+      "address": "0x00020d04",
+      "bounded": true,
+      "calls": [],
+      "frame": 8,
+      "name": "__aeabi_memclr8",
+      "reason": null,
+      "usage": 8
+    },
+    {
+      "address": "0x00020db2",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
+      ],
+      "frame": 8,
+      "name": "__aeabi_memcpy",
+      "reason": null,
+      "usage": 92
+    },
+    {
+      "address": "0x00030000",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+        "_ZN17pacemaker_therapy5event17h278c86930dc12b68E"
+      ],
+      "frame": 208,
+      "name": "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E",
+      "reason": null,
+      "usage": 656
+    },
+    {
+      "address": "0x00030190",
+      "bounded": true,
+      "calls": [
+        "__aeabi_memcpy4",
+        "__aeabi_memcpy"
+      ],
+      "frame": 36,
+      "name": "_ZN17pacemaker_therapy5event17h278c86930dc12b68E",
+      "reason": null,
+      "usage": 136
+    },
+    {
+      "address": "0x00030fcc",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+        "_ZN17pacemaker_therapy5event17h278c86930dc12b68E",
+        "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$9configure17h0bbaf6b0ca4eadeeE"
+      ],
+      "frame": 176,
+      "name": "_ZN17pacemaker_therapy7control17hd9f390d1273c0d21E",
+      "reason": null,
+      "usage": 624
+    },
+    {
+      "address": "0x000312de",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+        "_ZN17pacemaker_therapy5event17h278c86930dc12b68E"
+      ],
+      "frame": 176,
+      "name": "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE",
+      "reason": null,
+      "usage": 624
+    },
+    {
+      "address": "0x00031406",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+        "_ZN17pacemaker_therapy5event17h278c86930dc12b68E"
+      ],
+      "frame": 176,
+      "name": "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E",
+      "reason": null,
+      "usage": 624
+    },
+    {
+      "address": "0x0003152e",
+      "bounded": true,
+      "calls": [
+        "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E"
+      ],
+      "frame": 8,
+      "name": "_ZN17pacemaker_therapy8rsk_jobs4pace17h43ec70c8ef40232cE",
+      "reason": null,
+      "usage": 664
+    },
+    {
+      "address": "0x00031544",
+      "bounded": true,
+      "calls": [
+        "_ZN17pacemaker_therapy7control17hd9f390d1273c0d21E"
+      ],
+      "frame": 24,
+      "name": "_ZN17pacemaker_therapy8rsk_jobs7control17hde32b552bb84202dE",
+      "reason": null,
+      "usage": 648
+    },
+    {
+      "address": "0x0003156e",
+      "bounded": true,
+      "calls": [
+        "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE"
+      ],
+      "frame": 8,
+      "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_a17h13e29997e7d78a8aE",
+      "reason": null,
+      "usage": 632
+    },
+    {
+      "address": "0x00031584",
+      "bounded": true,
+      "calls": [
+        "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E"
+      ],
+      "frame": 8,
+      "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_v17h78a1e06f4512a025E",
+      "reason": null,
+      "usage": 632
+    },
+    {
+      "address": "0x0003159a",
+      "bounded": true,
+      "calls": [],
+      "frame": 16,
+      "name": "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$9configure17h0bbaf6b0ca4eadeeE",
+      "reason": null,
+      "usage": 16
+    }
+  ],
+  "regions": [
+    {
+      "available": 8192,
+      "bound": 2832,
+      "kind": "partition",
+      "name": "therapy",
+      "ok": true,
+      "terms": [
+        "therapy.control: 648 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.sense_a: 632 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.sense_v: 632 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.pace: 664 (wrapper) + 64 (initial and stacked frames)"
+      ]
+    },
+    {
+      "available": 30236,
+      "bound": 1248,
+      "kind": "msp",
+      "name": "kernel",
+      "ok": true,
+      "terms": [
+        "worst Kernel entry point `rsk_irq_entry`: 1056",
+        "4 Job levels x 40 (level records)",
+        "32 (exception frame from the idle loop)",
+        "Kernel RAM 32768 minus 2532 of data, bss and no-init records"
+      ]
+    }
+  ],
+  "schema": "rsk-stack-bounds/1",
+  "tasks": [
+    {
+      "bounded": true,
+      "entry": "::pacemaker_therapy::rsk_jobs::pace",
+      "frame_bytes": 64,
+      "id": "therapy.pace",
+      "usage": 664
+    },
+    {
+      "bounded": true,
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_v",
+      "frame_bytes": 64,
+      "id": "therapy.sense_v",
+      "usage": 632
+    },
+    {
+      "bounded": true,
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_a",
+      "frame_bytes": 64,
+      "id": "therapy.sense_a",
+      "usage": 632
+    },
+    {
+      "bounded": true,
+      "entry": "::pacemaker_therapy::rsk_jobs::control",
+      "frame_bytes": 64,
+      "id": "therapy.control",
+      "usage": 648
+    }
+  ],
+  "violations": []
+}

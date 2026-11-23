@@ -199,8 +199,9 @@ fn a_fusion_inside_the_inhibition_window_is_counted_and_outside_it_fails() {
     let r = run(&capture(3_000, &pulses), &params(VVI, &[]));
     assert!(r.pass(), "{:?}", r.violations);
     assert_eq!(r.chambers[1].fusions, 1);
-    // 3 ms before: the Pace should have been cancelled.
-    let pulses = [(PACE_V, 300_000, 400), (SENSE_V, 1_297_000, 100), (PACE_V, 1_300_000, 400), (PACE_V, 2_300_000, 400)];
+    // 5 ms before (PM-PAR-15 is 4 ms since task 9.2; it was 2 ms and this
+    // case 3 ms): the Pace should have been cancelled.
+    let pulses = [(PACE_V, 300_000, 400), (SENSE_V, 1_295_000, 100), (PACE_V, 1_300_000, 400), (PACE_V, 2_300_000, 400)];
     let r = run(&capture(3_000, &pulses), &params(VVI, &[]));
     assert_eq!(criteria(&r), ["PM5.5"], "{:?}", r.violations);
 }

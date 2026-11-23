@@ -22,6 +22,9 @@ members = [
     # its gated and injected bodies have the App_Prover's evidence too).
     "part1-nrf52840", "part1-timing", "part1-stress", "part1-measure", "part1-response", "part1-isolation", "part1-cycles", "part1-cycles-fpu",
     "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-measure", "part2-isolation", "part2-cycles-fpu",
+    # The PACEMAKER experiment (docs/pacemaker task 9.6): the therapy logic,
+    # the hardware layer, and the Therapy_Partition's Task bodies.
+    "pm-core", "pm-hw", "therapy", "therapy-nrf52840",
 ]
 
 # `cargo creusot` with no package proves the QEMU pair; a HIL member is

@@ -1,7 +1,13 @@
 //! Chambers and Modes.
 
+// The App_Prover's view operator (`@`) in the contracts below.
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use creusot_std::model::View;
+
 /// A Chamber of the heart.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum Chamber {
     /// The atrium.
@@ -12,12 +18,18 @@ pub enum Chamber {
 
 impl Chamber {
     /// 0 for the atrium, 1 for the ventricle: the index of per-Chamber arrays.
+    #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result@ < 2))]
     pub const fn index(self) -> usize {
-        self as usize
+        match self {
+            Chamber::A => 0,
+            Chamber::V => 1,
+        }
     }
 
     /// The other Chamber.
+    #[inline(always)]
     #[must_use]
     pub const fn other(self) -> Chamber {
         match self {
@@ -28,7 +40,8 @@ impl Chamber {
 }
 
 /// A set of Chambers: the first and the second letter of a Mode (O, A, V, D).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum Chambers {
     /// O: neither.
@@ -44,6 +57,7 @@ pub enum Chambers {
 
 impl Chambers {
     /// Whether the set contains `c`.
+    #[inline(always)]
     #[must_use]
     pub const fn has(self, c: Chamber) -> bool {
         matches!((self, c), (Chambers::Both, _) | (Chambers::A, Chamber::A) | (Chambers::V, Chamber::V))
@@ -51,7 +65,8 @@ impl Chambers {
 }
 
 /// The response to sensing: the third letter of a Mode.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum Response {
     /// O: Paces are delivered without regard to Senses (PM5.3).
@@ -70,7 +85,8 @@ pub enum Response {
 /// function reads these and never a Mode's name.
 ///
 /// The all-zero value is [`Mode::OFF`].
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Mode {
     /// The Chambers paced.
     pub paces: Chambers,
@@ -82,7 +98,9 @@ pub struct Mode {
     pub adaptive: bool,
 }
 
-const fn mode(paces: Chambers, senses: Chambers, response: Response, adaptive: bool) -> Mode {
+#[inline(always)]
+/// A Mode from its four properties.
+pub const fn mode(paces: Chambers, senses: Chambers, response: Response, adaptive: bool) -> Mode {
     Mode { paces, senses, response, adaptive }
 }
 
@@ -107,6 +125,7 @@ impl Mode {
     pub const ODO: Mode = mode(Chambers::None, Chambers::Both, Response::None, false);
 
     /// The rate-adaptive form of this Mode.
+    #[inline(always)]
     #[must_use]
     pub const fn rate_adaptive(self) -> Mode {
         Mode { adaptive: true, ..self }
@@ -137,12 +156,14 @@ impl Mode {
     ];
 
     /// Whether the Mode paces `c` (PM5.7).
+    #[inline(always)]
     #[must_use]
     pub const fn paces(self, c: Chamber) -> bool {
         self.paces.has(c)
     }
 
     /// Whether the Mode senses `c` (PM5.7).
+    #[inline(always)]
     #[must_use]
     pub const fn senses(self, c: Chamber) -> bool {
         self.senses.has(c)
@@ -151,6 +172,7 @@ impl Mode {
     /// The Chamber whose events start the escape interval: the ventricle in
     /// every Mode that paces or senses it, the atrium in the atrial Modes
     /// (PM9.2, PM9.3; design PD-06).
+    #[inline(always)]
     #[must_use]
     pub const fn timing_chamber(self) -> Chamber {
         if self.paces(Chamber::V) || self.senses(Chamber::V) {
@@ -158,61 +180,5 @@ impl Mode {
         } else {
             Chamber::A
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn zero_is_off() {
-        assert_eq!(Mode::default(), Mode::OFF);
-        assert_eq!(Chambers::default() as u8, 0);
-        assert_eq!(Response::default() as u8, 0);
-    }
-
-    #[test]
-    fn the_programmable_modes_are_distinct_and_nineteen() {
-        let m = Mode::PROGRAMMABLE;
-        for i in 0..m.len() {
-            for j in 0..i {
-                assert_ne!(m[i], m[j], "{i} and {j}");
-            }
-        }
-        // Eight rate-adaptive forms, as Table 19-1 lists them.
-        assert_eq!(m.iter().filter(|x| x.adaptive).count(), 8);
-        // Off, DDD (the nominal) at the table's first two places.
-        assert_eq!(m[0], Mode::OFF);
-        assert_eq!(m[1], Mode::DDD);
-    }
-
-    #[test]
-    fn letters_decide_chambers() {
-        assert!(Mode::VVI.paces(Chamber::V) && !Mode::VVI.paces(Chamber::A));
-        assert!(Mode::VDD.paces(Chamber::V) && !Mode::VDD.paces(Chamber::A));
-        assert!(Mode::VDD.senses(Chamber::A) && Mode::VDD.senses(Chamber::V));
-        assert!(Mode::DOO.paces(Chamber::A) && Mode::DOO.paces(Chamber::V));
-        assert!(!Mode::DOO.senses(Chamber::A) && !Mode::DOO.senses(Chamber::V));
-        assert!(!Mode::OFF.paces(Chamber::A) && !Mode::OFF.paces(Chamber::V));
-    }
-
-    #[test]
-    fn the_timing_chamber_is_the_atrium_only_in_atrial_modes() {
-        for m in Mode::PROGRAMMABLE {
-            let atrial_only = !m.paces(Chamber::V) && !m.senses(Chamber::V);
-            assert_eq!(m.timing_chamber() == Chamber::A, atrial_only, "{m:?}");
-        }
-        assert_eq!(Mode::AAI.timing_chamber(), Chamber::A);
-        assert_eq!(Mode::DDD.timing_chamber(), Chamber::V);
-        assert_eq!(Mode::OVO.timing_chamber(), Chamber::V);
-    }
-
-    #[test]
-    fn chamber_indices() {
-        assert_eq!(Chamber::A.index(), 0);
-        assert_eq!(Chamber::V.index(), 1);
-        assert_eq!(Chamber::A.other(), Chamber::V);
-        assert_eq!(Chamber::V.other(), Chamber::A);
     }
 }

@@ -1,0 +1,111 @@
+{
+  "atrial": {
+    "fusions": 0,
+    "pace_intervals": {
+      "count": 37,
+      "max_us": 666664.0,
+      "min_us": 666663.0
+    },
+    "paces": 38,
+    "pulse_widths": {
+      "count": 38,
+      "max_us": 400.0,
+      "min_us": 400.0
+    },
+    "senses": 38,
+    "senses_at_the_refractory_boundary": 0,
+    "senses_effective": 19,
+    "senses_refractory": 19
+  },
+  "av_delays_measured_not_judged": {
+    "count": 37,
+    "max_us": 159998.0,
+    "min_us": 159996.0
+  },
+  "binaries": {
+    "heart-sim": {
+      "path": "target/heart-sim/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+    },
+    "pacemaker": {
+      "path": "target/pacemaker-aai90/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:cf20367e6ffbf47c8c753614ee47343af313a681d2398c711539540b3eaec1a2"
+    }
+  },
+  "capture": {
+    "file": "aai90.bin",
+    "length_us": 30000000.0,
+    "rate_hz": 1000000,
+    "sha256": "sha256:551ada278132ee45d5267fc37e20e3da1165cf895651057c54d40c3ab331acb6"
+  },
+  "escape_interval_us": 666666.0,
+  "mode": "AAI",
+  "parameter_words": [
+    6,
+    90,
+    120,
+    120,
+    150,
+    0,
+    50,
+    0,
+    35,
+    35,
+    400,
+    400,
+    75,
+    250,
+    320,
+    250,
+    250,
+    0,
+    0,
+    0,
+    0,
+    20,
+    1,
+    40,
+    3,
+    30,
+    8,
+    5
+  ],
+  "scenario": {
+    "atrial_beats": 38,
+    "atrial_intervals": {
+      "count": 37,
+      "max_us": 799997.0,
+      "min_us": 799994.0
+    },
+    "checked_against_its_table": true,
+    "conduction": {
+      "count": 37,
+      "max_us": 159998.0,
+      "min_us": 159996.0
+    },
+    "mismatches": [],
+    "name": "fixed",
+    "ventricular_beats": 37
+  },
+  "tolerances_us": {
+    "inhibition_window": 4000.0,
+    "interval": 8000.0,
+    "pulse_width": 200.0
+  },
+  "ventricular": {
+    "fusions": 0,
+    "pace_intervals": {
+      "count": 0
+    },
+    "paces": 0,
+    "pulse_widths": {
+      "count": 0
+    },
+    "senses": 37,
+    "senses_at_the_refractory_boundary": 0,
+    "senses_effective": 0,
+    "senses_refractory": 0
+  },
+  "verdict": "PASS",
+  "violations": []
+}

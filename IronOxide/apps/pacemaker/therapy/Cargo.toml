@@ -1,0 +1,48 @@
+[package]
+name = "pacemaker-therapy"
+description = "PACEMAKER experiment: the Therapy_Partition: the Tasks pace, sense_a, sense_v and control, and the board layers of the hardware layer Hw"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# The nRF52840-DK: the board layer over TIMER3, TIMER1, TIMER2 and GPIOTE.
+# Without it, the QEMU board layer.
+nrf52840 = ["pacemaker-decl/nrf52840"]
+# The parameter set of the build (src/sets.rs), until the link exists
+# (task 8.2); without one, VVI at the nominal values.
+set-vvi-90 = []
+set-voo-60 = []
+set-aai-90 = []
+set-aoo-90 = []
+# Rig builds (task 9.4): the set from the environment variable `PM_SET`.
+set-env = []
+# The QEMU run's Mode (task 9.1; QEMU only): VVI without one. Each is at
+# 120 ppm with the script of Senses for its Chamber.
+qemu-voo = []
+qemu-aoo = []
+qemu-aai = []
+# Task 7.2: `control` runs the arming sweep of the spike through this
+# crate's own `Hw` instead of the therapy (nRF52840 only).
+sweep = ["nrf52840", "pacemaker-decl/nrf52840_sweep"]
+# Task 9.2: the measurement runs' declaration (an Operating_Duration of
+# 300 s); the code is the therapy's, unchanged.
+measure = ["nrf52840", "pacemaker-decl/nrf52840_measure"]
+# Tasks 9.4 and 9.5: the rig runs' declaration (an Operating_Duration of
+# 45 s, after which the safe state leaves the Partition's state readable),
+# and `control` copies the driver's counts into its state for the probe.
+rig = ["nrf52840", "pacemaker-decl/nrf52840_rig"]
+# Task 9.8: `control` overruns its Budget and faults at stated instants, so
+# that the Kernel's fault paths are measured (measurement builds only).
+inject = ["nrf52840"]
+
+[dependencies]
+pacemaker-decl = { path = "../decl" }
+pm-core.workspace = true
+pm-hw.workspace = true
+rsk = { path = "../../../crates/rsk" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

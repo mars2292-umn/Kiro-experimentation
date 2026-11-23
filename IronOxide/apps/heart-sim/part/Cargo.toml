@@ -12,6 +12,8 @@ nrf52840 = ["heart-sim-decl/nrf52840"]
 scenario-silent = []
 scenario-fast = []
 scenario-responsive = []
+# The rhythm from the environment variable `PM_HEART` (src/scenario.rs).
+scenario-env = []
 
 [dependencies]
 heart-sim-decl = { path = "../decl" }

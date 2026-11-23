@@ -47,6 +47,15 @@ members = [
     "apps/heart-sim/system",
     "apps/heart-sim/part",
     "apps/heart-sim/bin",
+    "apps/ppi-probe/decl",
+    "apps/ppi-probe/system",
+    "apps/ppi-probe/timer",
+    "apps/ppi-probe/outsider",
+    "apps/ppi-probe/bin",
+    "apps/pacemaker/decl",
+    "apps/pacemaker/system",
+    "apps/pacemaker/therapy",
+    "apps/pacemaker/bin",
     "xtask",
 ]
 # Fixture workspaces carry their own [workspace] tables and lock files.
@@ -154,8 +163,8 @@ rsk-elf = { targets = ["host"] }
 # The PACEMAKER experiment (docs/pacemaker): the therapy logic, shared by the
 # Application's Partitions, the DCM_Stub and host tests. Not a Flight_Build
 # root until the Application exists (docs/pacemaker/tasks.md, task 8.1).
-pm-core = { targets = ["host", "thumbv7em-none-eabihf"] }
-pm-hw = { targets = ["host", "thumbv7em-none-eabihf"] }
+pm-core = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+pm-hw = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pm-judge = { targets = ["host"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).
@@ -180,4 +189,24 @@ heart-sim-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = tr
 heart-sim-system = { targets = ["host", "thumbv7em-none-eabihf"] }
 heart-sim-part = { targets = ["host", "thumbv7em-none-eabihf"] }
 heart-sim = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
+# The PACEMAKER experiment's PPI probe (docs/pacemaker task 3.6): the rig
+# test of fixed PPI channels, built like the stimulus Application (its own
+# cargo invocation; never a Flight_Build).
+ppi-probe-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true }
+ppi-probe-system = { targets = ["host", "thumbv7em-none-eabihf"] }
+ppi-probe-timer = { targets = ["host", "thumbv7em-none-eabihf"] }
+ppi-probe-outsider = { targets = ["host", "thumbv7em-none-eabihf"] }
+ppi-probe = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
+# The PACEMAKER experiment's pulse generator (docs/pacemaker task 8.1): the
+# Application itself, with a QEMU variant and the nRF52840-DK's. Built in
+# its own cargo invocation: rsk-entry binds one Application per build, and
+# the Target build of the Flight_Build roots binds the P1 demo. So the
+# binary is not a Flight_Build root of the job; its library crates are
+# (`flight = true`: the Profile_Lint and the Target build cover them), and
+# the Link_Checker and the Config_Checker are run on the binary by
+# `apps/pacemaker/build_checks.py` (task 8.4).
+pacemaker-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_sweep", "nrf52840_measure", "nrf52840_rig"] }
+pacemaker-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+pacemaker-therapy = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+pacemaker = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 xtask = { targets = ["host"] }

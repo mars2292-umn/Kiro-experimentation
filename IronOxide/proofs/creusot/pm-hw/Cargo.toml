@@ -1,0 +1,21 @@
+[package]
+name = "pm-hw-proof"
+description = "Creusot proof of the PACEMAKER experiment's hardware layer (pm-hw: the real source, compiled under the App_Prover; docs/pacemaker task 9.6)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "../../../crates/pm-hw/src/lib.rs"
+
+[dependencies]
+pm-core = { path = "../../../crates/pm-core", features = ["creusot"] }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]
+
+[features]
+default = ["creusot"]
+creusot = []

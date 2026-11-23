@@ -362,6 +362,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacemaker-decl"
+version = "0.0.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "pacemaker-therapy-nrf52840-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "pacemaker-decl",
+ "pm-core",
+ "pm-hw",
+ "rsk",
+]
+
+[[package]]
+name = "pacemaker-therapy-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "pacemaker-decl",
+ "pm-core",
+ "pm-hw",
+ "rsk",
+]
+
+[[package]]
 name = "pearlite-syn"
 version = "0.15.0-dev"
 source = "git+file:///Users/mars2292/repos/Kiro-experimentation/creusot?rev=18f2d371ecb0019d37ecbd25e67f474bed2dda00#18f2d371ecb0019d37ecbd25e67f474bed2dda00"
@@ -376,6 +405,36 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "pm-core"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+]
+
+[[package]]
+name = "pm-core-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+]
+
+[[package]]
+name = "pm-hw"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "pm-core",
+]
+
+[[package]]
+name = "pm-hw-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "pm-core",
+]
 
 [[package]]
 name = "proc-macro2"

@@ -1,0 +1,94 @@
+{
+  "task": "3.6",
+  "binary_sha256": "1a3e38b5bd7b7f7e5ef9ef893978963cc82c09f976bce0a5313c2ed020ec23ec",
+  "config_checksum": "0x2f83b95c",
+  "readback": [
+    {
+      "channel": 0,
+      "id": "pulse_start",
+      "expected": [
+        "0x4001a140",
+        "0x40006030",
+        "0x40006038"
+      ],
+      "read": [
+        "0x4001a140",
+        "0x40006030",
+        "0x40006038"
+      ],
+      "same": true
+    },
+    {
+      "channel": 1,
+      "id": "pulse_end",
+      "expected": [
+        "0x4001a150",
+        "0x40006060",
+        "0x40006068"
+      ],
+      "read": [
+        "0x4001a150",
+        "0x40006060",
+        "0x40006068"
+      ],
+      "same": true
+    }
+  ],
+  "chen": "0x00000003",
+  "chen_expected": "0x00000003",
+  "first_undeclared_channel": {
+    "channel": 2,
+    "read": [
+      "0x00000000",
+      "0x00000000",
+      "0x00000000"
+    ]
+  },
+  "partitions": {
+    "ppi_probe_timer": {
+      "count": 1055,
+      "attempt": 3,
+      "survived": 0,
+      "attempts_expected": 3
+    },
+    "ppi_probe_outsider": {
+      "count": 937,
+      "attempt": 7,
+      "survived": 0,
+      "attempts_expected": 7
+    }
+  },
+  "pace_pin": {
+    "restarts_before_the_run": 2,
+    "pulses": 572,
+    "width_min_us": 400.0,
+    "width_max_us": 401.0,
+    "spacing_min_ms": 9.998,
+    "spacing_max_ms_but_the_long_ones": 10.001,
+    "spacings_over_10_5_ms": [
+      40.0
+    ]
+  },
+  "second_partition_jobs": {
+    "began_edges": 574,
+    "began_spacing_min_ms": 9.998,
+    "began_spacing_max_ms": 10.002,
+    "ended_edges": 566,
+    "ended_spacings_over_10_5_ms": [
+      90.0
+    ]
+  },
+  "checks": {
+    "every declared channel reads back as the Task_Model states it": true,
+    "CHEN has the bits of exactly the declared channels": true,
+    "the first channel not declared is unconnected": true,
+    "both Partitions made every attempt": true,
+    "no attempt returned": true,
+    "both Tasks still run": true,
+    "the second Partition's Jobs begin every 10 ms without a gap": true,
+    "seven of its Jobs in a row did not reach their end, and no other": true,
+    "every pulse on the pace pin is 400 \u00b5s to the sample": true,
+    "the pulses come every 10 ms but for one gap of 40 ms, the three Jobs the owner's attempts ended": true
+  },
+  "verdict": "PASS"
+}

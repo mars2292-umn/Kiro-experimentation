@@ -1,0 +1,351 @@
+{
+  "schema": "rsk-task-model/1",
+  "profile": {
+    "version": "0.6",
+    "variant": "Ravenscar"
+  },
+  "generator": "0.0.0",
+  "kernel": "0.0.0",
+  "target": "qemu-mps2-an386",
+  "core_revision": "qemu",
+  "clock": {
+    "cpu_hz": 25000000,
+    "tick_hz": 25000000
+  },
+  "config_checksum": "0x42a4c468",
+  "layout_checksum": "0x8cc0021e",
+  "operating_duration_ticks": 75000000,
+  "safe_state": "crate::safe_state",
+  "fp_flush_to_zero": false,
+  "kernel_levels": [
+    0
+  ],
+  "priority_map": [
+    {
+      "level": 4,
+      "nvic": 128
+    },
+    {
+      "level": 5,
+      "nvic": 96
+    },
+    {
+      "level": 6,
+      "nvic": 64
+    },
+    {
+      "level": 7,
+      "nvic": 32
+    }
+  ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
+  ],
+  "capacities": {
+    "lock_stack": 4,
+    "timer_slots": 14,
+    "event_log": 32,
+    "derived": true
+  },
+  "layout": {
+    "kernel_flash": {
+      "base": 0,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "shared_code": {
+      "base": 65536,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "kernel_ram": {
+      "base": 536870912,
+      "size_log2": 15,
+      "srd": 0,
+      "usable_bytes": 32768
+    },
+    "kernel_windows": [
+      {
+        "base": 3758096384,
+        "size_log2": 20,
+        "srd": 0,
+        "peripherals": [
+          "PPB"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073741824,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CMSDK_TIMER0"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073745920,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CMSDK_TIMER1"
+        ],
+        "read_only": false
+      }
+    ],
+    "derived": true
+  },
+  "partitions": [
+    {
+      "id": "therapy",
+      "crate": "pacemaker_therapy",
+      "level": "A",
+      "fault": "RESTART_PARTITION",
+      "overrun": "RESTART_PARTITION",
+      "deadline_miss": "RESTART_PARTITION",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 8192,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "CMSDK_DUALTIMER"
+      ],
+      "mpu": {
+        "code": {
+          "base": 131072,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536903680,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1073750016,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "CMSDK_DUALTIMER"
+            ],
+            "read_only": false
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "therapy.pace",
+        "therapy.sense_v",
+        "therapy.sense_a",
+        "therapy.control"
+      ],
+      "resources": [
+        "therapy.timing"
+      ],
+      "signals": [
+        "sensed_a",
+        "sensed_v"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "therapy.pace",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 7,
+      "vector": 36,
+      "kind": "sporadic",
+      "mit_ticks": 500000,
+      "mit_policy": "defer",
+      "source": {
+        "interrupt": "CMSDK_DUALTIMER",
+        "irq": 10
+      },
+      "deadline_ticks": 50000,
+      "budget_cycles": 25000,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 0,
+        "deadline": 1,
+        "budget": 2
+      },
+      "cs_sites": [
+        "therapy.pace#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::pace",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.sense_v",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 6,
+      "vector": 37,
+      "kind": "sporadic",
+      "mit_ticks": 1250000,
+      "mit_policy": "defer",
+      "source": {
+        "signal": "sensed_v"
+      },
+      "deadline_ticks": 75000,
+      "budget_cycles": 25000,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [
+        "therapy.sense_v#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_v",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.sense_a",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 5,
+      "vector": 38,
+      "kind": "sporadic",
+      "mit_ticks": 1250000,
+      "mit_policy": "defer",
+      "source": {
+        "signal": "sensed_a"
+      },
+      "deadline_ticks": 100000,
+      "budget_cycles": 25000,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 6,
+        "deadline": 7,
+        "budget": 8
+      },
+      "cs_sites": [
+        "therapy.sense_a#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::sense_a",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "therapy.control",
+      "core": 0,
+      "partition": "therapy",
+      "priority": 4,
+      "vector": 39,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 500000,
+      "source": null,
+      "deadline_ticks": 500000,
+      "budget_cycles": 125000,
+      "fpu": false,
+      "resources": [
+        "therapy.timing"
+      ],
+      "raises": [
+        "sensed_a",
+        "sensed_v"
+      ],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 9,
+        "deadline": 10,
+        "budget": 11
+      },
+      "cs_sites": [
+        "therapy.control#cs:timing"
+      ],
+      "entry": "::pacemaker_therapy::rsk_jobs::control",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "therapy.timing",
+      "core": 0,
+      "partition": "therapy",
+      "ceiling": 7,
+      "accessors": [
+        "therapy.pace",
+        "therapy.sense_v",
+        "therapy.sense_a",
+        "therapy.control"
+      ],
+      "type": "crate :: Timing",
+      "derived": [
+        "ceiling"
+      ]
+    }
+  ],
+  "signals": [
+    {
+      "id": "therapy.sensed_a",
+      "partition": "therapy",
+      "bound_task": "therapy.sense_a",
+      "raised_by": [
+        "therapy.control"
+      ]
+    },
+    {
+      "id": "therapy.sensed_v",
+      "partition": "therapy",
+      "bound_task": "therapy.sense_v",
+      "raised_by": [
+        "therapy.control"
+      ]
+    }
+  ],
+  "endpoints": [],
+  "chains": [],
+  "conversions": []
+}

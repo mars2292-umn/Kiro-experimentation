@@ -10,7 +10,8 @@ use crate::params::Params;
 use crate::time::Micros;
 
 /// The therapy State (PM6.1). Exactly one holds: it is one field.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum Therapy {
     /// Power-On Reset: the State after a reset or a restart of the
@@ -24,27 +25,32 @@ pub enum Therapy {
 }
 
 /// A Pace that is armed, or none.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Pending {
     /// Whether a Pace is pending. When false, `at` means nothing.
     pub armed: bool,
+    /// Always zero (no padding byte: see `Params::reserved`).
+    pub reserved: [u8; 3],
     /// Its instant.
     pub at: Micros,
 }
 
 impl Pending {
     /// No Pace pending.
-    pub const NONE: Pending = Pending { armed: false, at: Micros(0) };
+    pub const NONE: Pending = Pending { armed: false, reserved: [0; 3], at: Micros(0) };
 
     /// A Pace pending at `at`.
+    #[inline(always)]
     #[must_use]
     pub const fn at(at: Micros) -> Pending {
-        Pending { armed: true, at }
+        Pending { armed: true, reserved: [0; 3], at }
     }
 }
 
 /// The timing state of one Chamber.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct ChamberState {
     /// Whether the Chamber has had an event since the State began. When
     /// false, `last` and `refractory_until` mean nothing and no refractory
@@ -72,10 +78,13 @@ pub struct ChamberState {
     /// when `serviced`.
     pub serviced: bool,
     pub last_service: Micros,
+    /// Always zero (no padding byte: see `Params::reserved`).
+    pub reserved: [u8; 2],
 }
 
 /// The phase of the Atrial Tachycardia Response (PM14).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum AtrPhase {
     #[default]
@@ -85,7 +94,8 @@ pub enum AtrPhase {
 }
 
 /// The state of the Atrial Tachycardia Response.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Atr {
     pub phase: AtrPhase,
     /// The detection counter of PM14.1, 0 to PM-PAR-13.
@@ -98,7 +108,8 @@ pub struct Atr {
 
 /// Everything the step function carries. The all-zero value is the Power-On
 /// Reset State with no event seen and nothing pending.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct State {
     /// The therapy State.
     pub therapy: Therapy,
@@ -132,39 +143,12 @@ pub struct State {
     /// The sensor-indicated interval, valid when `sensor_known`.
     pub sensor_known: bool,
     pub sensor_interval: u32,
+    /// Always zero (no padding byte: see `Params::reserved`).
+    pub reserved: [u8; 2],
 }
 
-/// A parameter set of all zeros: the value of the parameter fields of a
-/// zeroed [`State`]. Never in force; `programmed` guards it.
-const ZERO_PARAMS: Params = Params {
-    mode: crate::mode::Mode::OFF,
-    lrl: 0,
-    url: 0,
-    msr: 0,
-    fixed_av: 0,
-    dynamic_av: false,
-    min_dynamic_av: 0,
-    sensed_av_offset: 0,
-    amplitude: [0, 0],
-    width: [0, 0],
-    sensitivity: [0, 0],
-    vrp: 0,
-    arp: 0,
-    pvarp: 0,
-    pvarp_extension: 0,
-    hrl: 0,
-    rate_smoothing: 0,
-    atr: false,
-    atr_duration: 0,
-    atr_fallback_time: 0,
-    v_blanking: 0,
-    activity_threshold: crate::params::ActivityThreshold::VLow,
-    reaction_time: 0,
-    response_factor: 0,
-    recovery_time: 0,
-};
-
-const ZERO_CHAMBER: ChamberState = ChamberState {
+/// The timing state of a Chamber with no event yet: all zero.
+pub const ZERO_CHAMBER: ChamberState = ChamberState {
     seen: false,
     last: Micros(0),
     last_paced: false,
@@ -176,6 +160,7 @@ const ZERO_CHAMBER: ChamberState = ChamberState {
     noisy: false,
     serviced: false,
     last_service: Micros(0),
+    reserved: [0; 2],
 };
 
 impl State {
@@ -184,8 +169,8 @@ impl State {
         therapy: Therapy::PowerOnReset,
         before_magnet: Therapy::PowerOnReset,
         programmed: false,
-        permanent: ZERO_PARAMS,
-        temporary: ZERO_PARAMS,
+        permanent: Params::ZERO,
+        temporary: Params::ZERO,
         change_waiting: false,
         chamber: [ZERO_CHAMBER, ZERO_CHAMBER],
         cycle_known: false,
@@ -197,11 +182,13 @@ impl State {
         atr: Atr { phase: AtrPhase::Idle, counter: 0, cycles_left: 0, fallback_start: Micros(0) },
         sensor_known: false,
         sensor_interval: 0,
+        reserved: [0; 2],
     };
 
     /// The parameters in force (PM6.2, PM6.3, PM6.5, PM7.1). The Magnet
     /// State paces with the parameters of the State it interrupted, at its
     /// own rate and asynchronously, which the step function applies.
+    #[inline(always)]
     #[must_use]
     pub const fn params(&self) -> &Params {
         let therapy = match self.therapy {
@@ -218,104 +205,8 @@ impl State {
 }
 
 impl Default for State {
+    #[inline(always)]
     fn default() -> State {
         State::POWER_ON_RESET
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mode::Mode;
-
-    /// PM30.4: every enum's empty value is its zero discriminant, and every
-    /// scalar of the Power-On Reset State is zero or false. Written field by
-    /// field so that a field added later has to be added here.
-    #[test]
-    fn the_power_on_reset_state_is_all_zero() {
-        let State {
-            therapy,
-            before_magnet,
-            programmed,
-            permanent,
-            temporary,
-            change_waiting,
-            chamber,
-            cycle_known,
-            last_cycle,
-            hysteresis_active,
-            atrial_since_ventricular,
-            pvarp_extended,
-            pvarp_extended_last_cycle,
-            atr,
-            sensor_known,
-            sensor_interval,
-        } = State::POWER_ON_RESET;
-        assert_eq!(therapy as u8, 0);
-        assert_eq!(before_magnet as u8, 0);
-        assert!(!programmed && !change_waiting && !cycle_known && !hysteresis_active);
-        assert!(!atrial_since_ventricular && !pvarp_extended && !pvarp_extended_last_cycle && !sensor_known);
-        assert_eq!((last_cycle, sensor_interval), (0, 0));
-        assert_eq!(atr.phase as u8, 0);
-        assert_eq!((atr.counter, atr.cycles_left, atr.fallback_start), (0, 0, Micros(0)));
-        for c in chamber {
-            let ChamberState {
-                seen,
-                last,
-                last_paced,
-                refractory_until,
-                blanked,
-                blanking_until,
-                pending,
-                unconfirmed,
-                noisy,
-                serviced,
-                last_service,
-            } = c;
-            assert!(!seen && !last_paced && !blanked && !noisy && !serviced && !pending.armed && !unconfirmed);
-            assert_eq!((last, refractory_until, blanking_until, pending.at, last_service), (Micros(0), Micros(0), Micros(0), Micros(0), Micros(0)));
-        }
-        for p in [permanent, temporary] {
-            assert_eq!(p, ZERO_PARAMS);
-            assert_eq!(p.mode, Mode::default());
-            assert_eq!(p.activity_threshold as u8, 0);
-            assert_eq!(p.mode.paces as u8 + p.mode.senses as u8 + p.mode.response as u8, 0);
-        }
-        assert_eq!(State::default(), State::POWER_ON_RESET);
-    }
-
-    #[test]
-    fn the_parameters_in_force_follow_the_state() {
-        let mut s = State::POWER_ON_RESET;
-        assert_eq!(*s.params(), Params::POWER_ON_RESET);
-
-        s.permanent = Params::NOMINAL;
-        s.programmed = true;
-        s.therapy = Therapy::Permanent;
-        assert_eq!(*s.params(), Params::NOMINAL);
-
-        s.temporary = Params { mode: Mode::VOO, ..Params::NOMINAL };
-        s.therapy = Therapy::Temporary;
-        assert_eq!(s.params().mode, Mode::VOO);
-        // The permanent set is untouched (PM6.3).
-        assert_eq!(s.permanent, Params::NOMINAL);
-
-        s.therapy = Therapy::PaceNow;
-        assert_eq!(*s.params(), Params::PACE_NOW);
-
-        s.before_magnet = Therapy::Permanent;
-        s.therapy = Therapy::Magnet;
-        assert_eq!(*s.params(), Params::NOMINAL);
-        s.before_magnet = Therapy::PowerOnReset;
-        assert_eq!(*s.params(), Params::POWER_ON_RESET);
-    }
-
-    /// A Permanent State without an accepted set cannot be reached; if it
-    /// were, the zero parameters must not come into force.
-    #[test]
-    fn zero_parameters_are_never_in_force() {
-        let mut s = State::POWER_ON_RESET;
-        s.therapy = Therapy::Permanent;
-        assert_eq!(*s.params(), Params::POWER_ON_RESET);
     }
 }

@@ -2,7 +2,7 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: Draft 0.4 (amended by `design.md` Draft 0.2, section "Requirements Impact"; 0.4 changes PM27.5 only; nothing implemented; the Task set is the design's Table 2; every open question decided on 2026-11-22). Spec: `pacemaker`. Written 2026-11-22 from the source document, the rsk requirements (`.kiro/specs/rsk-ravenscar-profile/requirements.md`, Draft 0.3) and the rsk tree at that date.
+Status: Draft 0.5 (0.5, 2026-11-23: PM-PAR-15 is 4 ms, from task 9.2; amended by `design.md` Draft 0.2, section "Requirements Impact"; 0.4 changes PM27.5 only; nothing implemented; the Task set is the design's Table 2; every open question decided on 2026-11-22). Spec: `pacemaker`. Written 2026-11-22 from the source document, the rsk requirements (`.kiro/specs/rsk-ravenscar-profile/requirements.md`, Draft 0.3) and the rsk tree at that date.
 
 ## Introduction
 
@@ -77,7 +77,7 @@ Each requirement heading names the earliest stage in which it must hold. Inherit
 | PM-PAR-12 | Noise interval: sense edges closer than this, throughout a cycle, are continuous noise | 100 ms (proposal) | PM13.1 |
 | PM-PAR-13 | ATR detection count: the counter value at which onset is detected; cessation at zero | 8 (proposal) | PM14.1 |
 | PM-PAR-14 | Largest activity value | 255 | PM15.4 |
-| PM-PAR-15 | Inhibition window: a Sense this close before a pending Pace need not cancel it | 2 ms (proposal; the sense Task's response time) | design PD-04, PM5.5 |
+| PM-PAR-15 | Inhibition window: a Sense this close before a pending Pace need not cancel it | 4 ms (the deadline of the slower sense Task, `sense_a`, which the Analyzer confirmed on measured records, task 9.2; the proposal was 2 ms) | design PD-04, PM5.5 |
 | PM-PAR-10 | Release lag J_rel measured on the Target, with margin | 11,590 cycles (181 µs) | `docs/hil/kernel_timing_nrf52840_stress.json`, 2026-11-21; to be re-measured for this Application (PM21.3) |
 
 ### Component traceability

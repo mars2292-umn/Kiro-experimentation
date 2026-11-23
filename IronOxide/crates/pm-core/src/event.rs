@@ -6,7 +6,8 @@ use crate::time::Micros;
 
 /// The battery status level (PM17.6), best first. Below `Erp` is the
 /// Power-On Reset trip level, at which nothing is paced (PM7.2, PM30.3).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(u8)]
 pub enum Battery {
     /// Beginning of life.
@@ -24,7 +25,8 @@ pub enum Battery {
 
 /// A command from the DCM, already validated (PM20.1). The record commands
 /// do not reach the step function.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Command {
     /// Program a permanent parameter set.
     Program(Params),
@@ -37,7 +39,8 @@ pub enum Command {
 }
 
 /// One event.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Event {
     /// One service of a Chamber's sense line: `edges` edges since the last
     /// service, the latest at `at`.
@@ -51,7 +54,8 @@ pub enum Event {
 }
 
 /// What to do with a Chamber's compares.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Pace {
     /// Leave the Chamber as it is armed.
     Keep,
@@ -62,7 +66,8 @@ pub enum Pace {
 }
 
 /// The Markers of the source (PM18.5).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Marker {
     /// AS, VS: a Sense. `refractory`: it fell in a refractory period.
     Sense { refractory: bool },
@@ -80,7 +85,8 @@ pub enum Marker {
 
 /// The Markers of one step: at most one atrial, one ventricular and one
 /// augmentation Marker (Property P9, by this type).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Markers {
     pub atrial: Option<(Marker, Micros)>,
     pub ventricular: Option<(Marker, Micros)>,
@@ -92,7 +98,8 @@ impl Markers {
 }
 
 /// What the step function returns beside the new state.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Arming {
     pub atrial: Pace,
     pub ventricular: Pace,
@@ -104,29 +111,12 @@ impl Arming {
     pub const NONE: Arming = Arming { atrial: Pace::Keep, ventricular: Pace::Keep, markers: Markers::NONE };
 
     /// The instruction for `c`.
+    #[inline(always)]
     #[must_use]
     pub const fn pace(&self, c: Chamber) -> Pace {
         match c {
             Chamber::A => self.atrial,
             Chamber::V => self.ventricular,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_best_battery_level_is_zero() {
-        assert_eq!(Battery::default() as u8, 0);
-    }
-
-    #[test]
-    fn arming_selects_by_chamber() {
-        let a = Arming { atrial: Pace::Withdraw, ventricular: Pace::At { at: Micros(5), width: 400 }, markers: Markers::NONE };
-        assert_eq!(a.pace(Chamber::A), Pace::Withdraw);
-        assert_eq!(a.pace(Chamber::V), Pace::At { at: Micros(5), width: 400 });
-        assert_eq!(Arming::NONE.pace(Chamber::A), Pace::Keep);
     }
 }

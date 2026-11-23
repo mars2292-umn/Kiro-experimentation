@@ -148,6 +148,14 @@ pub fn partition_crates(ws: &Workspace, bin: &str) -> Vec<(String, String, PathB
 /// configuration and `coverage`): the coverage toolchain with a rustc
 /// wrapper that instruments the Partition crates alone.
 pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, kernel: bool, report: &mut Report) -> Option<HilBuild> {
+    coverage_build_with(ws, bin, features, target_dir, kernel, &[], report)
+}
+
+/// As [`coverage_build`], with further crates instrumented (`extra`, by
+/// crate name as rustc is given it): the library crates whose functions
+/// are instantiated in a Partition (the PACEMAKER experiment's `pm_core`
+/// and `pm_hw`, docs/pacemaker task 9.9).
+pub fn coverage_build_with(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, kernel: bool, extra: &[&str], report: &mut Report) -> Option<HilBuild> {
     let crates = partition_crates(ws, bin);
     if crates.is_empty() {
         report.error(Rule::Step, None, format!("no Partition crate of `{bin}` to instrument"));
@@ -159,6 +167,7 @@ pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Pa
     if kernel {
         names.extend(KERNEL_COVERAGE_CRATES.iter().map(|k| k.to_string()));
     }
+    names.extend(extra.iter().map(|k| k.to_string()));
     let cases: Vec<String> = names.iter().map(|k| format!("*\" --crate-name {k} \"*")).collect();
     // Legacy symbol mangling for every crate: the Link_Checker (R37) reads
     // the Task entries by their legacy names, which the pinned toolchain

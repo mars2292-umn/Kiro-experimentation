@@ -1,0 +1,18 @@
+[package]
+name = "ppi-probe-outsider"
+description = "PACEMAKER experiment, PPI probe: the Partition that owns no peripheral and attempts TIMER3, GPIOTE and the PPI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+nrf52840 = ["ppi-probe-decl/nrf52840"]
+
+[dependencies]
+ppi-probe-decl = { path = "../decl" }
+rsk = { path = "../../../crates/rsk" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

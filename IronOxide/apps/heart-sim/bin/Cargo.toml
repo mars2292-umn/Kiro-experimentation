@@ -26,6 +26,7 @@ trace-pins = ["rsk-entry/trace-pins"]
 scenario-silent = ["rsk-entry/scenario-silent"]
 scenario-fast = ["rsk-entry/scenario-fast"]
 scenario-responsive = ["rsk-entry/scenario-responsive"]
+scenario-env = ["rsk-entry/scenario-env"]
 quiet = ["rsk-entry/quiet"]
 
 [dependencies]

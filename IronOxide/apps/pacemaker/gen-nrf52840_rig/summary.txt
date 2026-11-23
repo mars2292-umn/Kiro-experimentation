@@ -1,0 +1,29 @@
+rsk Generated_Config summary (R24.3)
+Target: nrf52840 (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits, 8 MPU regions
+Profile: 0.6 Ravenscar
+Operating duration: 720000000 ticks
+Safe state: crate::safe_state
+Config checksum (CRC-32): 0xb94a7df8
+Capacities: lock stack 4, timer slots 14, event log 32
+Kernel levels: [0]; Task levels (level -> NVIC byte): 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
+Kernel-owned peripherals: CLOCK, TIMER0, WDT, PPI
+Kernel peripheral intervals (R16.2, outside every Partition view): PPB 0xe0000000 (2^20), CLOCK 0x40000000 (2^12), TIMER0 0x40008000 (2^12), WDT 0x40010000 (2^12), PPI 0x4001f000 (2^12)
+Timer: IRQ 8 (vector 24)
+
+Partitions:
+  therapy (crate pacemaker_therapy, level A): fault RESTART_PARTITION, overrun RESTART_PARTITION, deadline miss RESTART_PARTITION, MIT threshold 10
+    code 32768 bytes at 0x00030000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 8192 bytes; init arena 0 bytes
+    window 0x40006000 (2^12, srd 0x00, read-write): GPIOTE
+    window 0x50000000 (2^12, srd 0x00, read-write): P0
+    window 0x40009000 (2^12, srd 0x00, read-write): TIMER1
+    window 0x4000a000 (2^12, srd 0x00, read-write): TIMER2
+    window 0x4001a000 (2^12, srd 0x00, read-write): TIMER3
+
+Tasks:
+  therapy.pace (#0, Partition therapy, Priority 7, vector 36): sporadic, MIT 320000 ticks, policy defer, source interrupt TIMER3 (IRQ 26), deadline 32000 ticks, Budget 25600 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 0 deadline 1 budget 2
+  therapy.sense_v (#1, Partition therapy, Priority 6, vector 37): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER2 (IRQ 10), deadline 48000 ticks, Budget 25600 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 3 deadline 4 budget 5
+  therapy.sense_a (#2, Partition therapy, Priority 5, vector 38): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER1 (IRQ 9), deadline 64000 ticks, Budget 25600 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 6 deadline 7 budget 8
+  therapy.control (#3, Partition therapy, Priority 4, vector 39): periodic, offset 0 ticks, period 320000 ticks, deadline 320000 ticks, Budget 320000 cycles, fpu false, Resources [timing], state [sweep: [u32 ; 56]], nesting depth 1, slots release 9 deadline 10 budget 11
+
+Resources:
+  therapy.timing (#0, Partition therapy, type crate :: Timing): Ceiling 7, accessors [pace, sense_v, sense_a, control]

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+<declaration>// rsk UPPAAL confirmation model (rsk-uppaal/4, stopwatch-free over-approximation of the export). Times in CPU cycles.
+const int N = 4;
+typedef int[0,N-1] task_t;
+const int PRIO[N] = { 7, 6, 5, 4 };
+const int PERIOD[N] = { 1280000, 3200000, 3200000, 1280000 };
+const int DEADLINE[N] = { 128000, 192000, 256000, 1280000 };
+const int EXEC[N] = { 70339, 66536, 66559, 358733 };
+const int OWN[N] = { 56054, 56054, 56054, 344065 };
+const int JITTER[N] = { 6800, 6800, 6800, 6800 };
+const int BLOCK[N] = { 10863, 10863, 10863, 5000 };
+const bool SPORADIC[N] = { true, true, true, false };
+// Task_Model identifiers, by index (R31.7):
+// 0: therapy.pace
+// 1: therapy.sense_v
+// 2: therapy.sense_a
+// 3: therapy.control
+int ceiling = 0;          // System_Ceiling (SRP); Critical_Sections are approximated by BLOCK
+int running = -1;         // the executing Task, -1 when idle
+bool pending[N];          // released, not started
+bool started[N];          // started and not completed (executing or preempted)
+chan release[N];
+urgent broadcast chan go;  // dispatch: no time passes while a Task is eligible
+clock dl[N];              // time since the nominal release instant
+clock c[N];               // wall clock since the Job started
+typedef int[0,3277468] big_t;
+int[0,1638734] W[N];       // bound on c[i] at completion (EXEC of the Job and of every Job started while it was started), capped
+big_t cap(task_t k, big_t v) { return v &gt; DEADLINE[k] + EXEC[k] - OWN[k] ? DEADLINE[k] + 1 + EXEC[k] - OWN[k] : v; }
+void begin(task_t i) { for (k : task_t) { if (started[k] &amp;&amp; k != i) { W[k] = cap(k, W[k] + EXEC[i]); } } W[i] = cap(i, EXEC[i]); running = i; started[i] = true; }
+bool preempts(task_t i, int j) { return j &lt; 0 || PRIO[i] &gt; PRIO[j] || (PRIO[i] == PRIO[j] &amp;&amp; i &lt; j); }
+bool eligible(task_t i) { return pending[i] &amp;&amp; PRIO[i] &gt; ceiling &amp;&amp; preempts(i, running); }
+// The Task that resumes when the executing one completes: the started one of highest Priority, lowest identifier among equals (R7.3); -1 when none.
+int resume() { int best = -1; for (k : task_t) { if (started[k] &amp;&amp; (best &lt; 0 || PRIO[k] &gt; PRIO[best])) { best = k; } } return best; }
+</declaration>
+<template><name>Gen</name><parameter>const task_t i</parameter>
+<declaration>clock x; clock jit;</declaration>
+<location id="g0" x="0" y="0"><name>Wait</name><label kind="invariant">SPORADIC[i] || x &lt;= PERIOD[i]</label></location>
+<location id="g1" x="200" y="0"><name>Jitter</name><label kind="invariant">jit &lt;= JITTER[i]</label></location>
+<init ref="g0"/>
+<transition><source ref="g0"/><target ref="g1"/><label kind="guard">x &gt;= PERIOD[i]</label><label kind="assignment">x = 0, jit = 0, dl[i] = 0</label></transition>
+<transition><source ref="g1"/><target ref="g0"/><label kind="synchronisation">release[i]!</label><label kind="assignment">pending[i] = true</label></transition>
+</template>
+<template><name>Task</name><parameter>const task_t i</parameter>
+<declaration>clock b;</declaration>
+<location id="t0" x="0" y="0"><name>Idle</name></location>
+<location id="t1" x="200" y="0"><name>Pending</name><label kind="invariant">dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t2" x="400" y="0"><name>Blocked</name><label kind="invariant">b &lt;= BLOCK[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t5" x="500" y="100"><name>Ready</name><label kind="invariant">dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t3" x="600" y="0"><name>Running</name><label kind="invariant">c[i] &lt;= W[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t4" x="800" y="0"><name>Missed</name></location>
+<init ref="t0"/>
+<transition><source ref="t0"/><target ref="t1"/><label kind="synchronisation">release[i]?</label></transition>
+<transition><source ref="t1"/><target ref="t2"/><label kind="guard">eligible(i)</label><label kind="synchronisation">go!</label><label kind="assignment">b = 0, pending[i] = false</label></transition>
+<transition><source ref="t2"/><target ref="t3"/><label kind="guard">b &lt;= BLOCK[i] &amp;&amp; preempts(i, running)</label><label kind="assignment">begin(i), c[i] = 0</label></transition>
+<transition><source ref="t2"/><target ref="t5"/><label kind="guard">b &gt;= BLOCK[i]</label><label kind="assignment">pending[i] = true</label></transition>
+<transition><source ref="t5"/><target ref="t3"/><label kind="guard">eligible(i)</label><label kind="synchronisation">go!</label><label kind="assignment">pending[i] = false, begin(i), c[i] = 0</label></transition>
+<transition><source ref="t3"/><target ref="t0"/><label kind="guard">running == i</label><label kind="assignment">started[i] = false, running = resume()</label></transition>
+<transition><source ref="t1"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t2"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t5"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t3"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i] &amp;&amp; c[i] &lt; W[i] - (EXEC[i] - OWN[i])</label></transition>
+</template>
+<system>G0 = Gen(0); T0 = Task(0);
+G1 = Gen(1); T1 = Task(1);
+G2 = Gen(2); T2 = Task(2);
+G3 = Gen(3); T3 = Task(3);
+system G0, T0, G1, T1, G2, T2, G3, T3;
+</system>
+</nta>

@@ -20,6 +20,10 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+// The App_Prover's library, when this source is compiled under it.
+#[cfg(feature = "creusot")]
+extern crate creusot_std;
+
 mod event;
 mod mode;
 mod params;

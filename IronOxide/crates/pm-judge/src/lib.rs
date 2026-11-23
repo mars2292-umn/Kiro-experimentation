@@ -33,8 +33,9 @@ pub const INTERVAL_TOLERANCE_US: f64 = 8_000.0;
 pub const WIDTH_TOLERANCE_US: f64 = 200.0;
 /// PM-PAR-05 for the Power-On Reset and Pace-Now pulse, µs.
 pub const WIDTH_TOLERANCE_TIGHT_US: f64 = 20.0;
-/// PM-PAR-15: a Sense this close before a Pace need not cancel it, µs.
-pub const INHIBITION_WINDOW_US: f64 = 2_000.0;
+/// PM-PAR-15: a Sense this close before a Pace need not cancel it, µs
+/// (4 ms since task 9.2: the deadline of the slower sense Task).
+pub const INHIBITION_WINDOW_US: f64 = 4_000.0;
 
 /// One high pulse of a channel: its rising edge and its width, in µs from
 /// the capture's first sample.

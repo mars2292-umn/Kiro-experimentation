@@ -6,5 +6,15 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# The App_Prover's contracts (docs/pacemaker task 9.6): never in a
+# Flight_Build; `proofs/creusot` builds this source with it.
+creusot = ["dep:creusot-std", "pm-core/creusot"]
+
 [dependencies]
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00", optional = true }
 pm-core.workspace = true
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

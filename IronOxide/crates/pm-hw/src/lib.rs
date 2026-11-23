@@ -21,6 +21,10 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+// The App_Prover's library, when this source is compiled under it.
+#[cfg(feature = "creusot")]
+extern crate creusot_std;
+
 use pm_core::{Chamber, Micros};
 
 /// How far ahead a start is placed when the instant asked for cannot be
@@ -53,7 +57,8 @@ pub const SENSE_ROUNDS: usize = 3;
 pub const STORM_SKIP: u32 = 16;
 
 /// A register by its role. The Board maps each to a register address.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Reg {
     /// The therapy timer's compare that starts the Chamber's pulse.
     StartCompare(Chamber),
@@ -83,7 +88,8 @@ pub enum Reg {
 }
 
 /// The board's fault at Init.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum HwFault {
     /// The offset between the Kernel time base and the therapy timer could
     /// not be measured within its spread.
@@ -100,8 +106,33 @@ pub trait Board {
     fn now(&mut self) -> Micros;
 }
 
+/// A borrowed board is a board: the Tasks keep the board's own words in
+/// the Resource and lend them to a driver for one Critical_Section.
+impl<B: Board + ?Sized> Board for &mut B {
+    #[inline(always)]
+    fn configure(&mut self) -> Result<(), HwFault> {
+        (**self).configure()
+    }
+
+    #[inline(always)]
+    fn read(&mut self, reg: Reg) -> u32 {
+        (**self).read(reg)
+    }
+
+    #[inline(always)]
+    fn write(&mut self, reg: Reg, value: u32) {
+        (**self).write(reg, value)
+    }
+
+    #[inline(always)]
+    fn now(&mut self) -> Micros {
+        (**self).now()
+    }
+}
+
 /// The outcome of arming a Pace.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Armed {
     /// The start compare is armed at `at`, ahead of the present, with its
     /// end compare at `at` plus the width. `moved`: `at` is later than the
@@ -118,7 +149,8 @@ pub enum Armed {
 }
 
 /// The outcome of withdrawing a Pace.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub enum Disarmed {
     /// The start compare is disarmed; no Pace of the Chamber will fire.
     Withdrawn,
@@ -127,7 +159,8 @@ pub enum Disarmed {
 }
 
 /// The Paces whose pulses have ended since the last report.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Fired {
     /// Per Chamber, whether a Pace is reported.
     pub fired: [bool; 2],
@@ -136,7 +169,8 @@ pub struct Fired {
 }
 
 /// One service of a Chamber's sense line.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Sensed {
     /// The instant of the latest edge.
     pub at: Micros,
@@ -170,7 +204,8 @@ pub trait Hw {
 
 /// What the driver keeps between calls. All zero at start (a Partition's
 /// statics are): nothing armed, nothing forced, no edge counted.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct DriverState {
     /// Per Chamber: a start compare was armed and its Pace is not yet
     /// reported or withdrawn.
@@ -199,14 +234,24 @@ pub struct Driver<B: Board> {
 }
 
 impl<B: Board> Driver<B> {
+    #[inline(always)]
     pub fn new(board: B) -> Driver<B> {
         Driver { board, state: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0 }, lead: LEAD, guard: GUARD }
+    }
+
+    /// A driver that goes on from `state`, with the lead and the guard of
+    /// the design: for one Critical_Section, after which the caller keeps
+    /// `self.state` again.
+    #[inline(always)]
+    pub fn resume(board: B, state: DriverState) -> Driver<B> {
+        Driver { board, state, lead: LEAD, guard: GUARD }
     }
 
     /// Steps 1 and 2 of the sequence: the start compare to the far side of
     /// the counter, after which nothing of the Chamber can fire; then
     /// whether a Pace had fired before that (its event flag is set).
     /// Returns whether the Chamber is free: disarmed and nothing fired.
+    #[inline(always)]
     fn disarm_and_check(&mut self, c: Chamber) -> bool {
         let far = self.board.now().minus(FAR);
         self.board.write(Reg::StartCompare(c), far.0);
@@ -214,6 +259,7 @@ impl<B: Board> Driver<B> {
     }
 
     /// The count of the Chamber's edge counter.
+    #[inline(always)]
     fn count(&mut self, c: Chamber) -> u32 {
         self.board.write(Reg::CountCapture(c), 1);
         self.board.read(Reg::Count(c))
@@ -221,14 +267,17 @@ impl<B: Board> Driver<B> {
 }
 
 impl<B: Board> Hw for Driver<B> {
+    #[inline(always)]
     fn configure(&mut self) -> Result<(), HwFault> {
         self.board.configure()
     }
 
+    #[inline(always)]
     fn now(&mut self) -> Micros {
         self.board.now()
     }
 
+    #[inline(always)]
     fn arm(&mut self, c: Chamber, start: Micros, width: u32) -> Armed {
         let i = c.index();
         if self.state.forced[i] {
@@ -286,6 +335,7 @@ impl<B: Board> Hw for Driver<B> {
         Armed::Late { at: now, timed }
     }
 
+    #[inline(always)]
     fn disarm(&mut self, c: Chamber) -> Disarmed {
         let i = c.index();
         if self.state.forced[i] {
@@ -299,6 +349,7 @@ impl<B: Board> Hw for Driver<B> {
         }
     }
 
+    #[inline(always)]
     fn refresh(&mut self, c: Chamber) {
         let i = c.index();
         if !self.state.armed[i] && !self.state.forced[i] {
@@ -307,6 +358,7 @@ impl<B: Board> Hw for Driver<B> {
         }
     }
 
+    #[inline(always)]
     fn fired(&mut self) -> Fired {
         let mut out = Fired { fired: [false; 2], at: [Micros(0); 2] };
         let mut k = 0;
@@ -338,6 +390,7 @@ impl<B: Board> Hw for Driver<B> {
         out
     }
 
+    #[inline(always)]
     fn sensed(&mut self, c: Chamber) -> Option<Sensed> {
         let i = c.index();
         let mut n = self.count(c);
@@ -371,6 +424,7 @@ impl<B: Board> Hw for Driver<B> {
         }
     }
 
+    #[inline(always)]
     fn magnet(&mut self) -> bool {
         self.board.read(Reg::Magnet) != 0
     }

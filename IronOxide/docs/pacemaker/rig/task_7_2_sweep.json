@@ -1,0 +1,63 @@
+{
+  "task": "7.2",
+  "binary_sha256": "48627bb1319593242609d7b25fc10a5f02e92b13097de8260639c0223290e0f0",
+  "lead_us": 500,
+  "guard_us": 64,
+  "offset_spread_us": 4,
+  "offset_tries": 1,
+  "moved_max_us": 609,
+  "first_miss": null,
+  "rows": [
+    {
+      "operation": "arm",
+      "trials": 1601,
+      "ok": 1594,
+      "moved": 166,
+      "too_late": 7,
+      "forced": 0,
+      "missed": 0,
+      "wrong": 0,
+      "reported": 1601
+    },
+    {
+      "operation": "move",
+      "trials": 1801,
+      "ok": 1188,
+      "moved": 0,
+      "too_late": 613,
+      "forced": 0,
+      "missed": 0,
+      "wrong": 0,
+      "reported": 1801
+    },
+    {
+      "operation": "withdraw",
+      "trials": 1801,
+      "ok": 1191,
+      "moved": 0,
+      "too_late": 610,
+      "forced": 0,
+      "missed": 0,
+      "wrong": 0,
+      "reported": 610
+    }
+  ],
+  "pin": {
+    "pulses": 4012,
+    "at_400_us": 4012,
+    "other_widths_us": [],
+    "longest_us": 401.0,
+    "reset_pulses_before_the_run": 1
+  },
+  "checks": {
+    "the sweep ran to its end": true,
+    "the clock offset was measured within its spread": true,
+    "no Pace reported armed failed to fire": true,
+    "no Pace reported withdrawn fired": true,
+    "every instant was tried": true,
+    "the pulses on the pin are the pulses the driver reported": true,
+    "every pulse not forced by software is 400 \u00b5s to the sample": true,
+    "no pulse on the atrial pin": true
+  },
+  "verdict": "PASS"
+}

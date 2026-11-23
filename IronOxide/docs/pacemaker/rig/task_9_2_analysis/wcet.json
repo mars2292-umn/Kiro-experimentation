@@ -1,0 +1,215 @@
+{
+  "schema": "rsk-wcet/1",
+  "records": [
+    {
+      "item": "therapy.pace",
+      "wcet_cycles": 18198,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Task entry: one Job's execution from the Budget accounting (R18.1)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2367 cycles"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 14558,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.sense_v",
+      "wcet_cycles": 14539,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Task entry: one Job's execution from the Budget accounting (R18.1)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 11631,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.sense_a",
+      "wcet_cycles": 14564,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Task entry: one Job's execution from the Budget accounting (R18.1)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 11651,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.control",
+      "wcet_cycles": 19138,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Task entry: one Job's execution from the Budget accounting (R18.1)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
+      ],
+      "measured": {
+        "runs": 15000,
+        "max_observed": 15310,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.pace#cs:timing",
+      "wcet_cycles": 10480,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 8384,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.sense_v#cs:timing",
+      "wcet_cycles": 6677,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 5341,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.sense_a#cs:timing",
+      "wcet_cycles": 6700,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "375 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 5360,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "therapy.control#cs:timing",
+      "wcet_cycles": 10863,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "branch coverage not measured (R34.4)"
+      ],
+      "measured": {
+        "runs": 15000,
+        "max_observed": 8690,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "qemu": {
+    "binary_sha256": "f3f3b26615a6c334371b18475d8c8399080d65daecd0e1184bc9e653121783bd",
+    "task_model": "apps/pacemaker/gen/task_model.json",
+    "link_checker": {
+      "passed": true,
+      "verdict": "rsk-link: 81 functions bounded, 2 stack regions within their worst case"
+    },
+    "config_checker": {
+      "passed": true,
+      "verdict": "rsk-confcheck: 211 values checked, every recomputed value matches"
+    },
+    "entry_stubs": {
+      "passed": true,
+      "verdict": "the entry stubs are the assembly source, instruction for instruction: rsk_irq_entry (40 instructions), rsk_svc_entry (12 instructions), rsk_unwind (24 instructions), rsk_memmanage_entry (16 instructions), rsk_busfault_entry (11 instructions), rsk_usagefault_entry (11 instructions), job_end_trampoline (2 instructions)"
+    }
+  },
+  "nrf52840": {
+    "binary_sha256": "9fd07321069b45d549c01b1ee4ae71d9222a629b16aa38ee677f1a021d554e1e",
+    "task_model": "apps/pacemaker/gen-nrf52840/task_model.json",
+    "link_checker": {
+      "passed": true,
+      "verdict": "rsk-link: 80 functions bounded, 2 stack regions within their worst case"
+    },
+    "config_checker": {
+      "passed": true,
+      "verdict": "rsk-confcheck: 321 values checked, every recomputed value matches"
+    },
+    "entry_stubs": {
+      "passed": true,
+      "verdict": "the entry stubs are the assembly source, instruction for instruction: rsk_irq_entry (40 instructions), rsk_svc_entry (12 instructions), rsk_unwind (24 instructions), rsk_memmanage_entry (16 instructions), rsk_busfault_entry (11 instructions), rsk_usagefault_entry (11 instructions), job_end_trampoline (2 instructions)"
+    }
+  },
+  "profile_lint": {
+    "passed": true,
+    "verdict": "note: R3.2: Profile_Lint over 18 crates: rsk-lint: 78 files, 150 loops bounded (8 annotated, 69 derived from constants, 68 by `decreases`, 5 non-terminating by design; 26 with an App_Prover variant equal to the bound, R35.2), no violation",
+    "static_checks": "     Running `target/debug/xtask check`"
+  },
+  "verdict": "PASS"
+}

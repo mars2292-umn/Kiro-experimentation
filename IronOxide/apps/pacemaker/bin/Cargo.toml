@@ -1,0 +1,43 @@
+[package]
+name = "pacemaker"
+description = "PACEMAKER experiment: the pulse generator's binary: no symbols of its own (DD-11); links rsk-entry bound to the pulse generator's system crate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "pacemaker"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+# The board (see the system crate): `cargo build -p pacemaker --no-default-features --features nrf52840`.
+default = ["qemu-mps2"]
+qemu-mps2 = ["rsk-entry/qemu-mps2"]
+qemu-voo = ["rsk-entry/qemu-voo"]
+qemu-aoo = ["rsk-entry/qemu-aoo"]
+qemu-aai = ["rsk-entry/qemu-aai"]
+nrf52840 = ["rsk-entry/nrf52840"]
+debug-port = ["rsk-entry/debug-port"]
+trace = ["rsk-entry/trace"]
+trace-ram = ["rsk-entry/trace-ram"]
+trace-pins = ["rsk-entry/trace-pins"]
+quiet = ["rsk-entry/quiet"]
+set-vvi-90 = ["rsk-entry/set-vvi-90"]
+set-voo-60 = ["rsk-entry/set-voo-60"]
+set-aai-90 = ["rsk-entry/set-aai-90"]
+set-aoo-90 = ["rsk-entry/set-aoo-90"]
+sweep = ["rsk-entry/sweep"]
+measure = ["rsk-entry/measure"]
+rig = ["rsk-entry/rig"]
+inject = ["rsk-entry/inject"]
+coverage = ["rsk-entry/coverage"]
+set-env = ["rsk-entry/set-env"]
+
+[dependencies]
+# rsk-entry bound to this Application's system crate (its `app-*` features
+# select exactly one system crate; the P1 demo's is the default).
+rsk-entry = { path = "../../../crates/rsk-entry", default-features = false, features = ["app-pacemaker"] }

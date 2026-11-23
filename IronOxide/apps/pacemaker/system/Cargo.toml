@@ -1,0 +1,49 @@
+[package]
+name = "pacemaker-system"
+description = "PACEMAKER experiment: the pulse generator's system crate (the Generated_Config tables through the declaration's manifest) and its safe state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# The board: QEMU's by default, the nRF52840-DK with `nrf52840`
+# (`--no-default-features --features nrf52840`).
+default = ["qemu-mps2"]
+qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
+# The QEMU run in another Mode than VVI (task 9.1; `cargo xtask qemu --bin
+# pacemaker --features qemu-voo`): the board with the Mode's set and script.
+qemu-voo = ["qemu-mps2", "pacemaker-therapy/qemu-voo"]
+qemu-aoo = ["qemu-mps2", "pacemaker-therapy/qemu-aoo"]
+qemu-aai = ["qemu-mps2", "pacemaker-therapy/qemu-aai"]
+nrf52840 = ["rsk-kernel/board-nrf52840", "pacemaker-decl/nrf52840", "pacemaker-therapy/nrf52840"]
+# HIL builds only: the debug port stays open across resets (see rsk-kernel).
+debug-port = ["rsk-kernel/debug-port"]
+# Debugging only: the Kernel's semihosting trace of every entry point.
+trace = ["rsk-kernel/trace"]
+# HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
+trace-ram = ["rsk-kernel/trace-ram"]
+hw-dt = ["rsk-kernel/hw-dt"]
+record-only = ["rsk-kernel/record-only"]
+trace-pins = ["rsk-kernel/trace-pins"]
+quiet = ["rsk/quiet"]
+# The parameter set of the build and the arming sweep (see pacemaker-therapy).
+set-vvi-90 = ["pacemaker-therapy/set-vvi-90"]
+set-voo-60 = ["pacemaker-therapy/set-voo-60"]
+set-aai-90 = ["pacemaker-therapy/set-aai-90"]
+set-aoo-90 = ["pacemaker-therapy/set-aoo-90"]
+sweep = ["pacemaker-therapy/sweep"]
+measure = ["pacemaker-therapy/measure"]
+rig = ["pacemaker-therapy/rig"]
+inject = ["pacemaker-therapy/inject"]
+# The coverage build (task 9.9): the Kernel zeroes the Partition's coverage
+# counters at instant 0; `cargo xtask pm-measure --coverage` builds it.
+coverage = ["rsk-kernel/coverage"]
+set-env = ["pacemaker-therapy/set-env"]
+
+[dependencies]
+pacemaker-decl = { path = "../decl" }
+rsk-kernel = { workspace = true, default-features = false }
+rsk = { path = "../../../crates/rsk" }
+pacemaker-therapy = { path = "../therapy" }
+pm-core.workspace = true

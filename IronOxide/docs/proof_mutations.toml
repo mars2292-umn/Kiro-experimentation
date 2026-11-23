@@ -2966,3 +2966,51 @@ find = "def endHold (P : Params) : Nat := max P.Kc P.Kov"
 replace = "def endHold (P : Params) : Nat := 0"
 expect = ["Sched/Hold.lean"]
 prover = "lean"
+
+# 2026-11-22 (docs/pacemaker task 3.3; requirement PM33.3, PM33.4): the
+# Kernel's write of the declared PPI channels, `arch::cm4::ppi`. Each
+# mutant was rejected when it was first tried (Verus on rsk-kernel: 376
+# verified, 1 error; the Kani harness alone: one failed check).
+
+[[mutation]]
+id = "ppi-task-register-given-the-event"
+kills = "ppi_write (PM33.3: each channel's task end-point holds the table's task register)"
+file = "crates/rsk-kernel/src/arch/cm4/ppi.rs"
+find = "        r.write(CH0_TEP + 8 * step, row[1]);\n"
+replace = "        r.write(CH0_TEP + 8 * step, row[0]);\n"
+expect = ["ppi.rs"]
+
+[[mutation]]
+id = "ppi-fork-register-of-another-channel"
+kills = "ppi_write (PM33.3: channel i's fork end-point is FORK[i].TEP, four bytes per channel)"
+file = "crates/rsk-kernel/src/arch/cm4/ppi.rs"
+find = "        r.write(FORK0_TEP + 4 * step, row[2]);\n"
+replace = "        r.write(FORK0_TEP + 8 * step, row[2]);\n"
+expect = ["ppi.rs"]
+
+[[mutation]]
+id = "ppi-one-enable-bit-too-many"
+kills = "ppi_write (PM33.3: the enable bits of exactly the declared channels)"
+file = "crates/rsk-kernel/src/arch/cm4/ppi.rs"
+find = "    let bits: u32 = if n == 0 { 0 } else { 0xFFFF_FFFFu32 >> (32 - n as u32) };\n"
+replace = "    let bits: u32 = if n == 0 { 0 } else { 0xFFFF_FFFFu32 >> (31 - n as u32) };\n"
+expect = ["ppi.rs"]
+
+[[mutation]]
+id = "ppi-written-under-a-wrong-checksum"
+kills = "ppi_boot (PM33.4: with a checksum other than the recorded one no register is written)"
+file = "crates/rsk-kernel/src/arch/cm4/ppi.rs"
+find = "    if ppi_checksum(tables_sum, table) != recorded {\n        return false;\n    }\n"
+replace = "    if ppi_checksum(tables_sum, table) != recorded {\n        ppi_write(r, table);\n        return false;\n    }\n"
+expect = ["ppi.rs"]
+
+[[mutation]]
+id = "kani-ppi-fork-register-of-another-channel"
+kills = "ppi_write_sets_exactly_the_declared_channels (the raw write on the register stub: the second channel's fork end-point is read back at FORK[1].TEP)"
+file = "crates/rsk-kernel/src/arch/cm4/ppi.rs"
+find = "        r.write(FORK0_TEP + 4 * step, row[2]);\n"
+replace = "        r.write(FORK0_TEP + 8 * step, row[2]);\n"
+expect = ["VERIFICATION:- FAILED", "sim::read(0x4001_F910"]
+package = "rsk-kernel"
+prover = "kani"
+harness = "ppi_write_sets_exactly_the_declared_channels"

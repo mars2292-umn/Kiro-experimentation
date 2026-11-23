@@ -1,0 +1,2704 @@
+{
+ "task": "9.5",
+ "runs": [
+  {
+   "name": "vvi_lrl_71_beat_845",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=71",
+   "heart": "env 0,0,200,845,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 81,
+    "too_late": 27,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 49,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:721d555c74c50084e640a5bd886847fad81f97893ee1a23753adde695d996da3"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:6017233b7a6bae6514cdee5ca9a301edc9ce1ff5bbfd7bc596747ebb5f94137a"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:97f9db9dce6fac4dfbbbdc20ba67c6baaa6bf44a6a5a1ebaebdf51572f12a534"
+    },
+    "escape_interval_us": 845070.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     71,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 17,
+     "pace_intervals": {
+      "count": 17,
+      "max_us": 845068.0,
+      "min_us": 845067.0
+     },
+     "paces": 18,
+     "pulse_widths": {
+      "count": 18,
+      "max_us": 400.0,
+      "min_us": 400.0
+     },
+     "senses": 35,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 34,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    73.0,
+    73.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0,
+    72.0
+   ],
+   "ventricular_senses": 35,
+   "ventricular_paces": 18,
+   "nominal_distance_us": 70
+  },
+  {
+   "name": "vvi_lrl_70_beat_857",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=70",
+   "heart": "env 0,0,200,857,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 56,
+    "too_late": 3,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 24,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:040fbf04bfca7c79997ce9474f9035da3cc4f4446766b663eaaf3313776a65f6"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:b3d68df9618639db9b391b05dd68966ce1e786362cf5a91babff8e3b856001ec"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:adeeda93fad21a7865f77ac310b16eceb906b360d14997f503e22ae4a57af4f2"
+    },
+    "escape_interval_us": 857142.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     70,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 2,
+     "pace_intervals": {
+      "count": 2,
+      "max_us": 857139.0,
+      "min_us": 857139.0
+     },
+     "paces": 2,
+     "pulse_widths": {
+      "count": 2,
+      "max_us": 400.0,
+      "min_us": 400.0
+     },
+     "senses": 36,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 35,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [
+    144.0,
+    144.0
+   ],
+   "ventricular_senses": 36,
+   "ventricular_paces": 2,
+   "nominal_distance_us": 142
+  },
+  {
+   "name": "vvi_lrl_77_beat_779",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=77",
+   "heart": "env 0,0,200,779,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 58,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 26,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:c1a9f3c522c1af5652822a464c334e81fe0caf1c71f335f54528f9aa0e763929"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:c24816d17ec96e4e10c65e462d8459cd1af2ac04bb37e1cd65a5692577951aef"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:dacd4451e616b84f315fd6995e68888ccd75ad89ef8141d793bd7b962e10daa8"
+    },
+    "escape_interval_us": 779220.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     77,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 38,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 37,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 38,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 220
+  },
+  {
+   "name": "vvi_lrl_84_beat_714",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=84",
+   "heart": "env 0,0,200,714,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 63,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 31,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:ef1ca14c158e6b462af2ad0197cc61cb590b0bd58cbf9bd9e5f82f0c5319d760"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:263283ee65962868637a3ec8acfce71bae52628fd1d84dec409220e3bc6d15a1"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:ae5aafaacfa4e13d7afeabe9c0db3610af4157a3c2fdeeb8396d3ddf2be4bd15"
+    },
+    "escape_interval_us": 714285.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     84,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 42,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 41,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 42,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 285
+  },
+  {
+   "name": "vvi_lrl_72_beat_833",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=72",
+   "heart": "env 0,0,200,833,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 54,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 22,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:e25b18ae07d9fb36495b9fb02d0fcb44c919efd768e28b2162d8bdc3b71e08d1"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:9d4cfc529cb1d03fac704c5b846ac359ac6df3b773cd878510e42b6e46eb52d8"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:c692a6c6f67ba19fac041f220ee2c0b9a2193d22c273cd7d9060d1fa7a7e44a3"
+    },
+    "escape_interval_us": 833333.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     72,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 36,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 35,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 36,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 333
+  },
+  {
+   "name": "vvi_lrl_63_beat_952",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=63",
+   "heart": "env 0,0,200,952,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 48,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 16,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:247283855f26d9b3c98b2201f6870ec8034961ca4de40d1ff4f98209e200178a"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:47eb4667c37293b7f20352ed5d87a6e23565ffd1c97e44c532001f96828afa26"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:59ca7799b311db2430579f1dfb59e1854fbd270794c4c6607ce645c16e5fe0ad"
+    },
+    "escape_interval_us": 952380.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     63,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 31,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 30,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 31,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 380
+  },
+  {
+   "name": "vvi_lrl_56_beat_1071",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=56",
+   "heart": "env 0,0,200,1071,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 42,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 10,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:40dce68df6eb89054b85dc869faa4de3f85e26e65c6aef77098ba66e4429eab9"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:9ec72ee0fac06eeac5900efc09ae9419c28708c8c94d0b5e9eeae00df2e95320"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:fdc1cb80afcac0ca6e99a7de151979c2a4c60b117a812a571ed007f20a528850"
+    },
+    "escape_interval_us": 1071428.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     56,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 28,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 27,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 28,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 428
+  },
+  {
+   "name": "vvi_lrl_76_beat_789",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=76",
+   "heart": "env 0,0,200,789,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 57,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 25,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:8a9c70fe96725e97f3863feed8f78028d21a69cc5ee24351fb32e48966eb19a2"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:502dd8651fada9989e8b0807e9ff7c0c559a85edebbc2ecb528452165985d603"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:ce6a295ed065544d58e8e9fbc37470e3bcbdbe60a8e13f75794e9eee000b179e"
+    },
+    "escape_interval_us": 789473.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     76,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 38,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 37,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 38,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 473
+  },
+  {
+   "name": "vvi_lrl_67_beat_895",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=67",
+   "heart": "env 0,0,200,895,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 51,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 19,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:81672e4e07415fd1cd39c8464bd47aa299b4308ea47165a43a2e62149414852c"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:fc97d3cfa02730d09ed97abebd88661d489c689776064b02b4d25c9e08a49db8"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:29b55a735a5da72ec4ce6ddfc813f09d61f6a87f55bd5ee4318dd6dbbcdf2c59"
+    },
+    "escape_interval_us": 895522.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     67,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 33,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 32,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 33,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 522
+  },
+  {
+   "name": "vvi_lrl_69_beat_869",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=69",
+   "heart": "env 0,0,200,869,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 52,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 20,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:84be139e45603b2a5610ad512978be452cb3e623a9b7ab2c385968e899132cc1"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:53e9c9f26ba2c52f10ffa556ce84a08728179c1e0eca61975bb4d962d1155594"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:78ad32a2331d67fa717442723e98f52b18aa9e14ab1dc89467f4946dde0f4e77"
+    },
+    "escape_interval_us": 869565.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     69,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 34,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 33,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 34,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 565
+  },
+  {
+   "name": "vvi_lrl_61_beat_983",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=61",
+   "heart": "env 0,0,200,983,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 46,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 14,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:5fb0b98a2ceecbf207a12c96da8fec35bf3ec078879a0f337dbe89b26d900359"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:122bdbe7bb412a2232f3c5bb9638a0b21a0d16d04909002159e11f373946159a"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:3023ff0b7058cd914425467defaf964d9ebf17115e6cd90e4f62758b6b060a2b"
+    },
+    "escape_interval_us": 983606.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     61,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 30,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 29,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 30,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 606
+  },
+  {
+   "name": "vvi_lrl_87_beat_689",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=87",
+   "heart": "env 0,0,200,689,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 66,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 34,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:a34375e5fe5b78648827e80583d4ef50afccd715c28e9ca0fd971ccab4588465"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:a8a14f47d675f0300fc69f3c937ac028df6f4392104482735626b1af6f60c0a0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:3a51718de082809a8298a7c8b759ac0bba605432ffeed6d4c7731394cf316c9f"
+    },
+    "escape_interval_us": 689655.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     87,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 43,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 42,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 43,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 655
+  },
+  {
+   "name": "vvi_lrl_82_beat_731",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=82",
+   "heart": "env 0,0,200,731,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 62,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 30,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:ceaf99c293b891552dd46706329d14a0ca0ccc4c447b4521d97130e894776ade"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:b833e5d4a12a497c17ca52ef4dcaee28573d7deeb3e75d1a35919a2d2322eb9c"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:41c46092545cd1f079b94326db0e6ffb6a443cabf3149594b922037a666c3b48"
+    },
+    "escape_interval_us": 731707.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     82,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 41,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 40,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 41,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 707
+  },
+  {
+   "name": "vvi_lrl_81_beat_740",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=81",
+   "heart": "env 0,0,200,740,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 61,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 29,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:92f1ce71379ea75f680230face60ce4f958b6e68d212b104c017ba6b8edcf005"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:79d431ac026f3f673c726706ad8380ac0d610847eacb9844d3231090030c82de"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:cea1b71f4ae201309415922ae1f1bf4c4849fe0f9957652abef613fbbb32c109"
+    },
+    "escape_interval_us": 740740.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     81,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 40,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 39,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 40,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 740
+  },
+  {
+   "name": "vvi_lrl_74_beat_810",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=74",
+   "heart": "env 0,0,200,810,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 56,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 24,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:8326f709f49b11e828fd4a759eabab7ac306cf3970c1e715b0b00f0d2267cbed"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:60ae2300db0eed9f27a3be082ffebcbc7b94e5632edb7af59719c0165470d5f4"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:25ba76c8e30e54c42c1c58fe1a19229f9ca32c4d08346f1f1a2d98fe64db4e87"
+    },
+    "escape_interval_us": 810810.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     74,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 37,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 36,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 37,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 810
+  },
+  {
+   "name": "vvi_lrl_83_beat_722",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=83",
+   "heart": "env 0,0,200,722,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 63,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 31,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:c85ad41ba8320c9dc9bfbc89500273d93fda63c7f07d5fb37e7acf6078915725"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:0e17c4eaf4c61a614ba883bdbd2be7a3c6517d226d8b4e832280941247b6d5b0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:f5a7d0ebad96f52bc4554e22179621c50ef07aaa50c478a070f5a0f930c01a00"
+    },
+    "escape_interval_us": 722891.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     83,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 41,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 40,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 41,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 891
+  },
+  {
+   "name": "vvi_lrl_59_beat_1016",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=59",
+   "heart": "env 0,0,200,1016,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 45,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 13,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:e84b09ef0fe6e8d5a260e17348b47e390aedec4d4d3a483d42aff0b31552512b"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:5c9e52eb76eaac5c072c7eadcd40a7d299167cc6422fb5faaf7af62a91f154f2"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:c5efebbdb85039a7ad0d811d991c992f56e23cf806817d48869e1da526454a8a"
+    },
+    "escape_interval_us": 1016949.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     59,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 29,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 28,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 29,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 949
+  },
+  {
+   "name": "vvi_lrl_70_beat_856",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=70",
+   "heart": "env 0,0,200,856,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 53,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 21,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:a92511afd923e1abfc57e17a3ec6ba1347a4bc7c18548f9811dae01601e9d764"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:b3d68df9618639db9b391b05dd68966ce1e786362cf5a91babff8e3b856001ec"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:50dcb9ee71d5fc4fc6533d17feb72d09e8525976d9086c1ab88f87fe2189c515"
+    },
+    "escape_interval_us": 857142.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     70,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 35,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 34,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 35,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 1142
+  },
+  {
+   "name": "vvi_lrl_72_beat_832",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=72",
+   "heart": "env 0,0,200,832,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 54,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 22,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:98780e17c88a94df92c75aff3dc8df4335df990981075a5918b2891aeaef9496"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:9d4cfc529cb1d03fac704c5b846ac359ac6df3b773cd878510e42b6e46eb52d8"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:a17f8e37c04b373d1d28f99853ec5a399dc6db7dd8f7017747c895f38d4b8ada"
+    },
+    "escape_interval_us": 833333.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     72,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 36,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 35,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 36,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 1333
+  },
+  {
+   "name": "vvi_lrl_64_beat_936",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=64",
+   "heart": "env 0,0,200,936,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 48,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 16,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:81625c2885d24f5d5ae029d3159c2a3ce2c12b67256136c737127422b9564591"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:d08014192456296e98fe4fbb2b314d6fa009384178ab2a3f7faa4b683a458a38"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:f957c201e145b82da687c0954dbea62c3eeb66f198d4e187934a801fae977b89"
+    },
+    "escape_interval_us": 937500.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     64,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 32,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 31,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 32,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 1500
+  },
+  {
+   "name": "vvi_lrl_80_beat_748",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=80",
+   "heart": "env 0,0,200,748,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 61,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 29,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:3e4e10e9023ab6a80a55113f8a3e1e4b68e975197edb12ae1f3bcc08c0d50820"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:ac57a422ec8e902c9021b224c735ecea05d745a192bc5d9b3dfa7fe06b2b6c91"
+    },
+    "escape_interval_us": 750000.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     80,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 40,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 39,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 40,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 2000
+  },
+  {
+   "name": "vvi_lrl_80_beat_747",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=80",
+   "heart": "env 0,0,200,747,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 61,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 29,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:46f4db6c75e1870ec676ab9e4b3dd2480e7cb69ddd3f851009aea6bb095786c6"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:0c448030f5c07a0b228de9bd79212c55459b4bb4254a9f190281fbd8b83c7f84"
+    },
+    "escape_interval_us": 750000.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     80,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 40,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 39,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 40,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 3000
+  },
+  {
+   "name": "vvi_lrl_80_beat_746",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=80",
+   "heart": "env 0,0,200,746,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 61,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 29,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:fde7a0e6179f98c28a0beabe08b123250059fb4e2ad7832909da9735cde9c6a7"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:0cb8e3940ee9f8d0b699b32ff3a0530f8aec486a5c84d187643739b9940063b1"
+    },
+    "escape_interval_us": 750000.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     80,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 40,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 39,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 40,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 4000
+  },
+  {
+   "name": "vvi_lrl_80_beat_745",
+   "mode": "VVI",
+   "PM_SET": "0=8,1=80",
+   "heart": "env 0,0,200,745,0",
+   "expect": "PASS",
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 61,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 29,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "atrial": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 0,
+     "senses_at_the_refractory_boundary": 0,
+     "senses_effective": 0,
+     "senses_refractory": 0
+    },
+    "av_delays_measured_not_judged": {
+     "count": 0
+    },
+    "binaries": {
+     "heart-sim": {
+      "path": "target/heart-sim-env/thumbv7em-none-eabihf/release/heart-sim",
+      "sha256": "sha256:2632f99b2773e10a8dfee9cf7b018ff2224cb364b187b610d3f8d9445ec6eba5"
+     },
+     "pacemaker": {
+      "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
+      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+     }
+    },
+    "capture": {
+     "file": "capture.bin",
+     "length_us": 30000000.0,
+     "rate_hz": 1000000,
+     "sha256": "sha256:a32d7e2219b597fd661379d4f72fef722c056fa2edbbecdd67113d9690aa89dc"
+    },
+    "escape_interval_us": 750000.0,
+    "mode": "VVI",
+    "parameter_words": [
+     8,
+     80,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "scenario": null,
+    "tolerances_us": {
+     "inhibition_window": 4000.0,
+     "interval": 8000.0,
+     "pulse_width": 200.0
+    },
+    "ventricular": {
+     "fusions": 0,
+     "pace_intervals": {
+      "count": 0
+     },
+     "paces": 0,
+     "pulse_widths": {
+      "count": 0
+     },
+     "senses": 40,
+     "senses_at_the_refractory_boundary": 1,
+     "senses_effective": 39,
+     "senses_refractory": 0
+    },
+    "verdict": "PASS",
+    "violations": []
+   },
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 40,
+   "ventricular_paces": 0,
+   "nominal_distance_us": 5000
+  }
+ ],
+ "capture": {
+  "rate_hz": 1000000,
+  "seconds": 30,
+  "operating_duration_s": 45
+ }
+}
