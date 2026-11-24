@@ -28,7 +28,7 @@ pub mod sets;
 #[cfg(feature = "sweep")]
 mod sweep;
 
-use pm_core::{step, Battery, Chamber, Event, Marker, Micros, Pace, State, Therapy};
+use pm_core::{rearmed, step, Battery, Chamber, Event, Marker, Micros, Pace, State, Therapy};
 use pm_hw::{Armed, Disarmed, Driver, DriverState, Hw};
 
 /// The records the event ring holds.
@@ -205,13 +205,19 @@ fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32,
                 }
             }
             Pace::At { at, width } => match hw.arm(c, at, width) {
-                Armed::Ok { moved, .. } => {
+                Armed::Ok { at: armed, moved } => {
                     if moved {
+                        // The state has the Pace pending where it is armed,
+                        // so that it is accounted when it has fired.
                         counts.moved = counts.moved.saturating_add(1);
+                        *state = rearmed(state, c, armed);
                     }
                 }
                 Armed::TooLate => counts.too_late = counts.too_late.saturating_add(1),
-                Armed::Late { .. } => counts.late = counts.late.saturating_add(1),
+                Armed::Late { at: forced, .. } => {
+                    counts.late = counts.late.saturating_add(1);
+                    *state = rearmed(state, c, forced);
+                }
             },
         }
         let marker = match c {

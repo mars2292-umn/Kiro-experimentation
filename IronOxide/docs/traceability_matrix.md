@@ -87,7 +87,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R6.1 | — | Requirements Impact | ✓1.1 | apps/heart-sim/part/tests/heart.rs; crates/pm-core/tests/event.rs; crates/pm-core/tests/mode.rs; +19 | check-post-build; check-static-checks; test-workspace-tests |
+| R6.1 | — | Requirements Impact | ✓1.1 | apps/heart-sim/part/tests/heart.rs; crates/pm-core/tests/event.rs; crates/pm-core/tests/mode.rs; +20 | check-post-build; check-static-checks; test-workspace-tests |
 | R6.2 | — | — | ✓1.2 | xtask/src/checks/kernel_size.rs; xtask/src/diag.rs; xtask/src/lib.rs; +3 | check-kernel-proofs-step; check-static-checks; test-workspace-tests |
 | R6.3 | — | Design decisions; Kani harnesses (R45) | ✓1.1; ✓5.1 | crates/rsk-entry/clippy.toml; crates/rsk-entry/src/lib.rs; crates/rsk-kernel/clippy.toml; +16 | check-static-checks; test-workspace-tests |
 | R6.4 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +2 | ✓1.2; ✓5.1 | crates/rsk-entry/unsafe_justifications.toml; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +11 | check-static-checks; proof-kernel-kani; test-workspace-tests |

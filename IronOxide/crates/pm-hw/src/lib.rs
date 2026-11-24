@@ -223,6 +223,14 @@ pub struct DriverState {
     pub untimed: u32,
 }
 
+/// The witness that a Chamber's start compare has just been put on the far
+/// side of the counter and its event flag then read clear: what Property P6
+/// asks before an end compare is written. Only
+/// [`Driver::disarm_and_check`] makes one, it cannot be copied, and
+/// [`Driver::write_end`], the only writer of an end compare, consumes it:
+/// the order of P6 is checked by the compiler (task 12.4).
+struct Free(Chamber);
+
 /// [`Hw`] over a [`Board`].
 pub struct Driver<B: Board> {
     pub board: B,
@@ -250,12 +258,30 @@ impl<B: Board> Driver<B> {
     /// Steps 1 and 2 of the sequence: the start compare to the far side of
     /// the counter, after which nothing of the Chamber can fire; then
     /// whether a Pace had fired before that (its event flag is set).
-    /// Returns whether the Chamber is free: disarmed and nothing fired.
+    /// Returns the witness that the Chamber is free (disarmed and nothing
+    /// fired), or `None`.
     #[inline(always)]
-    fn disarm_and_check(&mut self, c: Chamber) -> bool {
+    fn disarm_and_check(&mut self, c: Chamber) -> Option<Free> {
         let far = self.board.now().minus(FAR);
         self.board.write(Reg::StartCompare(c), far.0);
-        self.board.read(Reg::StartEvent(c)) == 0
+        if self.board.read(Reg::StartEvent(c)) == 0 {
+            Some(Free(c))
+        } else {
+            None
+        }
+    }
+
+    /// The one place an end compare is written (Property P6): it takes the
+    /// witness of [`Driver::disarm_and_check`] and spends it, so that no
+    /// end compare can be written without the start compare disarmed and
+    /// its event flag read clear just before, and none twice on one check.
+    /// The stale end flag is cleared first (no pulse is in progress, so a
+    /// set flag is the end compare of a withdrawn Pace coming past).
+    #[inline(always)]
+    fn write_end(&mut self, free: Free, end: Micros) {
+        let Free(c) = free;
+        self.board.write(Reg::EndEvent(c), 0);
+        self.board.write(Reg::EndCompare(c), end.0);
     }
 
     /// The count of the Chamber's edge counter.
@@ -286,18 +312,20 @@ impl<B: Board> Hw for Driver<B> {
         let mut start = start;
         let mut moved = false;
         let mut round = 0;
+        // Property P7: the sequence ends within `ROUNDS` rounds.
+        #[cfg_attr(creusot, creusot_std::macros::variant(ROUNDS@ - round@))]
+        #[cfg_attr(creusot, creusot_std::macros::invariant(round@ <= ROUNDS@))]
         while round < ROUNDS {
-            if !self.disarm_and_check(c) {
+            let free = match self.disarm_and_check(c) {
+                Some(free) => free,
                 // Before this Job, or as it began; or, in a later round,
                 // the start of the round before, delivered with its own
                 // end in force.
-                return Armed::TooLate;
-            }
-            // The start is disarmed and nothing has fired: no pulse is in
-            // progress, so a set end flag is a stale one (the end compare
-            // of a withdrawn Pace coming past), and the end may be written.
-            self.board.write(Reg::EndEvent(c), 0);
-            self.board.write(Reg::EndCompare(c), start.plus(width).0);
+                None => return Armed::TooLate,
+            };
+            // The start is disarmed and nothing has fired: the end may be
+            // written, and then the start.
+            self.write_end(free, start.plus(width));
             self.board.write(Reg::StartCompare(c), start.0);
             self.state.last_start[i] = start;
             self.state.armed[i] = true;
@@ -312,13 +340,13 @@ impl<B: Board> Hw for Driver<B> {
             round += 1;
         }
         // No round was in time. The last start may fire all the same.
-        if !self.disarm_and_check(c) {
-            return Armed::TooLate;
-        }
+        let free = match self.disarm_and_check(c) {
+            Some(free) => free,
+            None => return Armed::TooLate,
+        };
         let now = self.board.now();
         let end = now.plus(self.lead).plus(width);
-        self.board.write(Reg::EndEvent(c), 0);
-        self.board.write(Reg::EndCompare(c), end.0);
+        self.write_end(free, end);
         self.board.write(Reg::PaceSet(c), 1);
         self.state.last_start[i] = now;
         self.state.armed[i] = true;
@@ -341,11 +369,12 @@ impl<B: Board> Hw for Driver<B> {
         if self.state.forced[i] {
             return Disarmed::TooLate;
         }
-        if self.disarm_and_check(c) {
-            self.state.armed[i] = false;
-            Disarmed::Withdrawn
-        } else {
-            Disarmed::TooLate
+        match self.disarm_and_check(c) {
+            Some(_) => {
+                self.state.armed[i] = false;
+                Disarmed::Withdrawn
+            }
+            None => Disarmed::TooLate,
         }
     }
 
@@ -362,6 +391,8 @@ impl<B: Board> Hw for Driver<B> {
     fn fired(&mut self) -> Fired {
         let mut out = Fired { fired: [false; 2], at: [Micros(0); 2] };
         let mut k = 0;
+        #[cfg_attr(creusot, creusot_std::macros::variant(2 - k@))]
+        #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 2))]
         while k < 2 {
             let c = if k == 0 { Chamber::A } else { Chamber::V };
             // A Pace is reported, and its start flag cleared, only when its
@@ -396,6 +427,8 @@ impl<B: Board> Hw for Driver<B> {
         let mut n = self.count(c);
         let mut round = 0;
         let mut exact = false;
+        #[cfg_attr(creusot, creusot_std::macros::variant(SENSE_ROUNDS@ - round@))]
+        #[cfg_attr(creusot, creusot_std::macros::invariant(round@ <= SENSE_ROUNDS@))]
         while round < SENSE_ROUNDS && !exact {
             // The flag first, then the compare: the compare still in force
             // is at or behind the count and cannot fire, so the flag stays

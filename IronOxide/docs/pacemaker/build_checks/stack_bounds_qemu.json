@@ -880,7 +880,7 @@
       "usage": 164
     },
     {
-      "address": "0x0002173a",
+      "address": "0x00021fee",
       "bounded": true,
       "calls": [
         "__aeabi_uldivmod",
@@ -892,7 +892,7 @@
       "usage": 372
     },
     {
-      "address": "0x00021d72",
+      "address": "0x00022626",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -906,7 +906,7 @@
       "usage": 676
     },
     {
-      "address": "0x00022c14",
+      "address": "0x000234c8",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h749dc6f902803fcfE"
@@ -917,7 +917,7 @@
       "usage": 708
     },
     {
-      "address": "0x00022c2a",
+      "address": "0x000234de",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7control17h04b9c0b7d64093abE"
@@ -928,7 +928,7 @@
       "usage": 700
     },
     {
-      "address": "0x00022c52",
+      "address": "0x00023506",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -940,7 +940,7 @@
       "usage": 692
     },
     {
-      "address": "0x00022c86",
+      "address": "0x0002353a",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -952,7 +952,7 @@
       "usage": 692
     },
     {
-      "address": "0x00022cbc",
+      "address": "0x00023570",
       "bounded": true,
       "calls": [
         "__aeabi_uldivmod"

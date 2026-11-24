@@ -36,6 +36,6 @@ pub use event::{Arming, Battery, Command, Event, Marker, Markers, Pace};
 pub use mode::{Chamber, Chambers, Mode, Response};
 pub use params::{interval_of_ppm, ActivityThreshold, Params};
 pub use state::{Atr, AtrPhase, ChamberState, Pending, State, Therapy};
-pub use step::{accounted, step};
+pub use step::{accounted, rearmed, step};
 pub use time::{Micros, HALF_RANGE};
 pub use validate::{delivered_in_e1, validate, word, NOMINAL_WORDS, WORDS};
