@@ -1,0 +1,17 @@
+# The bridge of the PACEMAKER experiment's DCM link (docs/pacemaker/tasks.md,
+# task 15.2): test equipment for the rig's board C, not part of the
+# Application. Its own workspace, outside rsk's, as the hardware spike is: a
+# privileged bare-metal program with raw register access.
+[workspace]
+
+[package]
+name = "pm-bridge"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+debug = 2
+lto = false

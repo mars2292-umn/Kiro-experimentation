@@ -19,6 +19,11 @@ fn the_power_on_reset_state_is_all_zero() {
         permanent,
         temporary,
         change_waiting,
+        staged_valid,
+        staged,
+        temporary_wanted,
+        magnet,
+        link_up,
         chamber,
         cycle_known,
         last_cycle,
@@ -35,6 +40,8 @@ fn the_power_on_reset_state_is_all_zero() {
     assert_eq!(therapy as u8, 0);
     assert_eq!(before_magnet as u8, 0);
     assert!(!programmed && !change_waiting && !cycle_known && !hysteresis_active);
+    assert!(!staged_valid && !temporary_wanted && !magnet && !link_up);
+    assert_eq!(staged, Params::ZERO);
     assert!(!atrial_since_ventricular && !pvarp_extended && !pvarp_extended_last_cycle && !sensor_known);
     assert_eq!((last_cycle, sensor_interval), (0, 0));
     assert_eq!(atr.phase as u8, 0);

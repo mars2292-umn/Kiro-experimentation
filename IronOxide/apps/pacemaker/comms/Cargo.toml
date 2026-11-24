@@ -1,0 +1,22 @@
+[package]
+name = "pacemaker-comms"
+description = "PACEMAKER experiment: the Partition comms (level C): the Task link, which exchanges one frame with the DCM in every period over SPIM1"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# The nRF52840-DK: the Partition and its Task. Without it the crate is the
+# link's protocol alone (`proto`), for host tests: the QEMU Target has no
+# SPI master a Partition can own, and its declaration has no `comms`.
+nrf52840 = ["pacemaker-decl/nrf52840"]
+
+[dependencies]
+pacemaker-decl = { path = "../decl" }
+pm-core.workspace = true
+rsk = { path = "../../../crates/rsk" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

@@ -24,6 +24,31 @@ pub enum Therapy {
     Magnet = 4,
 }
 
+/// For the App_Prover: the transitions of the State machine (design,
+/// "Therapy State Machine"; Property P4). From a State the therapy may stay
+/// in it or go: from Power-On Reset to Permanent (a set programmed),
+/// Pace-Now or Magnet; from Permanent to Temporary, Pace-Now or Magnet; from
+/// Temporary to Permanent, Pace-Now or Magnet; from Pace-Now to Permanent (a
+/// set programmed) or, through it at the same event, to Magnet; from Magnet
+/// to the State it interrupted, or to Pace-Now. Not: into Power-On Reset
+/// from any State but Magnet, into Temporary from Power-On Reset or
+/// Pace-Now.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn allowed(from: Therapy, to: Therapy) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! {
+        from == to
+            || match from {
+                Therapy::PowerOnReset => to == Therapy::Permanent || to == Therapy::PaceNow || to == Therapy::Magnet,
+                Therapy::Permanent => to == Therapy::Temporary || to == Therapy::PaceNow || to == Therapy::Magnet,
+                Therapy::Temporary => to == Therapy::Permanent || to == Therapy::PaceNow || to == Therapy::Magnet,
+                Therapy::PaceNow => to == Therapy::Permanent || to == Therapy::Magnet,
+                Therapy::Magnet => true,
+            }
+    }
+}
+
 /// A Pace that is armed, or none.
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(not(creusot), derive(PartialEq, Eq))]
@@ -125,6 +150,15 @@ pub struct State {
     pub temporary: Params,
     /// A State or parameter change waiting for the next timing event.
     pub change_waiting: bool,
+    /// A permanent set the DCM programmed, waiting for the next timing
+    /// event to come into force; `staged` means nothing when false.
+    pub staged_valid: bool,
+    pub staged: Params,
+    /// Temporary pacing was started and not ended (PM6.4).
+    pub temporary_wanted: bool,
+    /// The magnet input and the link, as the last tick had them.
+    pub magnet: bool,
+    pub link_up: bool,
     /// Per Chamber, indexed by `Chamber::index`.
     pub chamber: [ChamberState; 2],
     /// The length of the last cardiac cycle, valid when `cycle_known`.
@@ -173,6 +207,11 @@ impl State {
         permanent: Params::ZERO,
         temporary: Params::ZERO,
         change_waiting: false,
+        staged_valid: false,
+        staged: Params::ZERO,
+        temporary_wanted: false,
+        magnet: false,
+        link_up: false,
         chamber: [ZERO_CHAMBER, ZERO_CHAMBER],
         cycle_known: false,
         last_cycle: 0,

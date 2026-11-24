@@ -73,7 +73,7 @@
 //! Pace that had been accounted arms the atrial Pace the ventricular event
 //! made pending.
 
-use crate::event::{Arming, Event, Marker, Pace};
+use crate::event::{Arming, Command, Event, Marker, Pace};
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use crate::mode::Chambers;
@@ -97,7 +97,10 @@ use creusot_std::model::View;
 //   interval; likewise the atrial Pace of a Mode that paces the atrium
 //   alone.
 use crate::params::Params;
-use crate::state::{Pending, State};
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use crate::state::allowed;
+use crate::state::{Pending, State, Therapy};
 use crate::time::Micros;
 
 /// The escape interval in force: the LRL's (PM9.1).
@@ -182,6 +185,7 @@ const fn is_pvc(p: &Params, st: &State) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed && (^st).chamber@[1].pending.at.0 == v.0 + p.lrl && (^st).chamber@[1].last == v))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(!(p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[0] == (*st).chamber@[0]))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
 #[inline(always)]
 fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bool) {
     let ch = &mut st.chamber[Chamber::V.index()];
@@ -227,6 +231,7 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
 // leaves pending is the one that was pending, or is not before the last
 // ventricular event plus the URL interval.
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].seen ==> (^st).chamber@[1].pending == (*st).chamber@[1].pending || !crate::time::before((^st).chamber@[1].pending.at, Micros((*st).chamber@[1].last.0 + p.url))))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
 #[inline(always)]
 fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: bool) {
     let based = ventricular_based(p);
@@ -268,6 +273,7 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
 #[inline(always)]
 fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
     match c {
@@ -283,6 +289,7 @@ fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
 #[inline(always)]
 fn account(p: &Params, st: &mut State, c: Chamber, instant: Micros) {
     let pending = st.chamber[c.index()].pending;
@@ -301,6 +308,7 @@ fn account(p: &Params, st: &mut State, c: Chamber, instant: Micros) {
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*s).pvarp_extended && (*s).pvarp_extended_last_cycle) ==> !(result.pvarp_extended && result.pvarp_extended_last_cycle)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed ==> result.chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed ==> result.chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.change_waiting == s.change_waiting))]
 #[inline(always)]
 #[must_use]
 pub fn accounted(p: &Params, s: &State, instant: Micros) -> State {
@@ -392,6 +400,7 @@ fn arm_difference(p: &Params, before: &State, after: &State, out: &mut Arming) {
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
 #[inline(always)]
 fn tick(p: &Params, st: &mut State, now: Micros) {
     let paces_a = p.mode.paces(Chamber::A);
@@ -446,6 +455,106 @@ fn blanked(st: &State, c: Chamber, at: Micros) -> bool {
 /// Chamber's compares. `p` is the parameter set in force.
 ///
 /// Total, without side effect, allocation or loop, in integer arithmetic.
+/// The State the requests ask for, put in force (design, "Therapy State
+/// Machine"; PM6, PM7.4, PM8.1, PM8.3). In this order: a programmed set
+/// becomes the permanent one, which takes Power-On Reset and Pace-Now to
+/// Permanent; temporary pacing begins from Permanent while it is wanted and
+/// the link is up, and ends when either is no longer so; the magnet
+/// interrupts every State but Pace-Now and remembers it. Called at a timing
+/// event; Pace-Now alone is entered at once, by its command.
+///
+/// Contract, Property P4: the State after is the State before or one the
+/// State machine allows from it; nothing of the timing is touched.
+#[cfg_attr(creusot, creusot_std::macros::ensures(allowed((*st).therapy, (^st).therapy)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle && (^st).chamber == (*st).chamber))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!(^st).change_waiting))]
+#[inline(always)]
+fn resolve(st: &mut State) {
+    // The State under a Magnet State is the one it interrupted.
+    let mut base = match (st.therapy, st.before_magnet) {
+        (Therapy::Magnet, Therapy::Magnet) => Therapy::PowerOnReset,
+        (Therapy::Magnet, b) => b,
+        (t, _) => t,
+    };
+    // Temporary pacing is not entered from Power-On Reset or Pace-Now,
+    // also not in the event that leaves them.
+    if matches!(base, Therapy::PowerOnReset | Therapy::PaceNow) {
+        st.temporary_wanted = false;
+    }
+    if st.staged_valid {
+        st.permanent = st.staged;
+        st.programmed = true;
+        st.staged_valid = false;
+        if matches!(base, Therapy::PowerOnReset | Therapy::PaceNow) {
+            base = Therapy::Permanent;
+        }
+    }
+    let temporary = st.temporary_wanted && st.link_up;
+    base = match base {
+        Therapy::Permanent if temporary => Therapy::Temporary,
+        Therapy::Temporary if !temporary => Therapy::Permanent,
+        b => b,
+    };
+    if !matches!(base, Therapy::Temporary) {
+        st.temporary_wanted = false;
+    }
+    if st.magnet && !matches!(base, Therapy::PaceNow) {
+        st.therapy = Therapy::Magnet;
+        st.before_magnet = base;
+    } else {
+        st.therapy = base;
+        st.before_magnet = Therapy::PowerOnReset;
+    }
+    st.change_waiting = false;
+}
+
+/// Whether [`resolve`] would change the State or the parameters: a change
+/// is waiting for the next timing event.
+#[inline(always)]
+fn waiting(st: &State) -> bool {
+    let mut t = *st;
+    resolve(&mut t);
+    st.staged_valid || t.therapy as u8 != st.therapy as u8 || t.before_magnet as u8 != st.before_magnet as u8
+}
+
+/// A timing event of `chamber` at `at` at which a change was waiting: the
+/// State is resolved, and the event is applied under the parameters now in
+/// force, which it returns. Nothing stays pending from the Mode before: the
+/// event starts the new Mode's cycle, and what the new Mode paces and the
+/// event did not arm is armed as a tick arms it.
+///
+/// Contract: Property P4 as on `resolve`; Property P8 kept; and, of
+/// Property P2, a ventricular Pace is pending after it in a Mode that
+/// paces the ventricle, an atrial one in a Mode that paces the atrium alone.
+#[cfg_attr(creusot, creusot_std::macros::ensures(allowed((*st).therapy, (^st).therapy)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((result.mode.paces == Chambers::V || result.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((result.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed))]
+#[inline(always)]
+fn switched(st: &mut State, chamber: Chamber, at: Micros, paced: bool) -> Params {
+    resolve(st);
+    let np = *st.params();
+    st.chamber[Chamber::A.index()].pending = Pending::NONE;
+    st.chamber[Chamber::V.index()].pending = Pending::NONE;
+    st.atrial_since_ventricular = false;
+    match chamber {
+        Chamber::V => ventricular_event(&np, st, at, paced, false),
+        Chamber::A => {
+            let starts_av = (paced && np.mode.paces(Chamber::A)) || (!paced && np.mode.tracks());
+            atrial_event(&np, st, at, paced, starts_av);
+        }
+    }
+    tick(&np, st, at);
+    np
+}
+
+/// Whether `c` is the Chamber whose events are the Mode's timing events:
+/// the ventricle, or the atrium in a Mode of the atrium alone (PM9.2, PM9.3).
+#[inline(always)]
+fn is_timing(p: &Params, c: Chamber) -> bool {
+    matches!((p.mode.timing_chamber(), c), (Chamber::A, Chamber::A) | (Chamber::V, Chamber::V))
+}
+
 /// A Sense of `chamber` at `at`, applied to the accounted state `before`.
 ///
 /// Contract (task 12.1), Property P3 by what the step returns: a Sense it
@@ -459,6 +568,7 @@ fn blanked(st: &State, c: Chamber, at: Micros) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*before).chamber@[0].pending.armed ==> result.0.chamber@[0].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result.1.markers.atrial == None && result.1.markers.ventricular == None ==> result.0 == *before && result.1.atrial == Pace::Keep && result.1.ventricular == Pace::Keep))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result.1.markers.atrial == Some((Marker::Sense { refractory: true }, at)) || result.1.markers.ventricular == Some((Marker::Sense { refractory: true }, at)) ==> result.0 == *before && result.1.atrial == Pace::Keep && result.1.ventricular == Pace::Keep))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.0.change_waiting == before.change_waiting))]
 #[inline(always)]
 fn sense(p: &Params, before: &State, chamber: Chamber, at: Micros) -> (State, Arming) {
     let mut out = Arming::NONE;
@@ -530,14 +640,18 @@ fn sense(p: &Params, before: &State, chamber: Chamber, at: Micros) -> (State, Ar
     (st, out)
 }
 
-/// Contracts (tasks 12.1, 12.2): Property P4 (the therapy State is the one
-/// given); Property P8 (kept); Property P2's "a Pace is pending" for the
-/// ventricle in a Mode that paces it and for the atrium in a Mode that
-/// paces it alone (kept by every event, made so by a tick).
-#[cfg_attr(creusot, creusot_std::macros::ensures(result.0.therapy == s.therapy))]
+/// Contracts (tasks 12.1, 12.2, 16.2): Property P4 (the therapy State
+/// returned is the one given or one the State machine allows from it);
+/// Property P8 (kept); Property P2's "a Pace is pending" for the ventricle
+/// in a Mode that paces it and for the atrium in a Mode that paces it alone
+/// (kept by every event at which no change of State was waiting, made so by
+/// a tick; at a change, `switched` makes it so for the new Mode; a command
+/// is not an event of the heart and Pace-Now withdraws what is pending
+/// until the next tick).
+#[cfg_attr(creusot, creusot_std::macros::ensures(allowed(s.therapy, result.0.therapy)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*s).pvarp_extended && (*s).pvarp_extended_last_cycle) ==> !(result.0.pvarp_extended && result.0.pvarp_extended_last_cycle)))]
-#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed ==> result.0.chamber@[1].pending.armed))]
-#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed ==> result.0.chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Command(_) => true, _ => (p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed && !(*s).change_waiting ==> result.0.chamber@[1].pending.armed }))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Command(_) => true, _ => (p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed && !(*s).change_waiting ==> result.0.chamber@[0].pending.armed }))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Tick { .. } => ((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> result.0.chamber@[1].pending.armed) && ((p.mode.paces == Chambers::A) ==> result.0.chamber@[0].pending.armed), _ => true }))]
 #[inline(always)]
 #[must_use]
@@ -553,6 +667,15 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
             // A Pace the state no longer had pending at this instant: a
             // Sense moved or withdrew it too late for the compare (PD-04).
             let expected = ch.unconfirmed || (ch.pending.armed && at.is_at_or_after(ch.pending.at));
+            if st.change_waiting && is_timing(p, chamber) {
+                // The State machine: the change in force from this event.
+                let np = switched(&mut st, chamber, at, true);
+                st.chamber[chamber.index()].unconfirmed = false;
+                arm_difference(&np, &before, &st, &mut out);
+                set_pace(&mut out, chamber, arm_from(&np, &st, chamber));
+                set_marker(&mut out, chamber, Marker::Pace { fused: !expected }, at);
+                return (st, out);
+            }
             if !ch.unconfirmed {
                 apply_pace(p, &mut st, chamber, at);
             } else if ch.last_paced && at.0 != ch.last.0 && !coupled(p) {
@@ -582,16 +705,82 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
         Event::Sense { chamber, at, edges: _ } => {
             // Property P3 is stated on `sense`, against this state.
             let before = accounted(p, s, at);
+            if before.change_waiting && is_timing(p, chamber) && p.mode.senses(chamber) && !blanked(&before, chamber, at) && !refractory(p, &before, chamber, at) {
+                // The State machine: the change in force from this Sense.
+                let mut st = before;
+                let np = switched(&mut st, chamber, at, false);
+                arm_difference(&np, &before, &st, &mut out);
+                set_marker(&mut out, chamber, Marker::Sense { refractory: false }, at);
+                return (st, out);
+            }
             sense(p, &before, chamber, at)
         }
-        Event::Tick { now, .. } => {
+        Event::Tick { now, magnet, link_up, .. } => {
             let before = accounted(p, s, now);
             let mut st = before;
-            tick(p, &mut st, now);
-            arm_difference(p, &before, &st, &mut out);
+            // The inputs of the State machine, and whether they ask for a
+            // change: it comes into force at the next timing event.
+            st.magnet = magnet;
+            st.link_up = link_up;
+            st.change_waiting = waiting(&st);
+            if st.change_waiting && matches!(p.mode.paces, crate::mode::Chambers::None) {
+                // A Mode that paces nothing may have no timing event to
+                // come: the change is in force from this tick.
+                resolve(&mut st);
+                let np = *st.params();
+                st.chamber[Chamber::A.index()].pending = Pending::NONE;
+                st.chamber[Chamber::V.index()].pending = Pending::NONE;
+                st.atrial_since_ventricular = false;
+                tick(&np, &mut st, now);
+                arm_difference(&np, &before, &st, &mut out);
+            } else {
+                tick(p, &mut st, now);
+                arm_difference(p, &before, &st, &mut out);
+            }
             (st, out)
         }
-        // The State machine is stage E3 (task 16.2).
-        Event::Command(_) => (*s, out),
+        Event::Command(c) => {
+            let mut st = *s;
+            match c {
+                Command::Program(set) => {
+                    // PM7.4, PM6.7: in force, and the State with it, at the
+                    // next timing event.
+                    st.staged = set;
+                    st.staged_valid = true;
+                }
+                Command::StartTemporary(set) => {
+                    // PM6.3: from the Permanent State (also under the
+                    // magnet), with the link up; otherwise the command is
+                    // without effect. The set is not in force until the
+                    // State is.
+                    let base = match st.therapy {
+                        Therapy::Magnet => st.before_magnet,
+                        t => t,
+                    };
+                    if matches!(base, Therapy::Permanent) && st.link_up {
+                        st.temporary = set;
+                        st.temporary_wanted = true;
+                    }
+                }
+                Command::EndTemporary => st.temporary_wanted = false,
+                Command::PaceNow => {
+                    // PM6.5: at once. What was pending is withdrawn; the
+                    // next tick arms the first Pace-Now pulse, one Pace-Now
+                    // escape interval from it (PM6.6).
+                    if !matches!(st.therapy, Therapy::PaceNow) {
+                        st.therapy = Therapy::PaceNow;
+                        st.before_magnet = Therapy::PowerOnReset;
+                        st.temporary_wanted = false;
+                        st.staged_valid = false;
+                        st.chamber[Chamber::A.index()].pending = Pending::NONE;
+                        st.chamber[Chamber::V.index()].pending = Pending::NONE;
+                        st.atrial_since_ventricular = false;
+                        arm_difference(p, s, &st, &mut out);
+                    }
+                }
+            }
+            st.change_waiting = waiting(&st);
+            (st, out)
+        }
     }
 }

@@ -3088,3 +3088,13 @@ replace = "        w[word::VRP] * 1_000 < url_interval\n"
 expect = ["proof failed", "vc_limits_hold"]
 package = "pm-core-proof"
 prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p4-temporary-from-power-on-reset"
+kills = "the step's Property P4 as the State machine's transitions (task 16.2), on `resolve`: with temporary pacing no longer dropped in Power-On Reset and Pace-Now, a programmed set and a wanted temporary one would take Power-On Reset to Temporary in one event"
+file = "crates/pm-core/src/step.rs"
+find = "    if matches!(base, Therapy::PowerOnReset | Therapy::PaceNow) {\n        st.temporary_wanted = false;\n    }\n"
+replace = ""
+expect = ["proof failed", "vc_resolve"]
+package = "pm-core-proof"
+prover = "creusot"

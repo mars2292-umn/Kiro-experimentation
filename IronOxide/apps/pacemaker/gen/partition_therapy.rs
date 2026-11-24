@@ -36,7 +36,7 @@ pub mod rsk_target {
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
         pub const CODE: [(u32, u32); PARTITIONS] = [(0x00020000, 0x8000)];
         pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000)];
-        pub const STACK: [u32; PARTITIONS] = [8192];
+        pub const STACK: [u32; PARTITIONS] = [12288];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the
         /// n-th eighth of the region is outside the view; HW-09).
         pub const RAM_SRD: [u8; PARTITIONS] = [0x00];

@@ -190,6 +190,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dcm-stub"
+version = "0.0.0"
+dependencies = [
+ "pacemaker-comms",
+ "pm-core",
+ "serde_json",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -494,6 +503,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacemaker-comms"
+version = "0.0.0"
+dependencies = [
+ "pacemaker-decl",
+ "pm-core",
+ "rsk",
+]
+
+[[package]]
 name = "pacemaker-decl"
 version = "0.0.0"
 dependencies = [
@@ -504,6 +522,7 @@ dependencies = [
 name = "pacemaker-system"
 version = "0.0.0"
 dependencies = [
+ "pacemaker-comms",
  "pacemaker-decl",
  "pacemaker-therapy",
  "pm-core",

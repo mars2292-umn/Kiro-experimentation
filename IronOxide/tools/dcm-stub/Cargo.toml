@@ -1,0 +1,22 @@
+[package]
+name = "dcm-stub"
+description = "PACEMAKER experiment: the DCM_Stub (docs/pacemaker task 15.2): the host's end of the DCM link, through the bridge board; it holds pm-core's validation to predict the pulse generator's answer; host only"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "dcm-stub"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+pm-core.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# The link's own answers, for the tests: the stub against the code the
+# pulse generator runs.
+pacemaker-comms = { path = "../../apps/pacemaker/comms" }

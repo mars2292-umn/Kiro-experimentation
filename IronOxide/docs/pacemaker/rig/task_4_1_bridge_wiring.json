@@ -1,0 +1,128 @@
+{
+ "task": "4.1: the bridge's wires",
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "C": "1366:1061:001050211852"
+ },
+ "lines": [
+  {
+   "pin": "P0.28",
+   "signal": "SCK",
+   "driver": "A",
+   "reader": "C",
+   "reads": {
+    "pull-down, driven high": "0001 (expected 0001)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1110 (expected 1110)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.29",
+   "signal": "MOSI",
+   "driver": "A",
+   "reader": "C",
+   "reads": {
+    "pull-down, driven high": "0010 (expected 0010)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1101 (expected 1101)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.30",
+   "signal": "MISO",
+   "driver": "A",
+   "reader": "C",
+   "reads": {
+    "pull-down, driven high": "0100 (expected 0100)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1011 (expected 1011)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.31",
+   "signal": "CSN",
+   "driver": "A",
+   "reader": "C",
+   "reads": {
+    "pull-down, driven high": "1000 (expected 1000)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "0111 (expected 0111)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.28",
+   "signal": "SCK",
+   "driver": "C",
+   "reader": "A",
+   "reads": {
+    "pull-down, driven high": "0001 (expected 0001)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1110 (expected 1110)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.29",
+   "signal": "MOSI",
+   "driver": "C",
+   "reader": "A",
+   "reads": {
+    "pull-down, driven high": "0010 (expected 0010)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1101 (expected 1101)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.30",
+   "signal": "MISO",
+   "driver": "C",
+   "reader": "A",
+   "reads": {
+    "pull-down, driven high": "0100 (expected 0100)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "1011 (expected 1011)"
+   },
+   "connected": true
+  },
+  {
+   "pin": "P0.31",
+   "signal": "CSN",
+   "driver": "C",
+   "reader": "A",
+   "reads": {
+    "pull-down, driven high": "1000 (expected 1000)",
+    "pull-down, driven low": "0000 (expected 0000)",
+    "pull-up, driven high": "1111 (expected 1111)",
+    "pull-up, driven low": "0111 (expected 0111)"
+   },
+   "connected": true
+  }
+ ],
+ "before": {
+  "A": {
+   "P0.28": "0x2",
+   "P0.29": "0x2",
+   "P0.30": "0x2",
+   "P0.31": "0x2"
+  },
+  "C": {
+   "P0.28": "0x2",
+   "P0.29": "0x2",
+   "P0.30": "0x2",
+   "P0.31": "0x2"
+  }
+ },
+ "verdict": "PASS"
+}

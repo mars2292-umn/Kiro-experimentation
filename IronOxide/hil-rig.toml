@@ -82,7 +82,14 @@ pacemaker_sense_ventricular_mirror = "stimulus P1.06 (D5) -> analyzer D7"
 # input register under a pull-down and under a pull-up; the bit followed the
 # driver in both directions and no other bit of the reader changed.
 pacemaker_magnet = "P1.07 (D6): stimulus -> target"
-pacemaker_link = "not wired: the spare board as the bridge on the target's SPIM1 pins"
+# The bridge (stage E3): four wires and a ground between the target and the
+# spare board, the same pin on both, on the analog header. Measured
+# 2026-11-24 after the wires were added (docs/pacemaker/rig/bridge_wiring.py,
+# record docs/pacemaker/rig/task_4_1_bridge_wiring.json): each pin driven
+# high and low from each board through its debug probe while the other
+# board read all four under pull-downs and under pull-ups; each line
+# followed its driver in both directions and no other of the four moved.
+pacemaker_link = "P0.28 (A2) SCK, P0.29 (A3) MOSI, P0.30 (A4) MISO: target <-> spare, the target's SPIM1 as master; P0.31 (A5) wired and unused at the target, the spare's own chip select (moved by its pull resistors; docs/pacemaker task 15.2)"
 
 # What the self-test's loopback expects: the stimulus period and pulse
 # width (apps/hil-stimulus), the target's `pulse` deadline (15 ms) as the

@@ -55,7 +55,9 @@ members = [
     "apps/pacemaker/decl",
     "apps/pacemaker/system",
     "apps/pacemaker/therapy",
+    "apps/pacemaker/comms",
     "apps/pacemaker/bin",
+    "tools/dcm-stub",
     "xtask",
 ]
 # Fixture workspaces carry their own [workspace] tables and lock files.
@@ -63,7 +65,7 @@ members = [
 # the App_Prover's proof workspace, which compiles the Partition sources under
 # Creusot with its own lock file (task 17.1).
 # spikes: hardware spikes, each its own workspace (bare-metal, raw registers).
-exclude = ["xtask/fixtures", "proofs/creusot", "proofs/aeneas", "spikes"]
+exclude = ["xtask/fixtures", "proofs/creusot", "proofs/aeneas", "spikes", "tools/pm-bridge"]
 
 [workspace.package]
 version = "0.0.0"
@@ -166,6 +168,7 @@ rsk-elf = { targets = ["host"] }
 pm-core = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pm-hw = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pm-judge = { targets = ["host"] }
+dcm-stub = { targets = ["host"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).
 p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_timing", "nrf52840_timing_short", "nrf52840_response", "nrf52840_stress", "nrf52840_stress_short", "nrf52840_isolation", "nrf52840_cycles", "nrf52840_cycles_fpu", "nrf52840_measure", "nrf52840_coverage", "qemu_flood"] }
@@ -208,5 +211,6 @@ ppi-probe = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 pacemaker-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_sweep", "nrf52840_measure", "nrf52840_rig", "nrf52840_coverage"] }
 pacemaker-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker-therapy = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+pacemaker-comms = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 xtask = { targets = ["host"] }

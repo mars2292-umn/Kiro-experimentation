@@ -9,7 +9,8 @@ EXTERN(__EXCEPTIONS);
 EXTERN(__INTERRUPTS);
 
 PROVIDE(_stack_start = ORIGIN(KRAM) + LENGTH(KRAM));
-PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 8192);
+PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 12288);
+PROVIDE(_p1_stack_top = ORIGIN(P1RAM) + 2048);
 
 SECTIONS
 {
@@ -33,6 +34,12 @@ SECTIONS
     . = ALIGN(4);
   } > P0CODE
 
+  .p1.text : ALIGN(4)
+  {
+    *libpacemaker_comms-*:*(.text .text.* .rodata .rodata.*)
+    . = ALIGN(4);
+  } > P1CODE
+
   .kernel.text : ALIGN(4)
   {
     KEEP(*(.rsk.version));
@@ -54,7 +61,7 @@ SECTIONS
     . = ALIGN(4);
   } > SHARED
 
-  .p0.bss ORIGIN(P0RAM) + 8192 (NOLOAD) : ALIGN(4)
+  .p0.bss ORIGIN(P0RAM) + 12288 (NOLOAD) : ALIGN(4)
   {
     _p0_sbss = .;
     *libpacemaker_therapy-*:*(.bss .bss.* .data .data.* COMMON)
@@ -69,6 +76,22 @@ SECTIONS
     . = ALIGN(8);
     _p0_ecov = .;
   } > P0RAM
+
+  .p1.bss ORIGIN(P1RAM) + 2048 (NOLOAD) : ALIGN(4)
+  {
+    _p1_sbss = .;
+    *libpacemaker_comms-*:*(.bss .bss.* .data .data.* COMMON)
+    . = ALIGN(4);
+    _p1_ebss = .;
+  } > P1RAM
+
+  .p1.cov (NOLOAD) : ALIGN(8)
+  {
+    _p1_scov = .;
+    KEEP(*libpacemaker_comms-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p1_ecov = .;
+  } > P1RAM
 
   .kernel.data : ALIGN(4)
   {
@@ -123,12 +146,14 @@ SECTIONS
     __rsk_bss_table = .;
     LONG(_sbss); LONG(_ebss); LONG(0);
     LONG(_p0_sbss); LONG(_p0_ebss); LONG(0);
+    LONG(_p1_sbss); LONG(_p1_ebss); LONG(0);
     LONG(0); LONG(0); LONG(0);
     __rsk_data_table = .;
     LONG(_sdata); LONG(_edata); LONG(_sidata);
     LONG(0); LONG(0); LONG(0);
     __rsk_cov_table = .;
     LONG(_p0_scov); LONG(_p0_ecov); LONG(0);
+    LONG(_p1_scov); LONG(_p1_ecov); LONG(0);
     LONG(_k_scov); LONG(_k_ecov); LONG(0);
     LONG(0); LONG(0); LONG(0);
   } > KFLASH

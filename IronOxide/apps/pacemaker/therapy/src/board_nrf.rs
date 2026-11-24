@@ -24,6 +24,7 @@ const GPIOTE: u32 = 0x4000_6000;
 const TIMER1: u32 = 0x4000_9000;
 const TIMER2: u32 = 0x4000_A000;
 const TIMER3: u32 = 0x4001_A000;
+const P0: u32 = 0x5000_0000;
 const P1: u32 = 0x5000_0300;
 
 const T_START: u32 = 0x000;
@@ -37,8 +38,14 @@ const T_CC: u32 = 0x540;
 const G_SET: u32 = 0x030;
 const G_CLR: u32 = 0x060;
 const G_CONFIG: u32 = 0x510;
+const P_OUTCLR: u32 = 0x50C;
 const P_IN: u32 = 0x510;
 const P_PIN_CNF: u32 = 0x700;
+
+/// The link's pins (port 0; `hil-rig.toml`, `pacemaker_link`).
+const LINK_SCK: u32 = 28;
+const LINK_MOSI: u32 = 29;
+const LINK_MISO: u32 = 30;
 
 /// The pins (port 1; `hil-rig.toml`, keys `pacemaker_*`).
 const SENSE_A: u32 = 1;
@@ -133,6 +140,13 @@ impl pm_hw::Board for Board<'_> {
         rsk::mmio::write(P1 + P_PIN_CNF + 4 * SENSE_A, 0b0100);
         rsk::mmio::write(P1 + P_PIN_CNF + 4 * SENSE_V, 0b0100);
         rsk::mmio::write(P1 + P_PIN_CNF + 4 * MAGNET, 0b0100);
+        // The link's pins, which `comms` names in SPIM1's pin selection
+        // and cannot configure: the port is this Partition's (design,
+        // Table 1). Clock and data out low, data in with its buffer.
+        rsk::mmio::write(P0 + P_OUTCLR, 1 << LINK_SCK | 1 << LINK_MOSI);
+        rsk::mmio::write(P0 + P_PIN_CNF + 4 * LINK_SCK, 0b01);
+        rsk::mmio::write(P0 + P_PIN_CNF + 4 * LINK_MOSI, 0b01);
+        rsk::mmio::write(P0 + P_PIN_CNF + 4 * LINK_MISO, 0b0100);
         // GPIOTE: the two sense events, the two pace pins and their copies.
         rsk::mmio::write(GPIOTE + G_CONFIG, event_pin(SENSE_A));
         rsk::mmio::write(GPIOTE + G_CONFIG + 4, event_pin(SENSE_V));

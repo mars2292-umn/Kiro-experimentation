@@ -11,7 +11,7 @@ rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 300.s(),
     safe_state = crate::safe_state, log_capacity = 32;
 
-    partition therapy (level = A, crate = pacemaker_therapy, code = 32.KiB(), ram = 32.KiB(), stack = 8.KiB(),
+    partition therapy (level = A, crate = pacemaker_therapy, code = 32.KiB(), ram = 32.KiB(), stack = 12.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
                        mit_threshold = 10) {
         peripherals = [GPIOTE, P0, TIMER1, TIMER2, TIMER3];
@@ -29,6 +29,24 @@ rsk::app! {
                       budget = 350.us(), priority = 5, resources = [timing]);
         task control (periodic, period = 20.ms(), deadline = 20.ms(), budget = 5.ms(), priority = 4,
                       resources = [timing]);
+    }
+
+    // The DCM link (design PD-11, Table 2; task 15.3). SPIM1's window is
+    // read-only to the Partition: its registers go through the Kernel.
+    partition comms (level = C, crate = pacemaker_comms, code = 16.KiB(), ram = 8.KiB(), stack = 2.KiB(),
+                     fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
+                     mit_threshold = 10) {
+        peripherals = [SPIM1];
+        state link.started: u32 = 0;
+        // Transfers started, and Jobs that could not start one.
+        state link.transfers: u32 = 0;
+        state link.stuck: u32 = 0;
+        state link.proto: crate::Link = crate::Link::new();
+        state link.tx: rsk::DmaBuf<32> = rsk::DmaBuf::new();
+        state link.tx_held: rsk::DmaHeld = rsk::DmaHeld::none();
+        state link.rx: rsk::DmaBuf<32> = rsk::DmaBuf::new();
+        state link.rx_held: rsk::DmaHeld = rsk::DmaHeld::none();
+        task link (periodic, period = 50.ms(), deadline = 50.ms(), budget = 2.ms(), priority = 2);
     }
 
     // A sense edge: its instant captured by TIMER3, and counted (the fork).

@@ -1,0 +1,128 @@
+{
+ "task": "13.2",
+ "runs": [
+  {
+   "name": "ddd_silent",
+   "PM_SET": "0=1,1=60",
+   "heart": "silent",
+   "binaries": {
+    "pacemaker": "sha256:01ea77528c091d94835c279a58040206f50a16de6edcc14a6bcbc1888801dd66",
+    "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48"
+   },
+   "capture": {
+    "rate_hz": 1000000,
+    "seconds": 30,
+    "sha256": "sha256:4ed286b0308b9b235d909ed28b3bf3bb7a183324d57c0754472b95613a2481dd"
+   },
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 89,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 57,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "mode": "DDD",
+    "paces": {
+     "atrial": 30,
+     "ventricular": 30
+    },
+    "senses_on_the_wire": {
+     "atrial": 0,
+     "ventricular": 0
+    },
+    "violations": [],
+    "judged_paces": 54,
+    "unjudged_stretches": 0,
+    "counts": {},
+    "pulse_widths": {
+     "atrial": {
+      "count": 30,
+      "min_us": 400.0,
+      "max_us": 400.0
+     },
+     "ventricular": {
+      "count": 30,
+      "min_us": 400.0,
+      "max_us": 400.0
+     }
+    },
+    "errors_us": {
+     "atrial_escape": {
+      "count": 27,
+      "min": -3.0,
+      "max": -2.0
+     },
+     "paced_av": {
+      "count": 27,
+      "min": -1.0,
+      "max": 0.0
+     }
+    },
+    "verdict": "PASS"
+   }
+  },
+  {
+   "name": "ddd_tracking",
+   "PM_SET": "0=1,1=60",
+   "heart": "env 600,900,0,0,0",
+   "binaries": {
+    "pacemaker": "sha256:01ea77528c091d94835c279a58040206f50a16de6edcc14a6bcbc1888801dd66",
+    "heart-sim": "sha256:5fa038dde877db101bfa4d0a1482577da222f07320675e052e0f6a36f68bb340"
+   },
+   "capture": {
+    "rate_hz": 1000000,
+    "seconds": 30,
+    "sha256": "sha256:4b3d91f2e10694ea4d7be613860d63a757e154ac46b67632dded298eb61c4706"
+   },
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 100,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 68,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "judge": {
+    "mode": "DDD",
+    "paces": {
+     "atrial": 0,
+     "ventricular": 33
+    },
+    "senses_on_the_wire": {
+     "atrial": 33,
+     "ventricular": 0
+    },
+    "violations": [],
+    "judged_paces": 30,
+    "unjudged_stretches": 0,
+    "counts": {
+     "atrial_senses_effective": 33,
+     "tracked": 33
+    },
+    "pulse_widths": {
+     "ventricular": {
+      "count": 33,
+      "min_us": 400.0,
+      "max_us": 400.0
+     }
+    },
+    "errors_us": {
+     "sensed_av": {
+      "count": 30,
+      "min": -1.0,
+      "max": 0.0
+     }
+    },
+    "verdict": "PASS"
+   }
+  }
+ ]
+}

@@ -9,7 +9,7 @@ EXTERN(__EXCEPTIONS);
 EXTERN(__INTERRUPTS);
 
 PROVIDE(_stack_start = ORIGIN(KRAM) + LENGTH(KRAM));
-PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 8192);
+PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 12288);
 
 SECTIONS
 {
@@ -54,7 +54,7 @@ SECTIONS
     . = ALIGN(4);
   } > SHARED
 
-  .p0.bss ORIGIN(P0RAM) + 8192 (NOLOAD) : ALIGN(4)
+  .p0.bss ORIGIN(P0RAM) + 12288 (NOLOAD) : ALIGN(4)
   {
     _p0_sbss = .;
     *libpacemaker_therapy-*:*(.bss .bss.* .data .data.* COMMON)

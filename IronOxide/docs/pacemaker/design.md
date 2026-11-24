@@ -114,7 +114,7 @@ The loop has a constant bound of three (PR-16).
 - **A debugger's access restarts the therapy.** The access halts the core; the Jobs due meanwhile miss their deadlines; with the Deadline_Miss_Response RESTART_PARTITION the Partition restarts and its state is cleared. Found when the sweep's record read back as zeros. It is the declared response working, and it means a record kept in the Partition cannot be read from a running PG through the probe: the sweep has a declaration variant whose overrun and deadline-miss responses record only, and stage E3's restart measurements (task 17.1) must read the Kernel's log, not the Partition.
 - **QEMU.** The Target has no PPI and one Partition-ownable timer. The board layer keeps the roles of the registers in memory, sets the dual timer's one-shot to the earliest armed start, and treats a start the present has reached as fired, its pulse included. The sense Tasks are released by two Release_Signals that `control` raises as it plays a script. The driver and the step are the code the board runs; only the board layer differs.
 - **Budgets.** The first build had 1 ms for each sporadic Task and 5 ms for `control` (Table 2 gave none), unmeasured. Tasks 9.2 and 9.8 measured them and replaced the sporadic Tasks' with 350 µs: "Timing Design".
-- **What rsk's build checks changed (task 8.4).** The Partition's stack is 8 KiB: the Link_Checker's worst case with all four Tasks on it was 4,848 bytes. `pm-core` and `pm-hw` have no code of their own: rsk allows executable symbols from the Kernel, `rsk`, the system crate and the Partition crates only, so every function of the two is inline and is instantiated in the Partition that calls it; a second Partition that uses `pm-core` gets its own copy. Both are in `findings.md` (B1, B5).
+- **What rsk's build checks changed (task 8.4).** The Partition's stack is 8 KiB: the Link_Checker's worst case with all four Tasks on it was 4,848 bytes. (Since task 16.2 it is 12 KiB: with the State machine's state the worst case is 9,632 bytes on the board.) `pm-core` and `pm-hw` have no code of their own: rsk allows executable symbols from the Kernel, `rsk`, the system crate and the Partition crates only, so every function of the two is inline and is instantiated in the Partition that calls it; a second Partition that uses `pm-core` gets its own copy. Both are in `findings.md` (B1, B5).
 - **`control` owes two things to the hardware layer**, both now in its body: one sense service per Chamber at Init, and a refresh of every Chamber with no Pace armed in each period.
 
 ### The two clocks
@@ -301,14 +301,14 @@ pub fn validate(words: &[u32]) -> Option<Params>;
 
 - *The cardiac cycle* whose length the dynamic AV delay uses is ventricular event to ventricular event, kept at every ventricular event, paced or sensed; there is none until the second event, and until then the delay is the fixed one. The product is taken in 64 bits. The delay after a tracked Sense is the dynamic delay less the offset and is not held to the minimum.
 - *The URL holds the Paces that atrial events lead to.* The LRL's own Pace is one escape interval after the event and needs no holding where the URL interval is no longer than the LRL's, which Table 19-5 requires and `validate` will enforce (task 11.6); Property P1's contract (task 12.1) assumes it.
-- *A PVC exists only where the atrium is sensed* (**a choice; the source's definition would make every ventricular Sense of VVI one**). It is marked with the Marker PVC beside the ventricular Sense Marker, in the augmentation place.
-- *The extended PVARP is the PVARP plus the PVARP Extension* (**a choice; the source gives the parameter a range of 50 to 400 ms and does not say whether it is added or is the whole period**). The state keeps whether the present cycle's PVARP is extended, and the next ventricular event does not extend if it is: Property P8 by one flag.
+- *A PVC exists only where the atrium is sensed* (a choice, confirmed by the user 2026-11-24; the source's definition would make every ventricular Sense of VVI one). It is marked with the Marker PVC beside the ventricular Sense Marker, in the augmentation place.
+- *The extended PVARP is the PVARP plus the PVARP Extension* (a choice, confirmed by the user 2026-11-24; the source gives the parameter a range of 50 to 400 ms and does not say whether it is added or is the whole period). The state keeps whether the present cycle's PVARP is extended, and the next ventricular event does not extend if it is: Property P8 by one flag.
 - *Blanking is a flag and an instant on the ventricle*, set by an atrial Pace in a Mode that senses the ventricle and cleared by the next ventricular event; a blanked Sense returns the accounted state and nothing else, as Property P3 has it.
 
 **What tasks 11.6, 12.1 and 12.2 settled (2026-11-23).**
 
 - *The allocation is applied by the step, the limits by `validate`.* `validate` passes every word to its field in any Mode and refuses a set only for a value outside Table 19-1, a limit of Table 19-5 among the parameters the Mode uses, or a feature of a later stage. The step reads the Dynamic AV Delay and PVARP Extension only in the Modes that track and the Sensed AV Delay Offset only in DDD (`Mode::tracks`, `Mode::uses_sensed_av_offset`).
-- *Read with the allocation, Table 19-5 has a limit that binds nowhere*: ARP < URL interval, since no Mode uses both. And the limits that name the URL bind in VDD and DDD alone. Both are recorded as findings for the user.
+- *Read with the allocation, Table 19-5 has a limit that binds nowhere*: ARP < URL interval, since no Mode uses both. And the limits that name the URL bind in VDD and DDD alone. Both were put to the user and confirmed, 2026-11-24.
 - *What the App_Prover holds of the step*: Properties P4 and P8 as stated; Property P3 by what the step marks (a Sense marked refractory, or given no Marker, returns the accounted state and arms nothing); of Property P2, that a pending Pace stays pending, that a tick makes one pending, and that a Chamber's own event puts it at exactly the event plus the escape interval; of Property P1, that an atrial event leaves the ventricular Pace where it was or not before the last ventricular event plus the URL interval. The contracts are on the helpers too, so that each is carried through.
 - *What it cannot be told*: that one instant is before another, in general. Instants wrap, the program compares them by a signed difference, and the App_Prover gives the cast to a signed number no meaning from 2^31 up; one direction of `is_before` is provable and the other is not. "No later than" and "no earlier than" across events therefore stay with the generated tests.
 
@@ -341,13 +341,35 @@ pub fn sense_v(cx: rsk_ctx::SenseV) {
 
 **Rig wiring (proposal; to be measured and recorded in `hil-rig.toml`, PM29.5).** The four board-to-board lines carry the two sense lines (B to A) and the two pace lines (A to B). The analyzer needs the pace lines, which today it cannot see on the board-to-board wires: the pace pins are taken from the pins of A that already reach the analyzer, and jumpered on to B. The bridge board C connects to A's SPIM1 pins.
 
+**The bridge's pins (wired and measured 2026-11-24; task 4.1, `rig/task_4_1_bridge_wiring.json`).** Four wires and a ground between board A and board C, on pins of the analog header that nothing on either board uses, the same pin on both boards as the rig's other board-to-board lines are; no existing wire moves. A is the SPI master (SPIM1), C the slave; C reaches the host through its own debug probe's serial port, which needs no wire.
+
+| Signal | Board A (PG) | Direction | Board C (bridge) |
+|---|---|---|---|
+| SCK | P0.28 (A2) | A → C | P0.28 (A2) |
+| MOSI | P0.29 (A3) | A → C | P0.29 (A3) |
+| MISO | P0.30 (A4) | C → A | P0.30 (A4) |
+| CSN | P0.31 (A5), unused: an input at its reset state | — | P0.31 (A5): the bridge's own chip select, moved by its pull resistors |
+| Ground | GND | — | GND |
+
+### The link and the bridge (tasks 15.2, 15.3; 2026-11-24)
+
+`link` is the SPI master and exchanges 32 bytes with the bridge in every period of 50 ms; the answer to the frame of one period goes out in the next. A Job takes back the two buffers it lent the Job before, decodes, answers and starts the next transfer, which takes 0.5 ms at 500 kbps and runs after the Job has ended. Three things are as they are because of what the board and rsk allow:
+
+- **No chip select.** An nRF52840 SPIM has none of its own, the GPIO port is `therapy`'s, and a PPI channel may not join two Partitions' peripherals, so `comms` can move no pin. The bridge frames a transfer by the clock's silence: every rise of SCK restarts a timer, 300 µs of silence end the transfer, and the bridge raises and lowers its own chip-select pin. The fourth wire is unused at the pulse generator's end.
+- **The buffers are taken back with the SPIM disabled.** `rsk::DmaBuf::reclaim` asks for a stop and waits for the STOPPED event; an SPIM that is enabled and has finished its transfer gives none. `link` disables the peripheral once the END event is there (it then counts as stopped), takes the buffers, and enables it for the next transfer. A transfer that has not ended is stopped with the peripheral enabled, and answers.
+- **The bridge's chip select is moved by its pull resistors.** The enabled SPIS makes its CSN pin an input whatever the GPIO direction says.
+
+The bridge knows nothing of frames. From the host it takes 32 bytes to send once, 32 bytes to send whenever nothing else waits (the DCM_Stub's poll), or the order to send nothing (the pulse generator then reads zeros, which are no frame: this is how the loss of the link is made for task 15.4). It reports every transfer to the host with what it had sent and how many bytes were clocked.
+
+Until the Endpoints exist (task 16.1) `link` answers alone: IDENTITY to an interrogation (PM20.3), a STATUS with a code to each part of a parameter set and to every command it cannot serve yet, and the last complete set read back in parts.
+
 ## Data Models
 
 ### Parameters and frames
 
 `Params` holds every interval in microseconds, converted once by `validate`: an interval of a rate r ppm is 60,000,000 / r µs, rounded down (the rate is then not below r; the error is under 1 µs). The wire form of a parameter set is one word per parameter of Table 19-1 as its programmed value (ppm, ms, tenths of a volt, an index for enumerations), so that the validation function checks membership in the table and nothing is trusted about units.
 
-A link frame is 32 bytes each way: a sequence number, a kind, a length, up to 24 bytes of payload, a CRC-16. A parameter set does not fit one frame and is sent as numbered parts; `link` assembles them and offers the set to `program` only when complete, and `therapy` validates the whole set (PM19.3).
+A link frame is 32 bytes each way, the same form in both directions (`pm-core`, module `frame`; task 15.1): byte 0 the sender's sequence number, byte 1 the kind, byte 2 the part, byte 3 the length, bytes 4 to 27 the payload (zero beyond the length), bytes 28 and 29 zero, bytes 30 and 31 a CRC-16/CCITT-FALSE over the 30 before, high byte first. Words are sent least significant byte first. An answer names in its first payload byte the sequence number of the frame it answers. A parameter set is five parts: four of six words and one of four. A parameter set does not fit one frame and is sent as numbered parts; `link` assembles them and offers the set to `program` only when complete, and `therapy` validates the whole set (PM19.3).
 
 ### Event record
 
@@ -373,6 +395,8 @@ Generated_Config gains the PPI channel table: per channel, the event register ad
                                       │   magnet off: back to the State before    │
                                       └───────────── mode programmed ─────────────┘
 ```
+
+As built (task 16.2, 2026-11-24): an event that asks for a change is remembered, and at the next event of the timing Chamber `resolve` decides the State from what is remembered, so that two requests between two events give one change. The relation `allowed` of `state.rs` is the diagram's arrows (15 of them), and `step` is proven to make no other (Property P4). Where the diagram is silent: Pace-Now is not interrupted by the magnet and drops a staged set; temporary pacing is refused while already Temporary; a set programmed during Temporary becomes the permanent one without leaving Temporary; in a Mode that paces nothing a change is made at the next tick.
 
 Exactly one State holds (PM6.1): it is one field of `State`. Transitions other than into Pace-Now take effect at the next ventricular event (atrial in AXX). The Magnet State remembers the State it interrupted and returns to it (PM8.3). A restart of the Therapy_Partition enters POR from any State (PD-08).
 
@@ -428,7 +452,7 @@ Table 2 was settled in three steps, each on the Application's own measured recor
 
 On that build the Analyzer's result was PASS at a utilization of 41 % (the table above is of that build, the last of stage E1).
 
-4. **On the stage E2 code the result is FAIL again** (task 13.1, 2026-11-23; `rig/task_9_8_analysis/report.json`, utilization 43 %; the chains built on these bounds are in `evidence.md`). Nothing was changed for it; the decision is the user's:
+4. **On the stage E2 code the result is FAIL again** (task 13.1, 2026-11-23; `rig/task_9_8_analysis/report.json`, utilization 43 %; the chains built on these bounds are in `evidence.md`). Nothing was changed for it, and the user decided on 2026-11-24 that it is recorded as a FAIL due to margin:
 
 | Task | Budget | Longest Job measured | Record's bound (+25 %) | Deadline | WCRT (Analyzer) | Longest response measured |
 |---|---|---|---|---|---|---|
@@ -525,8 +549,8 @@ The design changed the requirements in these places; `requirements.md` is Draft 
 |---|---|---|
 | PD-O1 | **Closed 2026-11-22** ("The spike's decision"). The six register behaviours are confirmed (task 1.2), the write order held under interruption (task 1.3), `LEAD` is 500 µs and `GUARD` 64 µs. What is left is named there and belongs to task 7.2 | — |
 | PD-O2 | **Closed 2026-11-22** (task 8.1): the Generator accepts `therapy` with its five peripheral windows, a 32 KiB code and a 32 KiB RAM region, and the Config_Checker passes on the linked binary | — |
-| PD-O3 | **Open again, 2026-11-24** ("What the measurement settled", step 4): closed for stage E1 with Budgets of 350 µs and deadlines of 2, 3 and 4 ms; on the stage E2 records the Analyzer's bounds for `sense_v` and `sense_a` are 3.135 and 4.359 ms. Recorded, not acted on: the user's decision | E2 |
+| PD-O3 | **Closed 2026-11-24 by the user's decision** ("What the measurement settled", step 4): on the stage E2 records the Analyzer's bounds for `sense_v` and `sense_a` are 3.135 and 4.359 ms against 3 and 4 ms; recorded as a FAIL due to margin (the longest response measured is 0.36 ms), Table 2 unchanged | — |
 | PD-O4 | The rig's wiring for two sense lines, two pace lines visible to the analyzer, and the bridge. Measured 2026-11-22 (tasks 4.1): the pace pins reach the analyzer and the sense lines reach board A. The pace pulses reach the Heart_Simulator by a fork of each pace channel onto P1.03 and P1.04 ("Hardware signal flow"; the fork confirmed by the spike), and the magnet line is wired and measured (B P1.07 to A P1.07). Still open: the bridge | Bridge before E3 |
 | PD-O5 | **Closed 2026-11-23** (task 12.4, "The hardware layer"): the route was not taken, for the reasons there; the order of P6 is checked by the compiler and the loops' bounds are proven, the rest stays on the model tests | — |
-| PD-O6 | The frame protocol's details and the bridge board's firmware | E3 |
+| PD-O6 | **Closed 2026-11-24** (tasks 15.1 to 15.3): the frames are `pm-core`'s module `frame` ("Parameters and frames"), the bridge is `tools/pm-bridge` ("The link and the bridge") | — |
 | PD-O7 | **Closed in Draft 0.2.** `pace` is released by the end of its pulse, and an end compare is written only with the start disarmed and no Pace unaccounted ("Arming and the lead") | — |

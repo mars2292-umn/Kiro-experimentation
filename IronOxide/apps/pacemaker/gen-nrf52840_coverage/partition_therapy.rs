@@ -28,7 +28,7 @@ pub mod rsk_target {
     pub mod layout {
         /// This Partition's index.
         pub const SELF: usize = 0;
-        pub const PARTITIONS: usize = 1;
+        pub const PARTITIONS: usize = 2;
         pub const KERNEL_FLASH: (u32, u32) = (0x00000000, 0x20000);
         pub const SHARED_CODE: (u32, u32) = (0x00020000, 0x10000);
         pub const KERNEL_RAM: (u32, u32) = (0x20000000, 0x8000);
@@ -36,19 +36,21 @@ pub mod rsk_target {
         pub const KERNEL_WINDOWS: [(u32, u32); 5] = [(0xe0000000, 0x100000), (0x40000000, 0x1000), (0x40008000, 0x1000), (0x40010000, 0x1000), (0x4001f000, 0x1000)];
         /// Each Partition's code and RAM region, and its stack size (the stack
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
-        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00030000, 0x10000)];
-        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000)];
-        pub const STACK: [u32; PARTITIONS] = [8192];
+        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00030000, 0x10000), (0x00040000, 0x4000)];
+        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000), (0x20010000, 0x2000)];
+        pub const STACK: [u32; PARTITIONS] = [12288, 2048];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the
         /// n-th eighth of the region is outside the view; HW-09).
-        pub const RAM_SRD: [u8; PARTITIONS] = [0x00];
+        pub const RAM_SRD: [u8; PARTITIONS] = [0x00, 0x00];
         /// Each Partition's peripheral windows, `(0, 0)` past its count.
         pub const WINDOWS: [[(u32, u32); 5]; PARTITIONS] = [
             [(0x40006000, 0x1000), (0x50000000, 0x1000), (0x40009000, 0x1000), (0x4000a000, 0x1000), (0x4001a000, 0x1000)],
+            [(0x40004000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
         ];
         /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).
         pub const WINDOWS_RO: [[bool; 5]; PARTITIONS] = [
             [false, false, false, false, false],
+            [true, false, false, false, false],
         ];
     }
     /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:

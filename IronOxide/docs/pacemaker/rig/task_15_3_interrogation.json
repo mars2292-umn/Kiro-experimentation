@@ -1,0 +1,123 @@
+{
+ "task": "15.3",
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "C": "1366:1061:001050211852"
+ },
+ "binaries": {
+  "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d",
+  "pacemaker": "sha256:ae3e5b25db2b1d1b65f007f85a4cd87f265b4b3ee6127ecec1b048e8fb28eb0b"
+ },
+ "session": {
+  "command": "session",
+  "steps": [
+   {
+    "detail": {
+     "first": "088000000000000000000000000000000000000000000000000000000000ee22",
+     "reports": 1
+    },
+    "ok": true,
+    "step": "the pulse generator polls, the bridge sending nothing"
+   },
+   {
+    "detail": "Identity { of: 1, model: 1347241777, serial: 1 } after 3 transfers",
+    "ok": true,
+    "step": "interrogation"
+   },
+   {
+    "detail": false,
+    "ok": true,
+    "step": "READ_PARAMETERS before any set"
+   },
+   {
+    "detail": {
+     "codes": [
+      1,
+      1,
+      1,
+      1,
+      2
+     ],
+     "predicted_valid": true
+    },
+    "ok": true,
+    "step": "a set in five parts"
+   },
+   {
+    "detail": [
+     1,
+     90,
+     120,
+     120,
+     150,
+     0,
+     50,
+     0,
+     35,
+     35,
+     400,
+     400,
+     75,
+     250,
+     320,
+     250,
+     250,
+     0,
+     0,
+     0,
+     0,
+     20,
+     1,
+     40,
+     3,
+     30,
+     8,
+     5
+    ],
+    "ok": true,
+    "step": "the set read back"
+   },
+   {
+    "detail": "Status { of: 9, code: 4, state: 255, mode: 255, battery: 255 }",
+    "ok": true,
+    "step": "a command this stage does not serve"
+   },
+   {
+    "detail": 1,
+    "ok": true,
+    "step": "after the stop the bridge sends nothing"
+   }
+  ],
+  "transfers": {
+   "bytes_skipped": 23,
+   "dropped_by_the_bridge": 0,
+   "gaps_in_the_report_count": 0,
+   "of_other_than_32_bytes": 0,
+   "reports_with_a_wrong_sum": 0,
+   "transfers_reported": 35,
+   "whose_bytes_were_no_frame": 0
+  },
+  "verdict": "PASS"
+ },
+ "soak": {
+  "bytes_skipped": 11,
+  "command": "soak",
+  "dropped_by_the_bridge": 0,
+  "gaps_in_the_pulse_generators_numbering": 0,
+  "gaps_in_the_report_count": 0,
+  "not_an_idle_frame": 0,
+  "not_answered_by_the_poll": 0,
+  "of_other_than_32_bytes": 0,
+  "per_second": 19.996890608490947,
+  "reports_with_a_wrong_sum": 0,
+  "seconds": 300.046648125,
+  "transfers_reported": 6000,
+  "verdict": "PASS"
+ },
+ "pulse_generator_counts": {
+  "link_stuck": 0,
+  "link_started": 1,
+  "link_transfers": 6058
+ },
+ "verdict": "PASS"
+}

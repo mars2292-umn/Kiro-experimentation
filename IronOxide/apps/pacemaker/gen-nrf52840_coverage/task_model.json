@@ -12,8 +12,8 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0x2d3eb664",
-  "layout_checksum": "0x6338c3d5",
+  "config_checksum": "0x9b1788eb",
+  "layout_checksum": "0x182a0db9",
   "operating_duration_ticks": 4800000000,
   "safe_state": "crate::safe_state",
   "fp_flush_to_zero": false,
@@ -21,6 +21,10 @@
     0
   ],
   "priority_map": [
+    {
+      "level": 2,
+      "nvic": 192
+    },
     {
       "level": 4,
       "nvic": 128
@@ -44,7 +48,7 @@
   ],
   "capacities": {
     "lock_stack": 4,
-    "timer_slots": 14,
+    "timer_slots": 17,
     "event_log": 32,
     "derived": true
   },
@@ -128,7 +132,7 @@
       "regions": {
         "code": 65536,
         "ram": 32768,
-        "stack": 8192,
+        "stack": 12288,
         "init_arena": 0
       },
       "peripherals": [
@@ -209,6 +213,55 @@
       "resources": [
         "therapy.timing"
       ],
+      "signals": []
+    },
+    {
+      "id": "comms",
+      "crate": "pacemaker_comms",
+      "level": "C",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 16384,
+        "ram": 8192,
+        "stack": 2048,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "SPIM1"
+      ],
+      "mpu": {
+        "code": {
+          "base": 262144,
+          "size_log2": 14,
+          "srd": 0,
+          "usable_bytes": 16384
+        },
+        "ram": {
+          "base": 536936448,
+          "size_log2": 13,
+          "srd": 0,
+          "usable_bytes": 8192
+        },
+        "windows": [
+          {
+            "base": 1073758208,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "SPIM1"
+            ],
+            "read_only": true
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "comms.link"
+      ],
+      "resources": [],
       "signals": []
     }
   ],
@@ -355,6 +408,37 @@
         "therapy.control#cs:timing"
       ],
       "entry": "::pacemaker_therapy::rsk_jobs::control",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "comms.link",
+      "core": 0,
+      "partition": "comms",
+      "priority": 2,
+      "vector": 40,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 800000,
+      "source": null,
+      "deadline_ticks": 800000,
+      "budget_cycles": 128000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 12,
+        "deadline": 13,
+        "budget": 14
+      },
+      "cs_sites": [],
+      "entry": "::pacemaker_comms::rsk_jobs::link",
       "derived": [
         "vector",
         "nesting_depth",

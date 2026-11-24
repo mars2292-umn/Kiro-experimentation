@@ -16,7 +16,7 @@ qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
 qemu-voo = ["qemu-mps2", "pacemaker-therapy/qemu-voo"]
 qemu-aoo = ["qemu-mps2", "pacemaker-therapy/qemu-aoo"]
 qemu-aai = ["qemu-mps2", "pacemaker-therapy/qemu-aai"]
-nrf52840 = ["rsk-kernel/board-nrf52840", "pacemaker-decl/nrf52840", "pacemaker-therapy/nrf52840"]
+nrf52840 = ["rsk-kernel/board-nrf52840", "pacemaker-decl/nrf52840", "pacemaker-therapy/nrf52840", "dep:pacemaker-comms", "pacemaker-comms/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-kernel/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
@@ -46,4 +46,6 @@ pacemaker-decl = { path = "../decl" }
 rsk-kernel = { workspace = true, default-features = false }
 rsk = { path = "../../../crates/rsk" }
 pacemaker-therapy = { path = "../therapy" }
+# The board only: the QEMU declaration has no `comms`.
+pacemaker-comms = { path = "../comms", optional = true }
 pm-core.workspace = true
