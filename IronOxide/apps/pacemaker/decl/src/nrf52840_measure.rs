@@ -19,6 +19,9 @@ rsk::app! {
         // The record of the arming sweep (task 7.2; feature `sweep` of the
         // Partition crate), read through the debug probe in one access.
         state control.sweep: [u32; 56] = [0; 56];
+        // The status `control` last sent to `link`, and the Jobs since.
+        state control.status_sent: [u32; 4] = [0; 4];
+        state control.status_age: u32 = 0;
         // Released by the end of a pulse: compares 4 and 5 of TIMER3 (PM27.5).
         task pace (sporadic, binds = TIMER3, mit = 20.ms(), mit_policy = defer, deadline = 2.ms(),
                    budget = 350.us(), priority = 7, resources = [timing]);
@@ -48,6 +51,17 @@ rsk::app! {
         state link.rx_held: rsk::DmaHeld = rsk::DmaHeld::none();
         task link (periodic, period = 50.ms(), deadline = 50.ms(), budget = 2.ms(), priority = 2);
     }
+
+    // The Endpoints between `comms` and `therapy` (design, "Endpoints";
+    // task 16.1). `program`: one message for every frame of the DCM's that
+    // `link` hears, a command's or the mark that one was heard; `control`
+    // takes up to four in a Job, and `therapy`'s validation function
+    // accepts exactly the messages of `pm_core::wire` (R42.4: from level C
+    // to level A). `status`: what `control` tells `link`. The channel of
+    // `status` toward `control` exists and is never read; its validation
+    // function accepts nothing.
+    endpoint program: [u32; 29] { dcm => comms.link ops = 2, pg => therapy.control validate = crate::validate_program ops = 4 } capacity = 4, payload = 116;
+    endpoint status: [u32; 4] { pg => therapy.control validate = crate::validate_status, dcm => comms.link ops = 2 } capacity = 2, payload = 16;
 
     // A sense edge: its instant captured by TIMER3, and counted (the fork).
     ppi sense_a_edge (event = GPIOTE[0x100], task = TIMER3[0x048], fork = TIMER1[0x008]);

@@ -69,9 +69,15 @@ pub mod rsk_target {
     /// what `rsk::DmaBuf::lend` takes.
     pub const DMA: [::rsk::DmaChannel; 2] = [::rsk::DmaChannel::generated(0, 0x40004000), ::rsk::DmaChannel::generated(1, 0x40004000)];
 }
+const _: () = assert!(::core::mem::size_of::<[u32;29]>() <= 116, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;4]>() <= 16, "the payload of Endpoint `status` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `comms.link` (Priority 2).
     pub struct Link {
+        /// Role `dcm` of Endpoint `program` (task 21.2; R38.1, R40.1): 4 messages of `[u32;29]` each way.
+        pub program: ::rsk::Endpoint<[u32;29], 29>,
+        /// Role `dcm` of Endpoint `status` (task 21.2; R38.1, R40.1): 2 messages of `[u32;4]` each way.
+        pub status: ::rsk::Endpoint<[u32;4], 4>,
         /// Per-Task state `started` (PR-25).
         pub started: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `transfers` (PR-25).
@@ -106,6 +112,8 @@ pub mod rsk_jobs {
     #[inline(never)]
     pub fn link() {
         let () = super::link(super::rsk_ctx::Link {
+            program: ::rsk::Endpoint::new(0, 0),
+            status: ::rsk::Endpoint::new(1, 1),
             started: ::rsk::PerTask::new(&super::rsk_state::LINK_STARTED),
             transfers: ::rsk::PerTask::new(&super::rsk_state::LINK_TRANSFERS),
             stuck: ::rsk::PerTask::new(&super::rsk_state::LINK_STUCK),

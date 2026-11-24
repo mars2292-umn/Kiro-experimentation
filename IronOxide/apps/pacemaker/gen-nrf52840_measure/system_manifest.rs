@@ -86,19 +86,21 @@ pub const NSIG: usize = 0;
 const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg { partition: 0xFF, task: 0xFF };
 pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [
 ];
-pub const NEP: usize = 0;
+pub const NEP: usize = 2;
 const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0, validates: [[false; 4]; 4] };
 pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [
+    ::rsk_kernel::arch::EndpointCfg { capacity: 4, payload: 116, roles: 2, tasks: [4, 3, 0xFF, 0xFF], partitions: [1, 0, 0xFF, 0xFF], release: [false, false, false, false], storage: 0, validates: [[false, false, false, false], [true, false, false, false], [false, false, false, false], [false, false, false, false]] }, // program (plain `[u32;29]`): dcm => comms.link, pg => therapy.control
+    ::rsk_kernel::arch::EndpointCfg { capacity: 2, payload: 16, roles: 2, tasks: [3, 4, 0xFF, 0xFF], partitions: [0, 1, 0xFF, 0xFF], release: [false, false, false, false], storage: 1856, validates: [[false, true, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]] }, // status (plain `[u32;4]`): pg => therapy.control, dcm => comms.link
 ];
-pub const ENDPOINT_STORAGE_BYTES: usize = 0;
+pub const ENDPOINT_STORAGE_BYTES: usize = 1984;
 static ENDPOINT_STORAGE: ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<ENDPOINT_STORAGE_BYTES> = ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage::new();
 /// Canonical image of the Endpoint table, for the Config_Checker (R26.4).
 #[used]
 #[no_mangle]
-pub static RSK_ENDPOINT_IMAGE: [u8; 8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+pub static RSK_ENDPOINT_IMAGE: [u8; 80] = [0x02, 0x00, 0x00, 0x00, 0x04, 0x74, 0x00, 0x02, 0x04, 0x03, 0xff, 0xff, 0x01, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x10, 0x00, 0x02, 0x03, 0x04, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x40, 0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x07, 0x00, 0x00];
 #[used]
 #[no_mangle]
-pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x6522df69;
+pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x09194187;
 /// The fixed PPI channels (PM33.1): per channel the addresses of its event, task and fork registers.
 #[used]
 #[no_mangle]

@@ -72,6 +72,70 @@ pub struct Counts {
 }
 
 /// The Resource `timing`: everything the four Tasks share.
+/// The link as `control` knows it (tasks 15.4 and 16.1). All words: the
+/// Resource is all zero bytes at the start, which is "not up, nothing
+/// answered".
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
+pub struct LinkSide {
+    /// 1 while the link is up.
+    pub up: u32,
+    /// `control`'s Jobs since the last message of `link`'s (saturating).
+    pub quiet: u32,
+    /// Verdicts given, and the last: its code and, above it, the number
+    /// of the frame it answers (`pm_core::wire::verdict`).
+    pub serial: u32,
+    pub last: u32,
+    /// Messages the validation function refused.
+    pub refused: u32,
+}
+
+/// The Jobs of `control` without a message after which the link is lost
+/// (PM20.2, PM-PAR-11). `link` sends a message for every poll the DCM
+/// answers, one in 50 ms; three unanswered polls are 150 ms without one,
+/// and the eighth Job of 20 ms without a message is the first that cannot
+/// be earlier than that. So the loss is known between 160 and 180 ms
+/// after the Job of `link` that heard the last frame.
+pub const LINK_LOST_JOBS: u32 = 8;
+/// The messages `control` takes from `program` in a Job (the Endpoint's
+/// `ops`), and the Jobs after which an unchanged status is sent again.
+pub const MESSAGES: usize = 4;
+pub const STATUS_REFRESH: u32 = 50;
+
+/// What a Job of `control` took from the Endpoint `program`.
+#[derive(Clone, Copy)]
+pub struct Inbox {
+    /// A message came.
+    pub heard: bool,
+    /// The Endpoint reported that `comms` was stopped or restarted.
+    pub peer_changed: bool,
+    /// Messages the validation function refused.
+    pub refused: u32,
+    /// A command came (at most one is taken in a Job), and its message.
+    pub has_command: bool,
+    pub command: [u32; pm_core::wire::PROGRAM_WORDS],
+}
+
+impl Inbox {
+    #[must_use]
+    pub const fn none() -> Inbox {
+        Inbox { heard: false, peer_changed: false, refused: 0, has_command: false, command: [0; pm_core::wire::PROGRAM_WORDS] }
+    }
+}
+
+/// The validation function of the Endpoint `program` (R42.4, PM19.3,
+/// PM22.3): exactly the messages of `pm_core::wire`, a parameter set
+/// exactly when `pm_core::validate` accepts it.
+pub fn validate_program(m: &[u32; pm_core::wire::PROGRAM_WORDS]) -> bool {
+    pm_core::wire::admitted(m)
+}
+
+/// The validation function of the channel of `status` toward `control`,
+/// which carries nothing: no message is one.
+pub fn validate_status(_m: &[u32; pm_core::wire::STATUS_WORDS]) -> bool {
+    false
+}
+
 #[derive(Clone, Copy)]
 pub struct Timing {
     /// `control`'s first Job has run.
@@ -90,6 +154,7 @@ pub struct Timing {
     pub ring: [Record; RING],
     pub written: u32,
     pub counts: Counts,
+    pub link: LinkSide,
 }
 
 impl Timing {
@@ -105,6 +170,7 @@ impl Timing {
             ring: [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING],
             written: 0,
             counts: Counts { too_late: 0, moved: 0, late: 0, dropped: 0 },
+            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0 },
         }
     }
 }
@@ -291,23 +357,80 @@ impl Timing {
         *started = true;
     }
 
-    /// `control`: one tick of the step, and every Chamber with no Pace
-    /// armed kept disarmed.
-    fn on_control(&mut self) {
+    /// `control`: what the link brought, one tick of the step, and every
+    /// Chamber with no Pace armed kept disarmed. Returns the status for
+    /// `link`.
+    ///
+    /// The link is up from a Job that had a message until `LINK_LOST_JOBS`
+    /// Jobs have had none, or the Endpoint reports that `comms` was
+    /// stopped or restarted (PM23.4). A command is given to the step
+    /// before the tick, so that what it arms is armed in this Job; the
+    /// step is told of the link by the tick, so a command of the Job that
+    /// first hears the link finds it down.
+    fn on_control(&mut self, inbox: &Inbox) -> [u32; pm_core::wire::STATUS_WORDS] {
+        use pm_core::wire::{code, code_of, seq_of, set_of, verdict};
         if !self.started {
             self.init();
         }
-        let Timing { state, driver, board, ring, written, counts, hw_fault, .. } = self;
-        if *hw_fault {
-            return;
+        let Timing { state, driver, board, ring, written, counts, hw_fault, link, .. } = self;
+        if inbox.peer_changed {
+            link.up = 0;
+            link.quiet = LINK_LOST_JOBS;
+        } else if inbox.heard {
+            link.up = 1;
+            link.quiet = 0;
+        } else {
+            link.quiet = link.quiet.saturating_add(1);
+            if link.quiet >= LINK_LOST_JOBS {
+                link.up = 0;
+            }
         }
-        let mut hw = Driver::resume(board::Board { words: board }, *driver);
-        let now = hw.now();
-        let magnet = hw.magnet();
-        event(state, ring, written, counts, &mut hw, Event::Tick { now, activity: 0, magnet, battery: Battery::Bol, link_up: false });
-        hw.refresh(Chamber::A);
-        hw.refresh(Chamber::V);
-        *driver = hw.state;
+        if inbox.refused != 0 {
+            link.refused = link.refused.saturating_add(inbox.refused);
+            link.serial = link.serial.wrapping_add(1);
+            link.last = verdict::REFUSED as u32;
+        }
+        if !*hw_fault {
+            let mut hw = Driver::resume(board::Board { words: board }, *driver);
+            if inbox.has_command {
+                let c = code_of(&inbox.command);
+                let set = set_of(&inbox.command);
+                let command = if c == code::PROGRAM {
+                    pm_core::validate(&set).map(pm_core::Command::Program)
+                } else if c == code::TEMPORARY {
+                    pm_core::validate(&set).map(pm_core::Command::StartTemporary)
+                } else if c == code::END_TEMPORARY {
+                    Some(pm_core::Command::EndTemporary)
+                } else if c == code::PACE_NOW {
+                    Some(pm_core::Command::PaceNow)
+                } else {
+                    None
+                };
+                if let Some(command) = command {
+                    event(state, ring, written, counts, &mut hw, Event::Command(command));
+                    let v = if c == code::TEMPORARY && !state.temporary_wanted { verdict::DECLINED } else { verdict::ACCEPTED };
+                    link.serial = link.serial.wrapping_add(1);
+                    link.last = v as u32 + seq_of(&inbox.command) as u32 * 0x100;
+                }
+            }
+            let now = hw.now();
+            let magnet = hw.magnet();
+            event(state, ring, written, counts, &mut hw, Event::Tick { now, activity: 0, magnet, battery: Battery::Bol, link_up: link.up != 0 });
+            hw.refresh(Chamber::A);
+            hw.refresh(Chamber::V);
+            *driver = hw.state;
+        }
+        pm_core::wire::Status {
+            therapy: pm_core::wire::therapy_byte(state.therapy),
+            mode: pm_core::wire::mode_byte(state.params().mode),
+            battery: pm_core::wire::battery_byte(Battery::Bol),
+            link_up: link.up != 0,
+            serial: link.serial,
+            verdict: (link.last & 0xFF) as u8,
+            of: ((link.last / 0x100) & 0xFF) as u8,
+            refused: link.refused,
+        }
+        .words()
     }
 }
 
@@ -334,7 +457,50 @@ pub fn sense_a(mut cx: rsk_ctx::SenseA) {
 #[cfg(all(feature = "nrf52840", not(feature = "sweep")))]
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::control_pre(&cx)))]
 pub fn control(mut cx: rsk_ctx::Control) {
-    cx.timing.lock(|t| t.on_control());
+    // The link's messages, taken outside the Critical_Section: at most
+    // `MESSAGES`, and no further once a command has come (the next Job
+    // takes the rest).
+    let mut inbox = Inbox::none();
+    let mut k = 0;
+    #[cfg_attr(creusot, rsk::creusot_std::macros::variant(MESSAGES@ - k@))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= MESSAGES@))]
+    while k < MESSAGES {
+        k += 1;
+        match cx.program.recv() {
+            Ok(Some(m)) => {
+                inbox.heard = true;
+                if pm_core::wire::code_of(&m) != pm_core::wire::code::HEARD {
+                    inbox.has_command = true;
+                    inbox.command = m;
+                    k = MESSAGES;
+                }
+            }
+            Ok(None) => k = MESSAGES,
+            Err(rsk::RecvError::Rejected) => inbox.refused = inbox.refused.saturating_add(1),
+            Err(_) => {
+                inbox.peer_changed = true;
+                k = MESSAGES;
+            }
+        }
+    }
+    let status = cx.timing.lock(|t| t.on_control(&inbox));
+    // The status goes to `link` when it has changed, when `comms` has
+    // restarted, and once in `STATUS_REFRESH` Jobs. A full channel is
+    // left until the next refresh; an Endpoint that reports the peer's
+    // change is tried again in the next Job.
+    let age = cx.status_age.get();
+    if status != cx.status_sent.get() || inbox.peer_changed || age >= STATUS_REFRESH {
+        match cx.status.send(&status) {
+            Ok(()) => {
+                cx.status_sent.with(|w| *w = status);
+                cx.status_age.with(|a| *a = 0);
+            }
+            Err(rsk::SendError::PeerChanged) => cx.status_age.with(|a| *a = STATUS_REFRESH),
+            Err(_) => cx.status_age.with(|a| *a = 0),
+        }
+    } else {
+        cx.status_age.with(|a| *a = age.saturating_add(1));
+    }
     // The injection build (task 9.8): once in every four seconds this Job
     // runs past its Budget, and two seconds later it writes outside the
     // Partition, so that the Kernel's enforcement, fault and restart
@@ -363,7 +529,7 @@ pub fn control(mut cx: rsk_ctx::Control) {
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::control_pre(&cx)))]
 pub fn control(mut cx: rsk_ctx::Control) {
     let sensed = cx.timing.lock(|t| {
-        t.on_control();
+        let _ = t.on_control(&Inbox::none());
         board::Board { words: &mut t.board }.play()
     });
     if sensed & 1 != 0 {

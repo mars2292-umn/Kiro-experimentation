@@ -64,7 +64,10 @@ impl Dcm {
 pub enum Reply {
     Idle,
     /// The answer to the frame numbered `of`.
-    Status { of: u8, code: u8, state: u8, mode: u8, battery: u8 },
+    /// `link`'s answer, or `control`'s verdict (codes 6 to 8), or with the
+    /// code 0 a change of what `control` reports. `link_up`, `serial` (the
+    /// count of verdicts, modulo 256) and `refused` are `control`'s.
+    Status { of: u8, code: u8, state: u8, mode: u8, battery: u8, link_up: bool, serial: u8, refused: u8 },
     Identity { of: u8, model: u32, serial: u32 },
     /// One part of the parameters read back.
     Part(Frame),
@@ -85,7 +88,7 @@ pub fn reply(bytes: &[u8; FRAME]) -> Option<Reply> {
     let p = &f.payload;
     Some(match (f.kind, f.len) {
         (kind::IDLE, 0) => Reply::Idle,
-        (kind::STATUS, 8) => Reply::Status { of: p[0], code: p[1], state: p[2], mode: p[3], battery: p[4] },
+        (kind::STATUS, 8) => Reply::Status { of: p[0], code: p[1], state: p[2], mode: p[3], battery: p[4], link_up: p[5] == 1, serial: p[6], refused: p[7] },
         (kind::IDENTITY, 12) => Reply::Identity { of: p[0], model: word(p, 4), serial: word(p, 8) },
         (kind::PARAM_PART, _) => Reply::Part(f),
         (kind::RECORD, _) => Reply::Record(f),
@@ -201,13 +204,16 @@ pub struct Session<C: Carrier> {
     pub carrier: C,
     pub dcm: Dcm,
     reports: Reports,
+    /// Reports read from the carrier and not yet looked at: a read brings
+    /// several, and a wait that ends on one leaves the rest to the next.
+    queue: std::collections::VecDeque<Report>,
     /// Every report read, in order (the record of a run).
     pub log: Vec<Report>,
 }
 
 impl<C: Carrier> Session<C> {
     pub fn new(carrier: C) -> Session<C> {
-        Session { carrier, dcm: Dcm::default(), reports: Reports::default(), log: Vec::new() }
+        Session { carrier, dcm: Dcm::default(), reports: Reports::default(), queue: std::collections::VecDeque::new(), log: Vec::new() }
     }
 
     /// Bytes skipped and reports with a wrong sum, so far.
@@ -215,8 +221,12 @@ impl<C: Carrier> Session<C> {
         (self.reports.skipped, self.reports.bad_sums)
     }
 
-    /// The next reports, waiting up to `tries` receives for the first.
+    /// The next reports: those read and not yet looked at, or else what
+    /// the carrier brings, waiting up to `tries` receives for the first.
     pub fn read(&mut self, tries: usize) -> std::io::Result<Vec<Report>> {
+        if !self.queue.is_empty() {
+            return Ok(self.queue.drain(..).collect());
+        }
         for _ in 0..tries {
             let bytes = self.carrier.receive()?;
             let rs = self.reports.feed(&bytes);
@@ -228,12 +238,24 @@ impl<C: Carrier> Session<C> {
         Ok(Vec::new())
     }
 
+    /// The next report, one at a time; `None` when the carrier brings none
+    /// in 30 receives.
+    pub fn next(&mut self) -> std::io::Result<Option<Report>> {
+        if self.queue.is_empty() {
+            let rs = self.read(30)?;
+            self.queue.extend(rs);
+        }
+        Ok(self.queue.pop_front())
+    }
+
     /// The host side alone: `bytes` to the bridge and straight back.
     pub fn loop_back(&mut self, bytes: &[u8; FRAME]) -> std::io::Result<Option<Report>> {
         self.carrier.send(&message(bridge::LOOP, bytes))?;
         for _ in 0..20 {
-            if let Some(r) = self.read(1)?.into_iter().find(|r| r.flags == bridge::LOOPED) {
-                return Ok(Some(r));
+            match self.next()? {
+                Some(r) if r.flags == bridge::LOOPED => return Ok(Some(r)),
+                Some(_) => {}
+                None => return Ok(None),
             }
         }
         Ok(None)
@@ -256,20 +278,16 @@ impl<C: Carrier> Session<C> {
     pub fn command(&mut self, f: &Frame, transfers: usize) -> std::io::Result<Option<Answer>> {
         self.carrier.send(&message(bridge::COMMAND, &frame::encode(f)))?;
         let mut seen = 0;
-        let mut idle = 0;
-        while seen < transfers && idle < 30 {
-            let rs = self.read(1)?;
-            if rs.is_empty() {
-                idle += 1;
-            }
-            for r in rs {
+        while seen < transfers {
+            let Some(r) = self.next()? else { break };
+            {
                 if r.flags == bridge::LOOPED {
                     continue;
                 }
                 seen += 1;
                 match reply(&r.bytes) {
-                    Some(Reply::Status { of, code, state, mode, battery }) if of == f.seq => {
-                        return Ok(Some(Answer { reply: Reply::Status { of, code, state, mode, battery }, transfers: seen }));
+                    Some(Reply::Status { of, code, state, mode, battery, link_up, serial, refused }) if of == f.seq && code != 0 => {
+                        return Ok(Some(Answer { reply: Reply::Status { of, code, state, mode, battery, link_up, serial, refused }, transfers: seen }));
                     }
                     Some(Reply::Identity { of, model, serial }) if of == f.seq => {
                         return Ok(Some(Answer { reply: Reply::Identity { of, model, serial }, transfers: seen }));
@@ -279,6 +297,33 @@ impl<C: Carrier> Session<C> {
             }
         }
         Ok(None)
+    }
+
+    /// Waits for a frame of the pulse generator's that `wanted` accepts,
+    /// for at most `transfers` reports; the frame and the reports read.
+    pub fn wait(&mut self, transfers: usize, wanted: impl Fn(&Reply) -> bool) -> std::io::Result<Option<Answer>> {
+        let mut seen = 0;
+        while seen < transfers {
+            let Some(r) = self.next()? else { break };
+            {
+                if r.flags == bridge::LOOPED {
+                    continue;
+                }
+                seen += 1;
+                if let Some(reply) = reply(&r.bytes) {
+                    if wanted(&reply) {
+                        return Ok(Some(Answer { reply, transfers: seen }));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// `control`'s verdict on a command: the next STATUS with a verdict's
+    /// code (6 accepted, 7 refused, 8 declined). A refusal names no frame.
+    pub fn verdict(&mut self, transfers: usize) -> std::io::Result<Option<Answer>> {
+        self.wait(transfers, |r| matches!(r, Reply::Status { code: 6..=8, .. }))
     }
 
     /// Who is there (PM20.3).
@@ -304,13 +349,9 @@ impl<C: Carrier> Session<C> {
         self.carrier.send(&message(bridge::COMMAND, &frame::encode(&f)))?;
         let mut assembly = Assembly::EMPTY;
         let mut seen = 0;
-        let mut idle = 0;
-        while seen < transfers && idle < 30 {
-            let rs = self.read(1)?;
-            if rs.is_empty() {
-                idle += 1;
-            }
-            for r in rs {
+        while seen < transfers {
+            let Some(r) = self.next()? else { break };
+            {
                 seen += 1;
                 match reply(&r.bytes) {
                     Some(Reply::Part(p)) => {

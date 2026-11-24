@@ -1,6 +1,6 @@
-note: binary: RSK_CONFIG_IMAGE 303 bytes at 0x00021294, RSK_CONFIG_CHECKSUM 0x52687552
-note: binary: RSK_LAYOUT_IMAGE 157 bytes at 0x000213cb, RSK_LAYOUT_CHECKSUM 0xcf61a543
-note: binary: RSK_ENDPOINT_IMAGE 8 bytes at 0x000213c3, RSK_ENDPOINT_CHECKSUM 0x6522df69
-note: binary: no Endpoints, the Endpoint storage's placement is not needed (R16.1)
-note: 392 values compared
-rsk-confcheck: 392 values checked, every recomputed value matches
+note: binary: RSK_CONFIG_IMAGE 303 bytes at 0x000213b4, RSK_CONFIG_CHECKSUM 0x52687552
+note: binary: RSK_LAYOUT_IMAGE 157 bytes at 0x00021533, RSK_LAYOUT_CHECKSUM 0xcf61a543
+note: binary: RSK_ENDPOINT_IMAGE 80 bytes at 0x000214e3, RSK_ENDPOINT_CHECKSUM 0x09194187
+note: binary: rsk_system::ENDPOINT_STORAGE 1984 bytes at 0x20000b5c
+note: 472 values compared
+rsk-confcheck: 472 values checked, every recomputed value matches

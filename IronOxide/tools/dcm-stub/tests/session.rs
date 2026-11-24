@@ -22,11 +22,15 @@ struct Rig {
     /// Flips one bit of the byte numbered here in every frame toward the
     /// pulse generator.
     corrupt: Option<usize>,
+    /// `control`'s counts, as its status carries them.
+    serial: u32,
+    refused: u32,
+    verdict: (u8, u8),
 }
 
 impl Rig {
     fn new() -> Rig {
-        Rig { link: Link::new(), last: [0; FRAME], queue: Vec::new(), idle: None, inbox: Vec::new(), out: Vec::new(), count: 0, corrupt: None }
+        Rig { link: Link::new(), last: [0; FRAME], queue: Vec::new(), idle: None, inbox: Vec::new(), out: Vec::new(), count: 0, corrupt: None, serial: 0, refused: 0, verdict: (0, 0) }
     }
 
     fn report(&mut self, flags: u8, bytes: &[u8; FRAME]) {
@@ -52,8 +56,31 @@ impl Rig {
         // `link` answers the frame of the transfer before this one.
         let got = frame::decode(&self.last);
         let from_pg = frame::encode(&proto::answer(&mut self.link, got.as_ref()));
+        self.control();
         self.last = to_pg;
         self.report(flags, &from_pg);
+    }
+}
+
+impl Rig {
+    /// `control` and the Kernel behind the Endpoints, as far as the link
+    /// can tell: a message the validation function admits gets a verdict
+    /// in the status; one it refuses is the fault of `comms`, which is
+    /// restarted (its state all zero), and the status counts it.
+    fn control(&mut self) {
+        use pm_core::wire::{admitted, code, code_of, seq_of, verdict, Status};
+        let Some(m) = proto::take_forward(&mut self.link) else { return };
+        if !admitted(&m) {
+            self.link = Link::new();
+            self.refused += 1;
+            self.serial += 1;
+            self.verdict = (verdict::REFUSED, 0);
+        } else if code_of(&m) != code::HEARD {
+            self.serial += 1;
+            self.verdict = (verdict::ACCEPTED, seq_of(&m));
+        }
+        let status = Status { therapy: 1, mode: 0x15, battery: 0, link_up: true, serial: self.serial, verdict: self.verdict.0, of: self.verdict.1, refused: self.refused };
+        proto::status_in(&mut self.link, &status.words());
     }
 }
 
@@ -189,7 +216,8 @@ fn a_set_goes_in_parts_and_reads_back_equal() {
 fn a_command_the_stage_does_not_serve_says_so() {
     let mut s = Session::new(Rig::new());
     s.start().unwrap();
-    let f = s.dcm.plain(kind::PACE_NOW);
+    // Until task 16.1 this was PACE_NOW, which `link` now forwards.
+    let f = s.dcm.byte(kind::SET_BATTERY, 1);
     match s.command(&f, 10).unwrap().expect("an answer").reply {
         Reply::Status { code: c, state, .. } => assert_eq!((c, state), (code::NOT_SERVED, proto::UNKNOWN)),
         other => panic!("{other:?}"),
@@ -217,4 +245,43 @@ fn without_a_dcm_the_link_hears_nothing() {
     }
     assert_eq!((s.carrier.link.heard, s.carrier.link.silent), (0, 5));
     let _ = message(bridge::CLEAR, &[0; FRAME]);
+}
+
+#[test]
+fn a_valid_set_is_accepted_and_an_invalid_one_refused_as_predicted() {
+    let mut s = Session::new(Rig::new());
+    s.start().unwrap();
+    let mut good = NOMINAL_WORDS;
+    good[pm_core::word::LRL] = 90;
+    let mut bad = NOMINAL_WORDS;
+    bad[pm_core::word::LRL] = 31;
+    assert!(predict(&good) && !predict(&bad));
+
+    let parts = s.send_set(&good, false, 10).unwrap();
+    let last = s.dcm.plain(kind::POLL).seq.wrapping_sub(1);
+    assert!(matches!(parts[4].as_ref().unwrap().reply, Reply::Status { code: code::SET_COMPLETE, .. }));
+    match s.verdict(10).unwrap().expect("a verdict").reply {
+        Reply::Status { of, code: c, serial, refused, link_up, .. } => assert_eq!((of, c, serial, refused, link_up), (last, code::ACCEPTED, 1, 0, true)),
+        other => panic!("{other:?}"),
+    }
+
+    let _ = s.send_set(&bad, false, 10).unwrap();
+    match s.verdict(10).unwrap().expect("a verdict").reply {
+        Reply::Status { code: c, serial, refused, .. } => assert_eq!((c, serial, refused), (code::REFUSED, 2, 1)),
+        other => panic!("{other:?}"),
+    }
+    // The link started again: it has no set to read back.
+    assert_eq!(s.carrier.link.sets, 0);
+}
+
+#[test]
+fn a_forwarded_command_gets_its_verdict() {
+    let mut s = Session::new(Rig::new());
+    s.start().unwrap();
+    let f = s.dcm.plain(kind::PACE_NOW);
+    assert!(matches!(s.command(&f, 10).unwrap().expect("an answer").reply, Reply::Status { code: code::FORWARDED, .. }));
+    match s.verdict(10).unwrap().expect("a verdict").reply {
+        Reply::Status { of, code: c, .. } => assert_eq!((of, c), (f.seq, code::ACCEPTED)),
+        other => panic!("{other:?}"),
+    }
 }

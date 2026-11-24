@@ -887,7 +887,7 @@
         "_ZN17pacemaker_therapy5event17h9973d284d98410caE"
       ],
       "frame": 208,
-      "name": "_ZN17pacemaker_therapy6Timing8on_sense17h1ff3fb74058366c5E",
+      "name": "_ZN17pacemaker_therapy6Timing8on_sense17h0f2d764229591315E",
       "reason": null,
       "usage": 2056
     },
@@ -906,7 +906,7 @@
       "usage": 2360
     },
     {
-      "address": "0x000255a0",
+      "address": "0x000255c6",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h749dc6f902803fcfE"
@@ -917,7 +917,7 @@
       "usage": 2392
     },
     {
-      "address": "0x000255b6",
+      "address": "0x000255dc",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7control17h04b9c0b7d64093abE"
@@ -928,11 +928,11 @@
       "usage": 2384
     },
     {
-      "address": "0x000255de",
+      "address": "0x00025604",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
-        "_ZN17pacemaker_therapy6Timing8on_sense17h1ff3fb74058366c5E"
+        "_ZN17pacemaker_therapy6Timing8on_sense17h0f2d764229591315E"
       ],
       "frame": 8,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_a17h8b4ebdb4ed4a14b0E",
@@ -940,11 +940,11 @@
       "usage": 2376
     },
     {
-      "address": "0x00025612",
+      "address": "0x00025638",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
-        "_ZN17pacemaker_therapy6Timing8on_sense17h1ff3fb74058366c5E"
+        "_ZN17pacemaker_therapy6Timing8on_sense17h0f2d764229591315E"
       ],
       "frame": 8,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_v17h7b082c418da42c08E",
@@ -952,7 +952,7 @@
       "usage": 2376
     },
     {
-      "address": "0x00025648",
+      "address": "0x0002566c",
       "bounded": true,
       "calls": [
         "__aeabi_uldivmod"

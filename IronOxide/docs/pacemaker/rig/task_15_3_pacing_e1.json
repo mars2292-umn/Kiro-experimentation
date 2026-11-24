@@ -45,14 +45,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:2f02edd28fdd3cd6f31ed1ff1df59ccd0ccaaf1cca00acd20ba5b5836237f777"
+      "sha256": "sha256:b95de4e345e066cbd0ff1819aae787a342398c436479ded6ffbb185a303e5b65"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:4dd7a51665e4715e7aec7fb423d64e91df6c87eea5715907da5c277e05c46e9c"
+     "sha256": "sha256:9dbdc02ac19d0bb02ad58d0195be322338850818c4fba1354c4b003c526c5e19"
     },
     "escape_interval_us": 1000000.0,
     "mode": "VVI",
@@ -161,7 +161,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 26666.0
+     "min_us": 26665.0
     },
     "binaries": {
      "heart-sim": {
@@ -170,14 +170,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:667cb3a6b5a819cd641a99557bbf3bd7eb1965a015ec3b6b45407e1ce990a9d6"
+      "sha256": "sha256:f11698d5dc7be6319dceb612b70ad91db69f64140a2ee61c81978a575b082d7a"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:52a3b80529cc9bed941a96a503e6a06c2120f9056ae7f60fcb9a68978f4353b2"
+     "sha256": "sha256:eec55dcb732a00fcf5964538c69d941cac50c083d6b45f8670d672c00631dc57"
     },
     "escape_interval_us": 666666.0,
     "mode": "VVI",
@@ -238,7 +238,7 @@
      "pace_intervals": {
       "count": 36,
       "max_us": 666665.0,
-      "min_us": 666664.0
+      "min_us": 666663.0
      },
      "paces": 37,
      "pulse_widths": {
@@ -290,7 +290,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 89182.0
+     "min_us": 86774.0
     },
     "binaries": {
      "heart-sim": {
@@ -299,14 +299,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:7fbfb6abde48b93d1d665b4076bf24b0488261d645e3f8c02a3b44157d5fbee4"
+      "sha256": "sha256:415a380d2dacd87186df770360e05e12293e7ae9d7f9717f026224694072c963"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:1fa1cc9269c71d2b07a4350ad53ad59393cabd2a7c54c906b75fcafd4f11f4a1"
+     "sha256": "sha256:e6edee24811f82d251a445b4f6af9da1fbf55390599b679c1ce1d1b06ac7cf96"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -351,7 +351,7 @@
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159998.0
      },
      "mismatches": [],
      "name": "fixed",

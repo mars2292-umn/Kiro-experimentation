@@ -2,7 +2,7 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: 2026-11-24, after wave 20 of `tasks.md` (tasks 15.1 to 15.3 and 16.2). Kept by hand: bring it up to date when a contract is added, moved or removed. A line number in `step.rs` is that of the function's `fn` line on this date, and its contracts are the attributes directly above it; the function names are what to search for.
+Status: 2026-11-24, after wave 21 of `tasks.md` (tasks 15.1 to 15.4, 16.1 and 16.2). Kept by hand: bring it up to date when a contract is added, moved or removed. A line number in `step.rs` is that of the function's `fn` line on this date, and its contracts are the attributes directly above it; the function names are what to search for.
 
 This lists every property of the experiment that a prover or the compiler holds, with the place of its statement, the place of its proof, and the mutant that shows the statement is not empty. A property that is only tested is in the last section, so that the two are not confused. The properties are those of `design.md`, "Correctness Properties" (P1 to P12).
 
@@ -21,11 +21,11 @@ A mutant, from the workspace root: `cargo xtask mutations --only <id>` applies i
 
 | Member (`-p`) | Source it proves | Files proved, 2026-11-24 |
 |---|---|---|
-| `pm-core-proof` | `crates/pm-core/src/` | 147 |
+| `pm-core-proof` | `crates/pm-core/src/` | 160 |
 | `pm-hw-proof` | `crates/pm-hw/src/lib.rs` | 49 |
-| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 60 |
-| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 56 |
-| `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 21 |
+| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 67 |
+| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 67 |
+| `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 25 |
 
 ## The therapy logic: `pm-core`
 
@@ -39,7 +39,7 @@ All in `crates/pm-core/src/step.rs`, member `pm-core-proof`. Each property is st
 | **P2**, in part: a Pace is pending within the escape interval | For an event that is not a command, with no change of State waiting: (a) in a Mode that paces the ventricle, a ventricular Pace that is pending stays pending; likewise the atrial Pace in a Mode that paces the atrium alone. (b) After a tick one is pending. (c) After a Chamber's own event its Pace is pending at exactly the event plus the escape interval | (a), (b) `step` 658; (c) `ventricular_event` 190, `atrial_event` 236 | `apply_pace` 278, `account` 294, `accounted` 314, `tick` 405, `sense` 573; `Pending::at` (`state.rs` 72), `escape` 109, `ventricular_based` 158 | `pm-step-p2-ventricular-pace-not-pending` |
 | **P1**, in part: no ventricular Pace within the URL interval | The ventricular Pace an atrial event leaves pending is the one that was pending, or is not before the last ventricular event plus the URL interval | `atrial_event`, line 236 | `before` and `Micros::is_before` (`time.rs` 22, 60), `Micros::plus` (`time.rs` 33) | `pm-step-p1-url-floor-dropped` |
 | **P5** `validate` returns a parameter set exactly for the admitted word sequences | The result is a set exactly when the sequence satisfies `spec::admitted`: 28 words, a Mode code, every word a value of its row of Table 19-1 (`spec::member`), the limits of Table 19-5 for the parameters the Mode uses (`spec::limits`), and a set stage E2 delivers (`spec::stage`) | `validate` (`validate.rs` 352); the specification is the module `spec` (line 32) | each predicate returns what its row says (`stepped`, `is_lrl`, `is_amplitude`, `is_width`, `is_sensitivity`, `is_atr_duration`, `is_rate_smoothing`, `activity_threshold`); `limits_hold` returns `spec::limits`; `Mode::tracks`, `Mode::uses_sensed_av_offset` and `Mode::senses` (`mode.rs`); `interval_of_ppm` (`params.rs`) | `pm-validate-p5-url-row-widened`, `pm-validate-p5-limit-dropped` |
-| **P10** No panic, overflow or index out of bounds | Every function of the crate, by the member proving at all: each arithmetic operation, array index and division is a goal. Since task 15.1 the crate includes the link's frames (`frame.rs`: `crc16` 116, `encode` 139, `decode` 166, `set_part` 209, `Assembly::accept` 252) | the whole crate | bounds on `validate`'s predicates (`validate.rs` 220 to 268), `limits_hold`'s preconditions (324, 325), `interval_of_ppm` (`params.rs` 17), `Chamber::index` (`mode.rs` 25) | — |
+| **P10** No panic, overflow or index out of bounds | Every function of the crate, by the member proving at all: each arithmetic operation, array index and division is a goal. Since task 15.1 the crate includes the link's frames (`frame.rs`: `crc16` 116, `encode` 139, `decode` 166, `set_part` 209, `Assembly::accept` 252) and, since task 16.1, the Endpoints' messages (`wire.rs`: `message_with_set` 67, `set_of` 95, `admitted` 112) | the whole crate | bounds on `validate`'s predicates (`validate.rs` 220 to 268), `limits_hold`'s preconditions (324, 325), `interval_of_ppm` (`params.rs` 17), `Chamber::index` (`mode.rs` 25) | — |
 
 Supporting statements about the Mode, used by the above: `Chambers::has` (`mode.rs` 64), `Mode::paces` (176), `Mode::senses` (184) and `Mode::tracks` (199) return exactly what the Mode's letters say.
 
@@ -63,7 +63,7 @@ In `apps/pacemaker/therapy/src/`, members `pacemaker-therapy-proof` and `pacemak
 
 | Property | What is proven | Where |
 |---|---|---|
-| **P10** No Task of `therapy` panics, overflows or indexes out of bounds | The four Task bodies (`pace`, `sense_v`, `sense_a`, `control`, `lib.rs` lines 316 to 379) under the preconditions rsk generates for each (`rsk_spec::<task>_pre`), with everything they call: the event ring, the board layers, the driver and the step as instantiated in the Partition | both members; the board's address arithmetic has its own bounds (`board_nrf.rs` 91, 104, 113) |
+| **P10** No Task of `therapy` panics, overflows or indexes out of bounds | The four Task bodies (`pace`, `sense_v`, `sense_a`, `control`, `lib.rs` lines 440 to 546; on the board `control` with its loop over the Endpoint `program`, bounded by `MESSAGES`, and the validation function `validate_program`, line 129) under the preconditions rsk generates for each (`rsk_spec::<task>_pre`), with everything they call: the event ring, the board layers, the driver and the step as instantiated in the Partition | both members; the board's address arithmetic has its own bounds (`board_nrf.rs` 91, 104, 113) |
 | The parameter text of a rig build is read within bounds | `sets::from_text` (`sets.rs` 43), with the set's length as its loop invariant (line 51) | both members |
 
 The board trait's methods have no contract, so these proofs hold whatever values the registers return.
@@ -74,13 +74,13 @@ In `apps/pacemaker/comms/src/`, member `pacemaker-comms-nrf52840-proof` (task 15
 
 | Property | What is proven | Where |
 |---|---|---|
-| **P10** The Task of `comms` does not panic, overflow or index out of bounds | The Task body `link` (`lib.rs` 80) under the precondition rsk generates (`rsk_spec::link_pre`), with `take_back` (64) and the protocol it calls: `proto::answer` (`proto.rs` 133), `idle_or_part` (118), `put_word` (110, with its bound on the position) and `pm-core`'s frame functions as instantiated in the Partition | the member |
+| **P10** The Task of `comms` does not panic, overflow or index out of bounds | The Task body `link` (`lib.rs` 86) under the precondition rsk generates (`rsk_spec::link_pre`), with `take_back` (70), its loop over the Endpoint `status` and the protocol it calls: `proto::answer` (`proto.rs` 210), `idle_or_part` (188), `status` (157), `put_word` (180, with its bound on the position) and `pm-core`'s frame functions as instantiated in the Partition | the member |
 
-Nothing is proven about what `link` answers (the tests of `apps/pacemaker/comms/tests/proto.rs` and of `tools/dcm-stub` show it), nor that an encoded frame decodes to itself.
+Nothing is proven about what `link` answers or forwards (the tests of `apps/pacemaker/comms/tests/proto.rs` and of `tools/dcm-stub` show it), nor that an encoded frame decodes to itself, nor that the validation function of `program` admits a set exactly when `validate` does (`crates/pm-core/tests/wire.rs` tests it).
 
 ## The change to rsk: fixed PPI channels
 
-Proven with rsk's own provers, by rsk's verification job. The job last ran on 2026-11-24, on the tree before waves 19 and 20 (it has not been run since; the App_Prover's members of this experiment were proven one at a time after them, with the file counts above): `cargo xtask verify` on this tree **passed: 0 violations**, all 31 steps, 95 minutes. Among them: the Kernel_Proofs (Verus; the proofs of `rsk-logic` twice, 348 verified in both), 24 Kani harnesses of `rsk-kernel` (57 minutes, the model checker at up to 25 GB), the App_Prover on every member under both pairs of solvers, the four of this experiment included (`pm-core` 127 files, `pm-hw` 49, `therapy` 60, `therapy-nrf52840` 56), the Lean project, the Profile_Conformance_Suite, the clean-checkout rebuild, rsk\x27s own rig suites on the boards (self-test, spike, response, isolation with the Hardware_Model tests, boot checks, cycle attribution, stack painting) and the step that runs this Application on QEMU. The job gave two warnings: the committed UPPAAL corpus report is of other sources than this tree\x27s, so that item is inconclusive (UPPAAL was not run, by the user\x27s standing instruction); and Verus\x27s count of executable lines (5,123) is above the Build_System\x27s (4,598), for review. 109 of rsk\x27s 386 acceptance criteria have no Evidence_Item in the store, as before.
+Proven with rsk's own provers, by rsk's verification job. The job last ran on 2026-11-24, on the tree before waves 19 and 20 (it has not been run since; the App_Prover's members of this experiment were proven one at a time after wave 21, with the file counts above, and Verus was run on `rsk-confcheck` alone after its change of task 16.1: 113 verified): `cargo xtask verify` on this tree **passed: 0 violations**, all 31 steps, 95 minutes. Among them: the Kernel_Proofs (Verus; the proofs of `rsk-logic` twice, 348 verified in both), 24 Kani harnesses of `rsk-kernel` (57 minutes, the model checker at up to 25 GB), the App_Prover on every member under both pairs of solvers, the four of this experiment included (`pm-core` 127 files, `pm-hw` 49, `therapy` 60, `therapy-nrf52840` 56), the Lean project, the Profile_Conformance_Suite, the clean-checkout rebuild, rsk\x27s own rig suites on the boards (self-test, spike, response, isolation with the Hardware_Model tests, boot checks, cycle attribution, stack painting) and the step that runs this Application on QEMU. The job gave two warnings: the committed UPPAAL corpus report is of other sources than this tree\x27s, so that item is inconclusive (UPPAAL was not run, by the user\x27s standing instruction); and Verus\x27s count of executable lines (5,123) is above the Build_System\x27s (4,598), for review. 109 of rsk\x27s 386 acceptance criteria have no Evidence_Item in the store, as before.
 
 | What | Where | Prover | Mutants |
 |---|---|---|---|

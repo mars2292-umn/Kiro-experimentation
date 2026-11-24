@@ -26,6 +26,7 @@ extern crate creusot_std;
 
 mod event;
 pub mod frame;
+pub mod wire;
 mod mode;
 mod params;
 mod state;

@@ -205,8 +205,8 @@ Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage
 
 | Endpoint | Roles | Payload | Validation | Release |
 |---|---|---|---|---|
-| `program` | `comms.link` → `therapy.control` | A command code and a parameter set, as words | `therapy`'s validation function (R42.4: from level C to level A) accepts exactly Table 19-1 and Table 19-5 and the command codes (PM19.3, PM22.3) | none: `control` polls it every period |
-| `status` | `therapy.control` → `comms.link` | State, Mode in force, battery level, the answer to the last command | none needed (downward) | none |
+| `program` | `comms.link` → `therapy.control` | 29 words (`pm_core::wire`): a code and the DCM's frame number, then a parameter set for the two codes that carry one. One message for every frame of the DCM's that `link` hears: a command (PROGRAM, TEMPORARY, END_TEMPORARY, PACE_NOW), or the mark that a frame was heard | `therapy`'s validation function (R42.4: from level C to level A), `wire::admitted`: exactly the five codes, a set exactly when `validate` accepts it (Table 19-1 and Table 19-5; PM19.3, PM22.3), zeros where no set belongs | none: `control` takes up to four messages every period, and at most one command |
+| `status` | `therapy.control` → `comms.link` | 4 words: the State, the Mode in force, the battery level, whether `control` has the link as up; the count of verdicts; the last verdict and the frame it answers; the count of refused messages. Sent when it changes, when `comms` has restarted, and once a second | none needed (downward). The channel toward `control` is never read; its validation function accepts nothing | none |
 | `events` | `therapy.control` → `diag.history` | A batch of up to 8 event records | none needed (downward) | none |
 | `records` | `diag.history` → `comms.link` | One histogram, trend or Marker frame | `comms`'s validation function (from level D to level C): frame kind and length in range | none |
 | `request` | `comms.link` → `diag.history` | A record request or a reset | none needed (downward) | none |
@@ -361,7 +361,11 @@ pub fn sense_v(cx: rsk_ctx::SenseV) {
 
 The bridge knows nothing of frames. From the host it takes 32 bytes to send once, 32 bytes to send whenever nothing else waits (the DCM_Stub's poll), or the order to send nothing (the pulse generator then reads zeros, which are no frame: this is how the loss of the link is made for task 15.4). It reports every transfer to the host with what it had sent and how many bytes were clocked.
 
-Until the Endpoints exist (task 16.1) `link` answers alone: IDENTITY to an interrogation (PM20.3), a STATUS with a code to each part of a parameter set and to every command it cannot serve yet, and the last complete set read back in parts.
+**With the Endpoints (task 16.1).** `link` does not judge a parameter set. It answers alone what needs no judgement: IDENTITY to an interrogation (PM20.3), a STATUS with a code to each part of a set and to every command it cannot serve yet, and the last set it put together read back in parts (which is not the set in force: that read-back is open). A complete set and the commands END_TEMPORARY and PACE_NOW go to `control` as a message; `control`'s verdict comes back in its status, and `link` sends it as a STATUS frame naming the DCM's frame: accepted, declined (a valid command the State does not allow), or refused by the validation function. A change of `control`'s status without a verdict (the State, the Mode, the link) is sent as a STATUS with the code 0 in place of the next IDLE.
+
+**A refused set restarts `comms`.** A message the validation function refuses is the sender's fault by the Kernel's rule (R42.4), and the fault response of `comms` is RESTART_PARTITION. So the DCM sees `link`'s frame numbers begin again at 0, then a STATUS with the verdict "refused" and `control`'s count of refusals; `control` sees the peer-state error of its Endpoints, which it takes as the loss of the link (PM23.4), so a refused set also ends temporary pacing. The parameters in force are unchanged. Whether `comms` should check a set itself before forwarding it, so that only a faulty `comms` is ever refused, is a question for checkpoint 18.
+
+**The loss of the link (task 15.4; PM20.2, PM-PAR-11 = 3).** `control` has the link as up from a Job that took a message from `program` until eight Jobs in a row have taken none. `link` sends one message per answered poll, every 50 ms; three unanswered polls are 150 ms without a message, and the eighth Job of 20 ms is the first that cannot come before that. So the loss is known to `control`, and told to the step in that Job's tick, between 160 and 180 ms after the Job of `link` that heard the last frame; temporary pacing then ends at the next timing event. A stop or restart of `comms` is the loss at once.
 
 ## Data Models
 
@@ -432,7 +436,7 @@ The Analyzer's inputs are Table 2. What has to hold for each tolerance (the same
 | Triggered Pace (PM5.4) | Sense → sense Job → Pace at present + `LEAD` | R_sense + `LEAD` ≤ 8 ms | 4 ms + 0.5 ms |
 | Inhibition window (PD-04) | Sense → sense Job disarms | R_sense ≤ PM-PAR-15 | The Analyzer's bound for `sense_a` is 4.359 ms against 4 ms on the stage E2 records (not held; 3.891 ms on stage E1's); measured, the window is under 0.15 ms |
 | Pace-Now (PM6.6) | frame → `link` → `program` → `control` → armed | One `link` period, one `control` period, then at most 923 ms | 50 + 20 + 923 ms against two cycles plus 500 ms |
-| Link loss (PM20.2) | three missed polls → `status`/`Tick` | 3 × 50 ms + one `control` period | 170 ms |
+| Link loss (PM20.2) | three unanswered polls → no message on `program` for eight Jobs of `control` → the tick | 160 to 180 ms after the Job of `link` that heard the last frame (three poll periods, and up to one period of `control` and its rounding) | 180 ms; seen from outside in the transfer 200 ms after that Job (task 15.4) |
 | Magnet, battery, State changes | pin or frame → `control` | One `control` period, then the next ventricular event | 20 ms + one cycle |
 
 ### What the measurement settled (tasks 9.2 and 9.8, 2026-11-23; PD-O3)
@@ -492,7 +496,7 @@ Other things the runs settled:
 
 | Condition | Detected by | Outcome |
 |---|---|---|
-| A parameter set outside Table 19-1 or Table 19-5, or an unknown command | The validation function on `program` | The message is not delivered; the Kernel reports it against `comms` (R42.4); `status` carries the refusal; parameters in force unchanged |
+| A parameter set outside Table 19-1 or Table 19-5, or an unknown command | The validation function on `program` | The message is not delivered; the Kernel reports it against `comms` (R42.4) and restarts `comms`; `control` counts the refusal and `status` carries it; the Endpoints' peer-state error ends temporary pacing; parameters in force unchanged |
 | The link lost | `control`: no frame for three `link` periods, or the peer-state error of an Endpoint to `comms` (PM23.4) | Temporary State and any test end; pacing as before |
 | `comms` or `diag` faults, overruns, floods | The Kernel | Their own responses; `therapy` unaffected (P11) |
 | A fault, an Overrun or a deadline miss in `therapy` | The Kernel | RESTART_PARTITION: statics zeroed, `control`'s first Job configures the hardware, POR State, VVI at 65 ppm. An armed pulse end still fires, so no pin stays high. The pause in pacing is measured (PM23.6) |

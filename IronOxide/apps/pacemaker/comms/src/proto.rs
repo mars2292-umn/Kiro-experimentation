@@ -10,17 +10,30 @@
 //! | none, or bytes that are no frame | the next part of a read in progress, else IDLE |
 //! | POLL | the same |
 //! | INTERROGATE | IDENTITY: the answered `seq`, three zero bytes, the model, the serial number |
-//! | PROGRAM_PART, TEMPORARY_PART | STATUS with RECEIVED, SET_COMPLETE or BAD_PART |
+//! | PROGRAM_PART, TEMPORARY_PART | STATUS with RECEIVED, SET_COMPLETE or BAD_PART; a complete set is forwarded to `therapy` |
+//! | END_TEMPORARY, PACE_NOW | STATUS with FORWARDED; the command is forwarded to `therapy` |
 //! | READ_PARAMETERS | part 0 of the last complete set as PARAM_PART, the other parts in the periods after; STATUS with NO_SET if there is none |
 //! | any other kind of the DCM's | STATUS with NOT_SERVED |
 //! | a kind of the PG's | as bytes that are no frame |
 //!
-//! Until the Endpoints of task 16.1 exist, a complete set goes no further
-//! than this Partition: `link` keeps it and READ_PARAMETERS reads it back.
-//! It is not the set in force, and the bytes 2 to 4 of a STATUS (the State,
-//! the Mode in force, the battery level) are `UNKNOWN`.
+//! **Toward `therapy`** (task 16.1). For every frame of the DCM's it hears,
+//! `link` has one message for the Endpoint `program` ([`take_forward`]):
+//! the command, or the mark that a frame was heard, by which `control`
+//! knows the link is up (PM20.2). `link` does not judge a parameter set:
+//! `therapy`'s validation function does (PM19.3), and a set it refuses is
+//! this Partition's fault by the Kernel's rule (R42.4).
+//!
+//! **From `therapy`.** `control`'s status ([`status_in`]) fills the State,
+//! the Mode and the battery level of every STATUS frame. When it differs
+//! from the one last told, the next frame that would be IDLE is a STATUS
+//! instead: with `control`'s verdict and the number of the frame it
+//! answers when the verdict is new, with the code NONE otherwise.
+//!
+//! READ_PARAMETERS still reads back the last set `link` put together,
+//! whatever `therapy` said of it: it is not the set in force.
 
 use pm_core::frame::{kind, set_part, words_in_part, Assembly, Frame, PARTS};
+use pm_core::wire::{self, Status, PROGRAM_WORDS, STATUS_WORDS};
 use pm_core::WORDS;
 #[cfg(creusot)]
 #[allow(unused_imports)]
@@ -44,6 +57,11 @@ pub mod code {
     pub const NOT_SERVED: u8 = 4;
     /// A part of a wrong length, or of another kind than the set begun.
     pub const BAD_PART: u8 = 5;
+    /// `control`'s verdicts, which come with its status: 6 accepted, 7
+    /// refused by the validation function, 8 declined by the State.
+    pub use pm_core::wire::verdict::{ACCEPTED, DECLINED, REFUSED};
+    /// The command was handed to `therapy`; its verdict follows.
+    pub const FORWARDED: u8 = 9;
 }
 
 /// A STATUS byte `link` has no value for.
@@ -77,12 +95,22 @@ pub struct Link {
     pub read_next: u32,
     pub assembly: Assembly,
     pub set: [u32; WORDS],
+    /// 1 when `forward` is a message for the Endpoint `program` not yet
+    /// taken; messages `therapy`'s Endpoint did not take.
+    pub forward_ready: u32,
+    pub unforwarded: u32,
+    pub forward: [u32; PROGRAM_WORDS],
+    /// 1 when `status` is a status of `control`'s; the one last told to
+    /// the DCM (its first three words).
+    pub have_status: u32,
+    pub status: [u32; STATUS_WORDS],
+    pub told: [u32; 3],
 }
 
 impl Link {
     #[must_use]
     pub const fn new() -> Link {
-        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS] }
+        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS], forward_ready: 0, unforwarded: 0, forward: [0; PROGRAM_WORDS], have_status: 0, status: [0; STATUS_WORDS], told: [0; 3] }
     }
 }
 
@@ -92,16 +120,58 @@ impl Default for Link {
     }
 }
 
-/// A STATUS frame answering the frame `of` with `code`.
+/// A status of `control`'s, taken from the Endpoint `status`.
+pub fn status_in(l: &mut Link, w: &[u32; STATUS_WORDS]) {
+    l.status = *w;
+    l.have_status = 1;
+}
+
+/// The Endpoints report that `therapy` was stopped or restarted: its last
+/// status is of an incarnation that is gone.
+pub fn peer_changed(l: &mut Link) {
+    l.have_status = 0;
+    l.told = [0; 3];
+}
+
+/// The message for the Endpoint `program`, once.
+#[must_use]
+pub fn take_forward(l: &mut Link) -> Option<[u32; PROGRAM_WORDS]> {
+    if l.forward_ready == 1 {
+        l.forward_ready = 0;
+        Some(l.forward)
+    } else {
+        None
+    }
+}
+
+/// The Endpoint did not take the message [`take_forward`] gave.
+pub fn not_forwarded(l: &mut Link) {
+    l.unforwarded = l.unforwarded.saturating_add(1);
+}
+
+/// A STATUS frame answering the frame `of` with `code`: bytes 2 to 7 are
+/// `control`'s State, Mode, battery level, whether it has the link as up,
+/// and the low bytes of its counts of verdicts and of refused messages;
+/// the first three are `UNKNOWN` while `link` has no status of `control`'s.
 #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result.kind == kind::STATUS))]
-fn status(seq: u8, of: u8, code: u8) -> Frame {
+fn status(l: &Link, seq: u8, of: u8, code: u8) -> Frame {
     let mut f = Frame::empty(seq, kind::STATUS);
     f.len = STATUS_LEN;
     f.payload[0] = of;
     f.payload[1] = code;
-    f.payload[2] = UNKNOWN;
-    f.payload[3] = UNKNOWN;
-    f.payload[4] = UNKNOWN;
+    if l.have_status == 1 {
+        let s = Status::of_words(&l.status);
+        f.payload[2] = s.therapy;
+        f.payload[3] = s.mode;
+        f.payload[4] = s.battery;
+        f.payload[5] = if s.link_up { 1 } else { 0 };
+        f.payload[6] = (s.serial & 0xFF) as u8;
+        f.payload[7] = (s.refused & 0xFF) as u8;
+    } else {
+        f.payload[2] = UNKNOWN;
+        f.payload[3] = UNKNOWN;
+        f.payload[4] = UNKNOWN;
+    }
     f
 }
 
@@ -124,6 +194,13 @@ fn idle_or_part(l: &mut Link, seq: u8) -> Frame {
         }
     }
     l.read_next = 0;
+    // A status of `control`'s that the DCM has not been told.
+    if l.have_status == 1 && (l.status[0] != l.told[0] || l.status[1] != l.told[1] || l.status[2] != l.told[2]) {
+        let s = Status::of_words(&l.status);
+        let new_verdict = l.status[1] != l.told[1];
+        l.told = [l.status[0], l.status[1], l.status[2]];
+        return if new_verdict { status(l, seq, s.of, s.verdict) } else { status(l, seq, 0, code::NONE) };
+    }
     Frame::empty(seq, kind::IDLE)
 }
 
@@ -143,6 +220,10 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
     };
     l.heard = l.heard.wrapping_add(1);
     l.silent = 0;
+    // One message to `control` for the frame: that it was heard, unless
+    // the frame turns out below to be a command.
+    l.forward = wire::message(wire::code::HEARD, f.seq);
+    l.forward_ready = 1;
     if f.kind == kind::POLL {
         return idle_or_part(l, seq);
     }
@@ -159,12 +240,12 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
     if f.kind == kind::PROGRAM_PART || f.kind == kind::TEMPORARY_PART {
         if f.part != 0 && l.assembly_kind != f.kind as u32 {
             l.assembly.have = 0;
-            return status(seq, f.seq, code::BAD_PART);
+            return status(l, seq, f.seq, code::BAD_PART);
         }
         l.assembly_kind = f.kind as u32;
         if f.part as usize >= PARTS || f.len as usize != 4 * words_in_part(f.part as usize) {
             l.assembly.have = 0;
-            return status(seq, f.seq, code::BAD_PART);
+            return status(l, seq, f.seq, code::BAD_PART);
         }
         return match l.assembly.accept(f) {
             Some(words) => {
@@ -172,20 +253,26 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
                 l.set_kind = f.kind as u32;
                 l.have_set = 1;
                 l.sets = l.sets.wrapping_add(1);
-                status(seq, f.seq, code::SET_COMPLETE)
+                // The frame's kind is the message's code (0x10, 0x11).
+                l.forward = wire::message_with_set(f.kind, f.seq, &words);
+                status(l, seq, f.seq, code::SET_COMPLETE)
             }
-            None => status(seq, f.seq, code::RECEIVED),
+            None => status(l, seq, f.seq, code::RECEIVED),
         };
     }
     if f.kind == kind::READ_PARAMETERS {
         if l.have_set != 1 {
-            return status(seq, f.seq, code::NO_SET);
+            return status(l, seq, f.seq, code::NO_SET);
         }
         l.read_next = 1;
         return match set_part(seq, kind::PARAM_PART, &l.set, 0) {
             Some(a) => a,
-            None => status(seq, f.seq, code::NO_SET),
+            None => status(l, seq, f.seq, code::NO_SET),
         };
     }
-    status(seq, f.seq, code::NOT_SERVED)
+    if f.kind == kind::END_TEMPORARY || f.kind == kind::PACE_NOW {
+        l.forward = wire::message(f.kind, f.seq);
+        return status(l, seq, f.seq, code::FORWARDED);
+    }
+    status(l, seq, f.seq, code::NOT_SERVED)
 }

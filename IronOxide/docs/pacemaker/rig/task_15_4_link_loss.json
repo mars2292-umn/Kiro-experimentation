@@ -1,0 +1,29 @@
+{
+ "task": "15.4",
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "C": "1366:1061:001050211852"
+ },
+ "binaries": {
+  "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d",
+  "pacemaker": "sha256:7ef7691fce4e47d344db52a4858df210c6f9845c4328cabc850e82f27e7c4449"
+ },
+ "loss": {
+  "bound_ms": 250,
+  "bound_transfers": 5,
+  "bytes_skipped": 35,
+  "command": "loss",
+  "earliest_allowed_transfers": 4,
+  "failed": 0,
+  "least_ms": 200,
+  "measured": 60,
+  "most_ms": 200,
+  "repetitions": 60,
+  "reports_with_a_wrong_sum": 0,
+  "transfers_from_the_first_unanswered_poll_to_the_report": {
+   "4": 60
+  },
+  "verdict": "PASS"
+ },
+ "verdict": "PASS"
+}

@@ -46,7 +46,7 @@
       "frame": 8,
       "name": "rsk_svc_entry",
       "reason": null,
-      "usage": 840
+      "usage": 904
     },
     {
       "address": "0x00000220",
@@ -154,7 +154,25 @@
       "usage": 40
     },
     {
-      "address": "0x00001184",
+      "address": "0x00001182",
+      "bounded": true,
+      "calls": [],
+      "frame": 16,
+      "name": "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$7copy_in17h5f2e2a4b44db3af4E",
+      "reason": null,
+      "usage": 16
+    },
+    {
+      "address": "0x000011fc",
+      "bounded": true,
+      "calls": [],
+      "frame": 16,
+      "name": "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$8copy_out17hb77a36eaaaff7383E",
+      "reason": null,
+      "usage": 16
+    },
+    {
+      "address": "0x00001278",
       "bounded": true,
       "calls": [
         "_ZN10rsk_kernel4arch3cm413unsafe_module2hw8ppi_boot17h80c1feae86d48886E",
@@ -185,7 +203,7 @@
       "usage": 684
     },
     {
-      "address": "0x00003f44",
+      "address": "0x00004038",
       "bounded": true,
       "calls": [
         "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcc3669adf5655146E",
@@ -197,7 +215,7 @@
       "usage": 480
     },
     {
-      "address": "0x00003f62",
+      "address": "0x00004056",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -211,7 +229,7 @@
       "usage": 568
     },
     {
-      "address": "0x000042f8",
+      "address": "0x0000446e",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -225,7 +243,7 @@
       "usage": 752
     },
     {
-      "address": "0x00004836",
+      "address": "0x000049ac",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E"
@@ -236,7 +254,7 @@
       "usage": 192
     },
     {
-      "address": "0x000048a0",
+      "address": "0x00004a16",
       "bounded": true,
       "calls": [],
       "frame": 16,
@@ -245,7 +263,19 @@
       "usage": 16
     },
     {
-      "address": "0x00004912",
+      "address": "0x00004a88",
+      "bounded": true,
+      "calls": [
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$17message_permitted17h31036e5acbd9e0cdE",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 80,
+      "name": "_ZN10rsk_kernel4arch3cm45entry13endpoint_args17h0579c5f267f6df14E",
+      "reason": null,
+      "usage": 424
+    },
+    {
+      "address": "0x00004b90",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -258,7 +288,20 @@
       "usage": 624
     },
     {
-      "address": "0x000049ec",
+      "address": "0x00004c6a",
+      "bounded": true,
+      "calls": [
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcc3669adf5655146E",
+        "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h0b4d3341a493e6c7E",
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 40,
+      "name": "_ZN10rsk_kernel4arch3cm45entry14rejection_core17h3f2d65c3de2e70dcE",
+      "reason": null,
+      "usage": 512
+    },
+    {
+      "address": "0x00004e16",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -271,7 +314,7 @@
       "usage": 656
     },
     {
-      "address": "0x00004c7e",
+      "address": "0x000050a8",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -284,7 +327,7 @@
       "usage": 728
     },
     {
-      "address": "0x00004d26",
+      "address": "0x00005150",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -299,7 +342,7 @@
       "usage": 744
     },
     {
-      "address": "0x00004e0e",
+      "address": "0x00005238",
       "bounded": true,
       "calls": [
         "_ZN10rsk_kernel4arch3cm45entry10apply_core17h6635f2d4dc4a8282E",
@@ -312,7 +355,7 @@
       "usage": 584
     },
     {
-      "address": "0x00004e26",
+      "address": "0x00005250",
       "bounded": true,
       "calls": [],
       "frame": 24,
@@ -321,7 +364,7 @@
       "usage": 24
     },
     {
-      "address": "0x00004f70",
+      "address": "0x0000539a",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic5sched22Sched$LT$_$C$_$C$_$GT$7end_job17hb9c236312782345fE",
@@ -333,7 +376,7 @@
       "usage": 376
     },
     {
-      "address": "0x00005270",
+      "address": "0x0000569a",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -344,7 +387,7 @@
       "usage": 336
     },
     {
-      "address": "0x000052d8",
+      "address": "0x00005702",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$16enter_safe_state17hf01ea9e2f989a21fE",
@@ -356,7 +399,7 @@
       "usage": 360
     },
     {
-      "address": "0x000053c4",
+      "address": "0x000057ee",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -367,7 +410,7 @@
       "usage": 352
     },
     {
-      "address": "0x00005612",
+      "address": "0x00005a3c",
       "bounded": true,
       "calls": [],
       "frame": 24,
@@ -376,7 +419,18 @@
       "usage": 24
     },
     {
-      "address": "0x00005aa2",
+      "address": "0x00005ecc",
+      "bounded": true,
+      "calls": [
+        "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+      ],
+      "frame": 24,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$12record_event17h6e40e08ada5cf17cE",
+      "reason": null,
+      "usage": 352
+    },
+    {
+      "address": "0x00005fd2",
       "bounded": true,
       "calls": [
         "_ZN10rsk_kernel4arch5bound5Crc323u6417h731d24e73d4ae742E",
@@ -388,7 +442,16 @@
       "usage": 88
     },
     {
-      "address": "0x000066d4",
+      "address": "0x00006c04",
+      "bounded": true,
+      "calls": [],
+      "frame": 16,
+      "name": "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$17message_permitted17h31036e5acbd9e0cdE",
+      "reason": null,
+      "usage": 16
+    },
+    {
+      "address": "0x00006c9a",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -399,7 +462,7 @@
       "usage": 336
     },
     {
-      "address": "0x00006714",
+      "address": "0x00006cd8",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h0b4d3341a493e6c7E",
@@ -412,7 +475,7 @@
       "usage": 472
     },
     {
-      "address": "0x000069a8",
+      "address": "0x00006f6c",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13deadline_miss17hd1a5ce9fcb474183E",
@@ -425,7 +488,7 @@
       "usage": 544
     },
     {
-      "address": "0x00006c8c",
+      "address": "0x00007250",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$6settle17h962860437b78f0c3E",
@@ -437,7 +500,7 @@
       "usage": 408
     },
     {
-      "address": "0x00006e50",
+      "address": "0x00007414",
       "bounded": true,
       "calls": [],
       "frame": 8,
@@ -446,7 +509,7 @@
       "usage": 8
     },
     {
-      "address": "0x00006eb0",
+      "address": "0x00007474",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -457,7 +520,7 @@
       "usage": 368
     },
     {
-      "address": "0x00007846",
+      "address": "0x00007e0a",
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4"
@@ -468,7 +531,7 @@
       "usage": 348
     },
     {
-      "address": "0x00007fe8",
+      "address": "0x000085ac",
       "bounded": true,
       "calls": [
         "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero"
@@ -479,7 +542,7 @@
       "usage": 368
     },
     {
-      "address": "0x0000827a",
+      "address": "0x0000883e",
       "bounded": true,
       "calls": [
         "_RNvNtNtCs7ldSeZOOJos_4core9panicking11panic_const23panic_const_rem_by_zero"
@@ -490,7 +553,7 @@
       "usage": 336
     },
     {
-      "address": "0x00008300",
+      "address": "0x000088c4",
       "bounded": true,
       "calls": [],
       "frame": 16,
@@ -499,7 +562,7 @@
       "usage": 16
     },
     {
-      "address": "0x000083c0",
+      "address": "0x00008984",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -510,7 +573,7 @@
       "usage": 344
     },
     {
-      "address": "0x0000849e",
+      "address": "0x00008a62",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -521,7 +584,7 @@
       "usage": 352
     },
     {
-      "address": "0x0000854c",
+      "address": "0x00008b10",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$13deadline_miss17hd1a5ce9fcb474183E",
@@ -536,7 +599,7 @@
       "usage": 536
     },
     {
-      "address": "0x00008bc6",
+      "address": "0x0000918a",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h0b4d3341a493e6c7E",
@@ -548,7 +611,7 @@
       "usage": 472
     },
     {
-      "address": "0x00008d10",
+      "address": "0x000092d4",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14apply_response17h0b4d3341a493e6c7E",
@@ -560,7 +623,7 @@
       "usage": 472
     },
     {
-      "address": "0x00008e54",
+      "address": "0x00009418",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$14end_mit_window17h133cf92491833b81E",
@@ -576,7 +639,7 @@
       "usage": 448
     },
     {
-      "address": "0x0000912a",
+      "address": "0x000096ee",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -587,7 +650,7 @@
       "usage": 344
     },
     {
-      "address": "0x000091c8",
+      "address": "0x0000978c",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
@@ -598,7 +661,7 @@
       "usage": 344
     },
     {
-      "address": "0x000092b6",
+      "address": "0x0000987a",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$18end_partition_jobs17hee50b2c8612b1186E",
@@ -610,7 +673,7 @@
       "usage": 416
     },
     {
-      "address": "0x000093ba",
+      "address": "0x0000997e",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$7end_top17hf81a7e1c810c515aE",
@@ -622,7 +685,7 @@
       "usage": 400
     },
     {
-      "address": "0x000098a2",
+      "address": "0x00009e66",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic6kernel35Kernel$LT$_$C$_$C$_$C$_$C$_$C$_$GT$10arm_budget17h8174a6e575137b07E",
@@ -634,7 +697,7 @@
       "usage": 376
     },
     {
-      "address": "0x00009b18",
+      "address": "0x0000a0dc",
       "bounded": true,
       "calls": [
         "_ZN9rsk_logic5logic5sched22Sched$LT$_$C$_$C$_$GT$7end_job17hb9c236312782345fE",
@@ -646,7 +709,7 @@
       "usage": 376
     },
     {
-      "address": "0x00009d6a",
+      "address": "0x0000a32e",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -658,7 +721,7 @@
       "usage": 904
     },
     {
-      "address": "0x00009d94",
+      "address": "0x0000a358",
       "bounded": true,
       "calls": [
         "_ZN10rsk_kernel4arch3cm410hard_fault17h484a6b197165d100E"
@@ -669,7 +732,7 @@
       "usage": 488
     },
     {
-      "address": "0x00009d9c",
+      "address": "0x0000a360",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -686,7 +749,7 @@
       "usage": 760
     },
     {
-      "address": "0x0000a074",
+      "address": "0x0000a638",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -710,7 +773,7 @@
       "usage": 968
     },
     {
-      "address": "0x0000a9be",
+      "address": "0x0000af82",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -722,26 +785,32 @@
       "usage": 912
     },
     {
-      "address": "0x0000aa60",
+      "address": "0x0000b024",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$7copy_in17h5f2e2a4b44db3af4E",
+        "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$8copy_out17hb77a36eaaaff7383E",
         "_ZN10rsk_kernel4arch3cm45entry10apply_core17h6635f2d4dc4a8282E",
         "_ZN10rsk_kernel4arch3cm45entry13end_plan_core17hb53254fb48801bf6E",
+        "_ZN10rsk_kernel4arch3cm45entry13endpoint_args17h0579c5f267f6df14E",
         "_ZN10rsk_kernel4arch3cm45entry14dma_write_core17hf9c3bb016044e3a0E",
+        "_ZN10rsk_kernel4arch3cm45entry14rejection_core17h3f2d65c3de2e70dcE",
         "_ZN10rsk_kernel4arch3cm45entry16dma_request_core17hee7368f804667520E",
         "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$10job_return17h1d23039cfb8d9154E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$12record_event17h6e40e08ada5cf17cE",
         "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$5fault17hcc3669adf5655146E",
+        "_ZN114_$LT$rsk_kernel..arch..bound..Bound$LT$_$C$_$C$_$C$_$C$_$C$_$GT$$u20$as$u20$rsk_kernel..arch..bound..KernelOps$GT$6intake17h9b95e0fe75056f5bE",
         "_ZN66_$LT$pacemaker_system..Sys$u20$as$u20$rsk_kernel..arch..System$GT$10safe_state17hf6ee9b211b19ca1dE",
         "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
       ],
-      "frame": 176,
+      "frame": 240,
       "name": "rsk_svc_rust",
       "reason": null,
-      "usage": 832
+      "usage": 896
     },
     {
-      "address": "0x0000b16a",
+      "address": "0x0000bc3a",
       "bounded": true,
       "calls": [
         "_ZN96_$LT$rsk_kernel..arch..cm4..entry..Cm4Hw$u20$as$u20$rsk_kernel..arch..cm4..entry..KernelArch$GT$5apply17h5d3eda81f0ed17d4E",
@@ -855,6 +924,15 @@
     {
       "address": "0x00020952",
       "bounded": true,
+      "calls": [],
+      "frame": 32,
+      "name": "memcmp",
+      "reason": null,
+      "usage": 32
+    },
+    {
+      "address": "0x000209c6",
+      "bounded": true,
       "calls": [
         "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
       ],
@@ -864,7 +942,7 @@
       "usage": 100
     },
     {
-      "address": "0x000209ee",
+      "address": "0x00020a62",
       "bounded": true,
       "calls": [],
       "frame": 84,
@@ -873,7 +951,7 @@
       "usage": 84
     },
     {
-      "address": "0x00020cc8",
+      "address": "0x00020d3c",
       "bounded": true,
       "calls": [],
       "frame": 16,
@@ -882,7 +960,7 @@
       "usage": 16
     },
     {
-      "address": "0x00020d98",
+      "address": "0x00020e0c",
       "bounded": true,
       "calls": [
         "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
@@ -893,7 +971,7 @@
       "usage": 100
     },
     {
-      "address": "0x00020e34",
+      "address": "0x00020ea8",
       "bounded": true,
       "calls": [],
       "frame": 8,
@@ -902,7 +980,7 @@
       "usage": 8
     },
     {
-      "address": "0x00020ee2",
+      "address": "0x00020f56",
       "bounded": true,
       "calls": [
         "_RNvNtCs7NhdfSRABLd_17compiler_builtins3mem6memcpy"
@@ -913,7 +991,16 @@
       "usage": 92
     },
     {
-      "address": "0x00020ef0",
+      "address": "0x00020f62",
+      "bounded": true,
+      "calls": [],
+      "frame": 8,
+      "name": "__aeabi_memclr4",
+      "reason": null,
+      "usage": 8
+    },
+    {
+      "address": "0x00021010",
       "bounded": true,
       "calls": [
         "__udivmoddi4"
@@ -924,7 +1011,7 @@
       "usage": 88
     },
     {
-      "address": "0x00020f04",
+      "address": "0x00021024",
       "bounded": true,
       "calls": [
         "_RNvNtNtCs7NhdfSRABLd_17compiler_builtins3int19specialized_div_rem11u64_div_rem"
@@ -935,7 +1022,7 @@
       "usage": 64
     },
     {
-      "address": "0x00020f34",
+      "address": "0x00021054",
       "bounded": true,
       "calls": [],
       "frame": 32,
@@ -945,6 +1032,15 @@
     },
     {
       "address": "0x00030000",
+      "bounded": true,
+      "calls": [],
+      "frame": 148,
+      "name": "_ZN17pacemaker_therapy16validate_program17hc48134ce2870bc6bE",
+      "reason": null,
+      "usage": 148
+    },
+    {
+      "address": "0x00030654",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -956,7 +1052,7 @@
       "usage": 2356
     },
     {
-      "address": "0x00030190",
+      "address": "0x000307e4",
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
@@ -969,20 +1065,23 @@
       "usage": 1820
     },
     {
-      "address": "0x00033a48",
+      "address": "0x0003409c",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
+        "memcmp",
+        "__aeabi_memclr8",
+        "_ZN17pacemaker_therapy16validate_program17hc48134ce2870bc6bE",
         "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE",
         "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$9configure17h0bbaf6b0ca4eadeeE"
       ],
-      "frame": 176,
-      "name": "_ZN17pacemaker_therapy7control17hd9f390d1273c0d21E",
+      "frame": 504,
+      "name": "_ZN17pacemaker_therapy7control17ha3c3d90cffa7dbacE",
       "reason": null,
-      "usage": 2324
+      "usage": 2652
     },
     {
-      "address": "0x00033d5a",
+      "address": "0x0003582e",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -994,7 +1093,7 @@
       "usage": 2324
     },
     {
-      "address": "0x00033e82",
+      "address": "0x00035956",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -1006,7 +1105,7 @@
       "usage": 2324
     },
     {
-      "address": "0x00033faa",
+      "address": "0x00035a7e",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E"
@@ -1017,18 +1116,18 @@
       "usage": 2364
     },
     {
-      "address": "0x00033fc0",
+      "address": "0x00035a94",
       "bounded": true,
       "calls": [
-        "_ZN17pacemaker_therapy7control17hd9f390d1273c0d21E"
+        "_ZN17pacemaker_therapy7control17ha3c3d90cffa7dbacE"
       ],
-      "frame": 24,
+      "frame": 32,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7control17hde32b552bb84202dE",
       "reason": null,
-      "usage": 2348
+      "usage": 2684
     },
     {
-      "address": "0x00033fea",
+      "address": "0x00035ad6",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE"
@@ -1039,7 +1138,7 @@
       "usage": 2332
     },
     {
-      "address": "0x00034000",
+      "address": "0x00035aec",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E"
@@ -1050,7 +1149,7 @@
       "usage": 2332
     },
     {
-      "address": "0x00034016",
+      "address": "0x00035b02",
       "bounded": true,
       "calls": [],
       "frame": 16,
@@ -1063,39 +1162,63 @@
       "bounded": true,
       "calls": [
         "_ZN3rsk7DmaHeld3put17h52d39e0d193828e9E",
-        "_ZN15pacemaker_comms5proto6answer17hd89d197115f3eb5bE",
+        "__aeabi_memcpy4",
+        "__aeabi_memcpy8",
+        "__aeabi_memclr8",
+        "_ZN15pacemaker_comms5proto6answer17hac2670e3389a983cE",
         "_ZN15pacemaker_comms9take_back17hcea43a1b7a4e566bE"
       ],
-      "frame": 232,
-      "name": "_ZN15pacemaker_comms4link17h9bbce68beeccb740E",
+      "frame": 36,
+      "name": "_ZN15pacemaker_comms4link17h66c3aff5c0dfe293E",
       "reason": null,
-      "usage": 364
+      "usage": 200
     },
     {
-      "address": "0x00038cc6",
+      "address": "0x00038d5a",
+      "bounded": true,
+      "calls": [],
+      "frame": 24,
+      "name": "_ZN15pacemaker_comms5proto12idle_or_part17hdf118465608a096cE",
+      "reason": null,
+      "usage": 24
+    },
+    {
+      "address": "0x00038e98",
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
-        "__aeabi_memcpy"
+        "__aeabi_memcpy",
+        "__aeabi_memclr4",
+        "_ZN15pacemaker_comms5proto12idle_or_part17hdf118465608a096cE",
+        "_ZN15pacemaker_comms5proto6status17ha65a18a15ffd2d66E"
       ],
-      "frame": 32,
-      "name": "_ZN15pacemaker_comms5proto6answer17hd89d197115f3eb5bE",
+      "frame": 64,
+      "name": "_ZN15pacemaker_comms5proto6answer17hac2670e3389a983cE",
       "reason": null,
-      "usage": 132
+      "usage": 164
     },
     {
-      "address": "0x00038fd6",
+      "address": "0x000391b6",
+      "bounded": true,
+      "calls": [],
+      "frame": 8,
+      "name": "_ZN15pacemaker_comms5proto6status17ha65a18a15ffd2d66E",
+      "reason": null,
+      "usage": 8
+    },
+    {
+      "address": "0x00039220",
       "bounded": true,
       "calls": [
-        "_ZN15pacemaker_comms4link17h9bbce68beeccb740E"
+        "_ZN15pacemaker_comms4link17h66c3aff5c0dfe293E"
       ],
-      "frame": 40,
+      "frame": 48,
       "name": "_ZN15pacemaker_comms8rsk_jobs4link17h08b306f2258c106eE",
       "reason": null,
-      "usage": 404
+      "usage": 248
     },
     {
-      "address": "0x0003901c",
+      "address": "0x0003926e",
       "bounded": true,
       "calls": [
         "_ZN3rsk7DmaHeld3put17h52d39e0d193828e9E"
@@ -1109,12 +1232,12 @@
   "regions": [
     {
       "available": 12288,
-      "bound": 9632,
+      "bound": 9968,
       "kind": "partition",
       "name": "therapy",
       "ok": true,
       "terms": [
-        "therapy.control: 2348 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.control: 2684 (wrapper) + 64 (initial and stacked frames)",
         "therapy.sense_a: 2332 (wrapper) + 64 (initial and stacked frames)",
         "therapy.sense_v: 2332 (wrapper) + 64 (initial and stacked frames)",
         "therapy.pace: 2364 (wrapper) + 64 (initial and stacked frames)"
@@ -1122,16 +1245,16 @@
     },
     {
       "available": 2048,
-      "bound": 468,
+      "bound": 312,
       "kind": "partition",
       "name": "comms",
       "ok": true,
       "terms": [
-        "comms.link: 404 (wrapper) + 64 (initial and stacked frames)"
+        "comms.link: 248 (wrapper) + 64 (initial and stacked frames)"
       ]
     },
     {
-      "available": 29860,
+      "available": 27876,
       "bound": 1328,
       "kind": "msp",
       "name": "kernel",
@@ -1140,7 +1263,7 @@
         "worst Kernel entry point `rsk_irq_entry`: 1096",
         "5 Job levels x 40 (level records)",
         "32 (exception frame from the idle loop)",
-        "Kernel RAM 32768 minus 2908 of data, bss and no-init records"
+        "Kernel RAM 32768 minus 4892 of data, bss and no-init records"
       ]
     }
   ],
@@ -1172,14 +1295,14 @@
       "entry": "::pacemaker_therapy::rsk_jobs::control",
       "frame_bytes": 64,
       "id": "therapy.control",
-      "usage": 2348
+      "usage": 2684
     },
     {
       "bounded": true,
       "entry": "::pacemaker_comms::rsk_jobs::link",
       "frame_bytes": 64,
       "id": "comms.link",
-      "usage": 404
+      "usage": 248
     }
   ],
   "violations": []

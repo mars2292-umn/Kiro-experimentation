@@ -8,10 +8,26 @@ pub mod rsk_resources {
 pub mod rsk_state {
     /// Per-Task state `therapy.control.sweep` (PR-25): touched by `control`'s Jobs only.
     pub static CONTROL_SWEEP: ::rsk::ResourceCell<[u32 ; 56]> = ::rsk::ResourceCell::for_static([0 ; 56]);
+    /// Per-Task state `therapy.control.status_sent` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_STATUS_SENT: ::rsk::ResourceCell<[u32 ; 4]> = ::rsk::ResourceCell::for_static([0 ; 4]);
+    /// Per-Task state `therapy.control.status_age` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_STATUS_AGE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
 }
 pub mod rsk_validate {
+    /// The validation function of role `pg` of Endpoint `program` (R42.4): `crate::validate_program`.
+    #[allow(non_camel_case_types)]
+    pub struct program_pg;
+    impl ::rsk::Validate<[u32;29]> for program_pg {
+        fn accept(m: &[u32;29]) -> bool { crate::validate_program(m) }
+    }
+    /// The validation function of role `pg` of Endpoint `status` (R42.4): `crate::validate_status`.
+    #[allow(non_camel_case_types)]
+    pub struct status_pg;
+    impl ::rsk::Validate<[u32;4]> for status_pg {
+        fn accept(m: &[u32;4]) -> bool { crate::validate_status(m) }
+    }
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
@@ -57,6 +73,8 @@ pub mod rsk_target {
     /// what `rsk::DmaBuf::lend` takes.
     pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
+const _: () = assert!(::core::mem::size_of::<[u32;29]>() <= 116, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;4]>() <= 16, "the payload of Endpoint `status` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `therapy.pace` (Priority 7).
     pub struct Pace {
@@ -73,8 +91,16 @@ pub mod rsk_ctx {
     /// The Context of Task `therapy.control` (Priority 4).
     pub struct Control {
         pub timing: ::rsk::Shared<'static, crate :: Timing>,
+        /// Role `pg` of Endpoint `program` (task 21.2; R38.1, R40.1): 4 messages of `[u32;29]` each way, received through the role's validation function (R42.4).
+        pub program: ::rsk::Endpoint<[u32;29], 29, super::rsk_validate::program_pg>,
+        /// Role `pg` of Endpoint `status` (task 21.2; R38.1, R40.1): 2 messages of `[u32;4]` each way, received through the role's validation function (R42.4).
+        pub status: ::rsk::Endpoint<[u32;4], 4, super::rsk_validate::status_pg>,
         /// Per-Task state `sweep` (PR-25).
         pub sweep: ::rsk::PerTask<'static, [u32 ; 56]>,
+        /// Per-Task state `status_sent` (PR-25).
+        pub status_sent: ::rsk::PerTask<'static, [u32 ; 4]>,
+        /// Per-Task state `status_age` (PR-25).
+        pub status_age: ::rsk::PerTask<'static, u32>,
     }
 }
 #[cfg(creusot)]
@@ -138,7 +164,11 @@ pub mod rsk_jobs {
     pub fn control() {
         let () = super::control(super::rsk_ctx::Control {
             timing: ::rsk::Shared::new(&super::rsk_resources::TIMING, 0),
+            program: ::rsk::Endpoint::new(0, 1),
+            status: ::rsk::Endpoint::new(1, 0),
             sweep: ::rsk::PerTask::new(&super::rsk_state::CONTROL_SWEEP),
+            status_sent: ::rsk::PerTask::new(&super::rsk_state::CONTROL_STATUS_SENT),
+            status_age: ::rsk::PerTask::new(&super::rsk_state::CONTROL_STATUS_AGE),
         });
     }
 }

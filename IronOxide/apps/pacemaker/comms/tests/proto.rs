@@ -3,7 +3,8 @@
 //! function through a session.
 #![forbid(unsafe_code)]
 
-use pacemaker_comms::proto::{answer, code, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
+use pacemaker_comms::proto::{answer, code, peer_changed, status_in, take_forward, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
+use pm_core::wire::{self, Status};
 use pm_core::frame::{decode, encode, kind, set_part, Assembly, Frame};
 use pm_core::NOMINAL_WORDS;
 
@@ -15,8 +16,13 @@ fn status_of(f: &Frame) -> (u8, u8) {
 
 #[test]
 fn the_zero_state_is_the_new_state() {
-    assert_eq!(Link::new(), Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 28] });
-    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 28 * 4 + 28 * 4, "no padding");
+    assert_eq!(
+        Link::new(),
+        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 28],
+               forward_ready: 0, unforwarded: 0, forward: [0; 29], have_status: 0, status: [0; 4], told: [0; 3] }
+    );
+    // Task 16.1 added the words of the two Endpoints (2 + 29 + 1 + 4 + 3).
+    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 28 * 4 + 28 * 4 + 39 * 4, "no padding");
 }
 
 #[test]
@@ -117,8 +123,88 @@ fn a_read_sends_the_five_parts_in_order_and_a_command_ends_it() {
 
 #[test]
 fn the_commands_of_later_tasks_are_not_served() {
-    for k in [kind::END_TEMPORARY, kind::PACE_NOW, kind::SET_BATTERY, kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
+    // END_TEMPORARY and PACE_NOW were in this list until task 16.1; `link` forwards them now (the test below).
+    for k in [kind::SET_BATTERY, kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
         let mut l = Link::new();
         assert_eq!(status_of(&answer(&mut l, Some(&Frame::empty(3, k)))), (3, code::NOT_SERVED), "kind {k:#x}");
     }
+}
+
+#[test]
+fn every_frame_heard_gives_control_one_message() {
+    let mut l = Link::new();
+    assert_eq!(take_forward(&mut l), None);
+    let _ = answer(&mut l, None);
+    assert_eq!(take_forward(&mut l), None, "nothing heard, nothing told");
+    let _ = answer(&mut l, Some(&Frame::empty(0, kind::IDLE)));
+    assert_eq!(take_forward(&mut l), None, "a frame of the pulse generator's kinds is not heard");
+    for k in [kind::POLL, kind::INTERROGATE, kind::READ_PARAMETERS, kind::SET_BATTERY] {
+        let _ = answer(&mut l, Some(&Frame::empty(0x21, k)));
+        assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x21)), "kind {k:#x}");
+        assert_eq!(take_forward(&mut l), None, "once");
+    }
+    for k in [kind::END_TEMPORARY, kind::PACE_NOW] {
+        let a = answer(&mut l, Some(&Frame::empty(0x22, k)));
+        assert_eq!(status_of(&a), (0x22, code::FORWARDED));
+        assert_eq!(take_forward(&mut l), Some(wire::message(k, 0x22)));
+    }
+    // The parts of a set are heard; the part that completes it is the command.
+    let mut words = NOMINAL_WORDS;
+    words[1] = 31; // `link` does not judge the set
+    for (k, code) in [(kind::PROGRAM_PART, wire::code::PROGRAM), (kind::TEMPORARY_PART, wire::code::TEMPORARY)] {
+        for p in 0..5u8 {
+            let _ = answer(&mut l, set_part(0x30 + p, k, &words, p).as_ref());
+            let m = take_forward(&mut l).expect("a message");
+            if p < 4 {
+                assert_eq!(m, wire::message(wire::code::HEARD, 0x30 + p));
+            } else {
+                assert_eq!(m, wire::message_with_set(code, 0x34, &words));
+                assert!(!wire::admitted(&m));
+            }
+        }
+    }
+    // A message not taken is replaced by the next frame's.
+    let _ = answer(&mut l, Some(&Frame::empty(1, kind::PACE_NOW)));
+    let _ = answer(&mut l, Some(&Frame::empty(2, kind::POLL)));
+    assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 2)));
+}
+
+#[test]
+fn a_new_status_is_told_once_in_place_of_idle() {
+    let mut l = Link::new();
+    let poll = Frame::empty(0, kind::POLL);
+    let mut st = Status { therapy: 1, mode: 0x15, battery: 0, link_up: true, serial: 0, verdict: 0, of: 0, refused: 0 };
+    status_in(&mut l, &st.words());
+    // A change without a verdict: the code NONE.
+    let a = answer(&mut l, Some(&poll));
+    assert_eq!((a.kind, a.len, &a.payload[..8]), (kind::STATUS, STATUS_LEN, &[0, code::NONE, 1, 0x15, 0, 1, 0, 0][..]));
+    assert_eq!(answer(&mut l, Some(&poll)).kind, kind::IDLE, "told once");
+    // A verdict: its code and the frame it answers; also when the DCM is not heard.
+    st.serial = 1;
+    st.verdict = code::ACCEPTED;
+    st.of = 0x44;
+    st.therapy = 2;
+    status_in(&mut l, &st.words());
+    let a = answer(&mut l, None);
+    assert_eq!(&a.payload[..8], &[0x44, code::ACCEPTED, 2, 0x15, 0, 1, 1, 0]);
+    assert_eq!(answer(&mut l, None).kind, kind::IDLE);
+    // The refused count alone is not a change to tell (it comes with its verdict).
+    st.refused = 1;
+    status_in(&mut l, &st.words());
+    assert_eq!(answer(&mut l, Some(&poll)).kind, kind::IDLE);
+    // `link`'s own answers carry `control`'s bytes.
+    let a = answer(&mut l, Some(&Frame::empty(5, kind::SET_CLOCK)));
+    assert_eq!(&a.payload[..8], &[5, code::NOT_SERVED, 2, 0x15, 0, 1, 1, 1]);
+    // An answer to a command comes before the status; the status waits.
+    st.therapy = 1;
+    status_in(&mut l, &st.words());
+    assert_eq!(answer(&mut l, Some(&Frame::empty(6, kind::INTERROGATE))).kind, kind::IDENTITY);
+    let a = answer(&mut l, Some(&poll));
+    assert_eq!(&a.payload[..3], &[0, code::NONE, 1]);
+    // After `therapy` restarted its status is unknown until it sends one.
+    peer_changed(&mut l);
+    let a = answer(&mut l, Some(&Frame::empty(7, kind::SET_CLOCK)));
+    assert_eq!(&a.payload[2..5], &[UNKNOWN; 3]);
+    status_in(&mut l, &Status { serial: 0, verdict: 0, of: 0, refused: 0, ..st }.words());
+    assert_eq!(answer(&mut l, Some(&poll)).kind, kind::STATUS, "told again");
 }

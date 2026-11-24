@@ -397,7 +397,10 @@
         "therapy.timing"
       ],
       "raises": [],
-      "endpoint_roles": [],
+      "endpoint_roles": [
+        "program.pg",
+        "status.pg"
+      ],
       "nesting_depth": 1,
       "slots": {
         "release": 9,
@@ -430,7 +433,10 @@
       "fpu": false,
       "resources": [],
       "raises": [],
-      "endpoint_roles": [],
+      "endpoint_roles": [
+        "program.dcm",
+        "status.dcm"
+      ],
       "nesting_depth": 0,
       "slots": {
         "release": 12,
@@ -466,7 +472,96 @@
     }
   ],
   "signals": [],
-  "endpoints": [],
+  "endpoints": [
+    {
+      "id": "program",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 4,
+      "k": 4,
+      "ceiling": "kernel",
+      "payload_bytes": 116,
+      "payload_type": "[u32;29]",
+      "protocol": null,
+      "gating_rank": 0,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "dcm",
+          "task": "comms.link",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": []
+        },
+        {
+          "role": "pg",
+          "task": "therapy.control",
+          "release": false,
+          "ops": 4,
+          "after": [],
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_program"
+            }
+          ]
+        }
+      ],
+      "storage_offset": 0,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "status",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 2,
+      "k": 2,
+      "ceiling": "kernel",
+      "payload_bytes": 16,
+      "payload_type": "[u32;4]",
+      "protocol": null,
+      "gating_rank": 0,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "pg",
+          "task": "therapy.control",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_status"
+            }
+          ]
+        },
+        {
+          "role": "dcm",
+          "task": "comms.link",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": []
+        }
+      ],
+      "storage_offset": 1856,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    }
+  ],
   "chains": [],
   "conversions": [],
   "ppi": [

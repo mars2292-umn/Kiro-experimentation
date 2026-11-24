@@ -9,7 +9,9 @@
 //!    (`rsk::DmaBuf::reclaim`; the transfer ended long before, 32 bytes at
 //!    500 kbps take 0.5 ms), and decodes what was received if the
 //!    transfer ended;
-//! 2. writes the answer into the transmit buffer;
+//! 2. takes `control`'s status from the Endpoint `status`, writes the
+//!    answer into the transmit buffer, and hands the Endpoint `program`
+//!    the message for a frame it heard (task 16.1);
 //! 3. lends both buffers to SPIM1 and starts the transfer, which runs
 //!    after the Job has ended.
 //!
@@ -56,6 +58,10 @@ mod spim {
     pub const RX: usize = 0;
     pub const TX: usize = 1;
 }
+
+/// The messages `link` takes from the Endpoint `status` in a Job (its `ops`).
+#[cfg(feature = "nrf52840")]
+const STATUS_OPS: usize = 2;
 
 /// Takes the transfer kept in `held` back into `buf`. Whether the buffer's
 /// bytes can be reached afterwards: nothing was lent, or the peripheral
@@ -117,15 +123,36 @@ pub fn link(mut cx: rsk_ctx::Link) {
         return;
     }
     let got = if ended { cx.rx.with(|b| b.bytes().and_then(|bytes| pm_core::frame::decode(bytes))) } else { None };
-    // 2. The answer.
+    // 2. `control`'s status, when one has come (at most `STATUS_OPS` are
+    // taken; the last is the one kept).
+    let mut k = 0;
+    #[cfg_attr(creusot, rsk::creusot_std::macros::variant(STATUS_OPS@ - k@))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= STATUS_OPS@))]
+    while k < STATUS_OPS {
+        k += 1;
+        match cx.status.recv() {
+            Ok(Some(w)) => cx.proto.with(|l| proto::status_in(l, &w)),
+            Ok(None) => k = STATUS_OPS,
+            Err(_) => {
+                cx.proto.with(|l| proto::peer_changed(l));
+                k = STATUS_OPS;
+            }
+        }
+    }
+    // 3. The answer, and the message to `control` for a frame heard.
     let frame = cx.proto.with(|l| proto::answer(l, got.as_ref()));
+    if let Some(m) = cx.proto.with(|l| proto::take_forward(l)) {
+        if cx.program.send(&m).is_err() {
+            cx.proto.with(|l| proto::not_forwarded(l));
+        }
+    }
     let out = pm_core::frame::encode(&frame);
     cx.tx.with(|b| {
         if let Some(bytes) = b.bytes() {
             *bytes = out;
         }
     });
-    // 3. The next transfer.
+    // 4. The next transfer.
     let _ = rsk::dma_write(ch, ENABLE, ENABLE_SPIM);
     let tx = cx.tx.with(|b| b.lend(rsk_target::DMA[TX]));
     let rx = cx.rx.with(|b| b.lend(rsk_target::DMA[RX]));
