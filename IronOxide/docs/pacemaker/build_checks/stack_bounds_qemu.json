@@ -870,7 +870,6 @@
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
-        "__aeabi_memcpy",
         "__aeabi_uldivmod",
         "_ZN69_$LT$pacemaker_therapy..board_qemu..Board$u20$as$u20$pm_hw..Board$GT$5write17hc4778c419b9dea73E"
       ],
@@ -880,7 +879,7 @@
       "usage": 164
     },
     {
-      "address": "0x00021fee",
+      "address": "0x00022a98",
       "bounded": true,
       "calls": [
         "__aeabi_uldivmod",
@@ -892,7 +891,7 @@
       "usage": 372
     },
     {
-      "address": "0x00022626",
+      "address": "0x000230d0",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -906,7 +905,7 @@
       "usage": 676
     },
     {
-      "address": "0x000234c8",
+      "address": "0x00023f72",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h749dc6f902803fcfE"
@@ -917,7 +916,7 @@
       "usage": 708
     },
     {
-      "address": "0x000234de",
+      "address": "0x00023f88",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7control17h04b9c0b7d64093abE"
@@ -928,7 +927,7 @@
       "usage": 700
     },
     {
-      "address": "0x00023506",
+      "address": "0x00023fb0",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -940,7 +939,7 @@
       "usage": 692
     },
     {
-      "address": "0x0002353a",
+      "address": "0x00023fe4",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -952,7 +951,7 @@
       "usage": 692
     },
     {
-      "address": "0x00023570",
+      "address": "0x00024018",
       "bounded": true,
       "calls": [
         "__aeabi_uldivmod"

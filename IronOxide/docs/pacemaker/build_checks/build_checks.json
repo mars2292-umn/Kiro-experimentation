@@ -1,6 +1,6 @@
 {
   "qemu": {
-    "binary_sha256": "27118f7f9f43238368111e201850915158adef7cfa061529799e5ffb84b8395e",
+    "binary_sha256": "7445dcb83327891614304322fbe336577e612076f4a8a14f45b603e1f88365f4",
     "task_model": "apps/pacemaker/gen/task_model.json",
     "link_checker": {
       "passed": true,
@@ -16,11 +16,11 @@
     }
   },
   "nrf52840": {
-    "binary_sha256": "9b9ad65eb9349cd4006fa7dbf6fa5a8f29ebfb2e1fcbb7d7d0a38ec034ce47ba",
+    "binary_sha256": "62424d883321e7b5f540a2cff59dd093568211faffae24ff7e811c82f997e5bc",
     "task_model": "apps/pacemaker/gen-nrf52840/task_model.json",
     "link_checker": {
       "passed": true,
-      "verdict": "rsk-link: 80 functions bounded, 2 stack regions within their worst case"
+      "verdict": "rsk-link: 83 functions bounded, 2 stack regions within their worst case"
     },
     "config_checker": {
       "passed": true,

@@ -832,6 +832,37 @@
       "usage": 92
     },
     {
+      "address": "0x00020dc0",
+      "bounded": true,
+      "calls": [
+        "__udivmoddi4"
+      ],
+      "frame": 24,
+      "name": "__aeabi_uldivmod",
+      "reason": null,
+      "usage": 88
+    },
+    {
+      "address": "0x00020dd4",
+      "bounded": true,
+      "calls": [
+        "_RNvNtNtCs7NhdfSRABLd_17compiler_builtins3int19specialized_div_rem11u64_div_rem"
+      ],
+      "frame": 32,
+      "name": "__udivmoddi4",
+      "reason": null,
+      "usage": 64
+    },
+    {
+      "address": "0x00020e04",
+      "bounded": true,
+      "calls": [],
+      "frame": 32,
+      "name": "_RNvNtNtCs7NhdfSRABLd_17compiler_builtins3int19specialized_div_rem11u64_div_rem",
+      "reason": null,
+      "usage": 32
+    },
+    {
       "address": "0x00030000",
       "bounded": true,
       "calls": [
@@ -848,7 +879,7 @@
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
-        "__aeabi_memcpy"
+        "__aeabi_uldivmod"
       ],
       "frame": 36,
       "name": "_ZN17pacemaker_therapy5event17h278c86930dc12b68E",
@@ -856,7 +887,7 @@
       "usage": 136
     },
     {
-      "address": "0x000317da",
+      "address": "0x00032376",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -869,7 +900,7 @@
       "usage": 624
     },
     {
-      "address": "0x00031aec",
+      "address": "0x00032688",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -881,7 +912,7 @@
       "usage": 624
     },
     {
-      "address": "0x00031c14",
+      "address": "0x000327b0",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
@@ -893,7 +924,7 @@
       "usage": 624
     },
     {
-      "address": "0x00031d3c",
+      "address": "0x000328d8",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E"
@@ -904,7 +935,7 @@
       "usage": 664
     },
     {
-      "address": "0x00031d52",
+      "address": "0x000328ee",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7control17hd9f390d1273c0d21E"
@@ -915,7 +946,7 @@
       "usage": 648
     },
     {
-      "address": "0x00031d7c",
+      "address": "0x00032918",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE"
@@ -926,7 +957,7 @@
       "usage": 632
     },
     {
-      "address": "0x00031d92",
+      "address": "0x0003292e",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E"
@@ -937,7 +968,7 @@
       "usage": 632
     },
     {
-      "address": "0x00031da8",
+      "address": "0x00032944",
       "bounded": true,
       "calls": [],
       "frame": 16,

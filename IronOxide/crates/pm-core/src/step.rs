@@ -27,13 +27,36 @@
 //!   it can, and reports that instant ([`rearmed`]); the Pace is then a Pace
 //!   like any other.
 //!
+//! Stage E2, second part (tasks 11.2 to 11.4), all in the ventricular-based
+//! cycle:
+//!
+//! - **The dynamic AV delay (PM11.4).** Where it is on, the paced AV delay
+//!   of a cycle is the previous cardiac cycle's length (ventricular event to
+//!   ventricular event) times the Fixed AV Delay over the LRL interval,
+//!   kept between the Minimum Dynamic AV Delay and the Fixed AV Delay; the
+//!   Fixed AV Delay until a cycle has been measured.
+//! - **The URL (PM10.1, PM10.2).** The ventricular Pace an atrial event
+//!   leads to is not put earlier than one URL interval after the last
+//!   ventricular event: it is delayed to that instant, not dropped
+//!   (Property P1). The LRL's own Pace is one escape interval after the
+//!   event and so later still, the URL interval being no longer than the
+//!   LRL's in an admitted parameter set (Table 19-5, task 11.6).
+//! - **PVARP (PM12.3).** A ventricular event starts it: until it ends an
+//!   atrial Sense is a Refractory sense. A ventricular Sense with no atrial
+//!   event since the last ventricular event is a PVC; with PVARP Extension
+//!   on, the PVARP it starts is longer by the extension, unless the cycle
+//!   before was extended (PM12.4, PM12.5; Property P8).
+//! - **Ventricular blanking (PM4.5).** In a Mode that paces the atrium and
+//!   senses the ventricle, a ventricular Sense within the Ventricular
+//!   Blanking interval after an atrial Pace is discarded: nothing is armed
+//!   or withdrawn and no Marker is made.
+//!
 //! The step reads the Mode by its letters. What it does not deliver yet
-//! (the dynamic AV delay, the URL, PVARP and blanking, hysteresis, the
-//! sensor rate, the State machine) is the work of tasks 11.2 to 11.4, 16
-//! and 19; `validate` admits only the Modes of stage E1 until task 11.6.
-//! Until task 11.4 the atrium has no refractory period after a ventricular
-//! event in the Modes that pace the ventricle: the ARP is the single-chamber
-//! atrial Modes' (PM12.2), and the PVARP is to come.
+//! (hysteresis, the sensor rate, the State machine) is the work of tasks
+//! 16 and 19; `validate` admits only the Modes of stage E1 until task 11.6.
+//! In the ventricular-based cycle the atrium's refractory periods are the
+//! AV delay and the PVARP; the ARP is the single-chamber atrial Modes'
+//! (PM12.2).
 //!
 //! **What is armed.** The arming the step returns is the difference the
 //! event makes to the pending Paces, Chamber by Chamber: a new instant is
@@ -60,26 +83,41 @@ const fn escape(p: &Params) -> u32 {
     p.lrl
 }
 
-/// The AV delay after an atrial Pace (PM11.2, PM11.3): the Fixed AV Delay.
-/// The dynamic delay is task 11.2.
+/// The AV delay after an atrial Pace (PM11.2 to PM11.4): the Fixed AV
+/// Delay; or, where the delay is dynamic and a cardiac cycle has been
+/// measured, that cycle's length times the Fixed AV Delay over the LRL
+/// interval, no shorter than the Minimum Dynamic AV Delay and no longer
+/// than the Fixed AV Delay.
 #[inline(always)]
-const fn paced_av(p: &Params) -> u32 {
-    p.fixed_av
+const fn paced_av(p: &Params, st: &State) -> u32 {
+    if !p.dynamic_av || !st.cycle_known || p.lrl == 0 {
+        return p.fixed_av;
+    }
+    // In 64 bits: two 32-bit values' product has room.
+    let scaled = st.last_cycle as u64 * p.fixed_av as u64 / p.lrl as u64;
+    let lowest = if p.min_dynamic_av < p.fixed_av { p.min_dynamic_av } else { p.fixed_av };
+    if scaled >= p.fixed_av as u64 {
+        p.fixed_av
+    } else if scaled <= lowest as u64 {
+        lowest
+    } else {
+        scaled as u32
+    }
 }
 
 /// The AV delay after a tracked atrial Sense: the paced one less the Sensed
 /// AV Delay Offset (PM11.5).
 #[inline(always)]
-const fn sensed_av(p: &Params) -> u32 {
-    paced_av(p).saturating_sub(p.sensed_av_offset)
+const fn sensed_av(p: &Params, st: &State) -> u32 {
+    paced_av(p, st).saturating_sub(p.sensed_av_offset)
 }
 
 /// The escape interval of the atrium in the ventricular-based cycle: from a
 /// ventricular event to the atrial Pace, so that the paced AV delay ends
 /// one escape interval after the ventricular event.
 #[inline(always)]
-const fn atrial_escape(p: &Params) -> u32 {
-    escape(p).saturating_sub(paced_av(p))
+const fn atrial_escape(p: &Params, st: &State) -> u32 {
+    escape(p).saturating_sub(paced_av(p, st))
 }
 
 /// Whether the cycle is the ventricular-based one: the Mode paces the
@@ -97,46 +135,83 @@ const fn coupled(p: &Params) -> bool {
     ventricular_based(p) && (p.mode.paces(Chamber::A) || p.mode.senses(Chamber::A))
 }
 
-/// A ventricular event at `v`, paced or sensed: the Chamber's last event,
-/// the start of the VRP (PM12.1) and of the next escape interval; the end
-/// of an AV delay; in a Mode that paces both Chambers, the atrial Pace of
-/// the next cycle.
+/// Whether a ventricular Sense now would be a PVC: the Mode senses both
+/// Chambers in the ventricular-based cycle, and no atrial event has come
+/// since the last ventricular event.
 #[inline(always)]
-fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool) {
+const fn is_pvc(p: &Params, st: &State) -> bool {
+    ventricular_based(p) && p.mode.senses(Chamber::A) && st.chamber[Chamber::V.index()].seen && !st.atrial_since_ventricular
+}
+
+/// A ventricular event at `v`, paced or sensed (`pvc`: a Sense that is a
+/// PVC): the Chamber's last event, the start of the VRP (PM12.1) and of
+/// the next escape interval; the end of a cardiac cycle, whose length is
+/// kept, of an AV delay and of a blanking interval; in the
+/// ventricular-based cycle the start of the PVARP, extended after a PVC
+/// unless the cycle before was, and, in a Mode that paces both Chambers,
+/// the atrial Pace of the next cycle.
+#[inline(always)]
+fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bool) {
     let ch = &mut st.chamber[Chamber::V.index()];
+    if ch.seen {
+        st.last_cycle = v.elapsed_since(ch.last);
+        st.cycle_known = true;
+    }
     ch.seen = true;
     ch.last = v;
     ch.last_paced = paced;
     ch.refractory_until = v.plus(p.vrp);
+    ch.blanked = false;
     ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };
     st.atrial_since_ventricular = false;
-    if ventricular_based(p) && p.mode.paces(Chamber::A) {
-        st.chamber[Chamber::A.index()].pending = Pending::at(v.plus(atrial_escape(p)));
+    if ventricular_based(p) {
+        // Property P8: not in two successive cycles.
+        let extend = pvc && p.pvarp_extension != 0 && !st.pvarp_extended;
+        st.pvarp_extended_last_cycle = st.pvarp_extended;
+        st.pvarp_extended = extend;
+        let pvarp = if extend { p.pvarp.saturating_add(p.pvarp_extension) } else { p.pvarp };
+        st.chamber[Chamber::A.index()].refractory_until = v.plus(pvarp);
+        if p.mode.paces(Chamber::A) {
+            let escape = atrial_escape(p, st);
+            st.chamber[Chamber::A.index()].pending = Pending::at(v.plus(escape));
+        }
     }
 }
 
 /// An atrial event at `a`: a Pace, or a non-refractory Sense, which
 /// `starts_av` says is tracked (response D). In the ventricular-based cycle
 /// it ends the atrial escape interval and, when it starts an AV delay, puts
-/// the ventricular Pace at the delay's end unless it is already due sooner.
-/// In an atrial Mode it starts the ARP (PM12.2) and the next escape interval.
+/// the ventricular Pace at the delay's end, or one URL interval after the
+/// last ventricular event if that is later (PM10.2), unless the Pace is
+/// already due sooner; an atrial Pace starts the Ventricular Blanking
+/// interval in a Mode that senses the ventricle (PM4.5). In an atrial Mode
+/// the event starts the ARP (PM12.2) and the next escape interval.
 #[inline(always)]
 fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: bool) {
     let based = ventricular_based(p);
+    let delay = if paced { paced_av(p, st) } else { sensed_av(p, st) };
     let ch = &mut st.chamber[Chamber::A.index()];
     ch.seen = true;
     ch.last = a;
     ch.last_paced = paced;
     if based {
-        // No ARP: the AV delay and, from task 11.4, the PVARP are the
-        // atrium's refractory periods here.
-        ch.refractory_until = a;
+        // No ARP: the AV delay and the PVARP, which the last ventricular
+        // event started, are the atrium's refractory periods here.
         ch.pending = Pending::NONE;
         st.atrial_since_ventricular = true;
+        let v = &mut st.chamber[Chamber::V.index()];
+        if paced && p.mode.senses(Chamber::V) {
+            v.blanked = true;
+            v.blanking_until = a.plus(p.v_blanking);
+        }
         if starts_av {
-            let delay = if paced { paced_av(p) } else { sensed_av(p) };
-            let end = a.plus(delay);
-            let v = &mut st.chamber[Chamber::V.index()];
+            let mut end = a.plus(delay);
+            if v.seen {
+                let earliest = v.last.plus(p.url);
+                if end.is_before(earliest) {
+                    end = earliest;
+                }
+            }
             if !v.pending.armed || end.is_before(v.pending.at) {
                 v.pending = Pending::at(end);
             }
@@ -152,7 +227,7 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
 fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
     match c {
         Chamber::A => atrial_event(p, st, at, true, true),
-        Chamber::V => ventricular_event(p, st, at, true),
+        Chamber::V => ventricular_event(p, st, at, true, false),
     }
 }
 
@@ -265,7 +340,8 @@ fn tick(p: &Params, st: &mut State, now: Micros) {
             st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)));
             st.atrial_since_ventricular = false;
             if paces_a {
-                st.chamber[Chamber::A.index()].pending = Pending::at(now.plus(atrial_escape(p)));
+                let escape = atrial_escape(p, st);
+                st.chamber[Chamber::A.index()].pending = Pending::at(now.plus(escape));
             }
         }
         if !paces_a {
@@ -285,14 +361,25 @@ fn tick(p: &Params, st: &mut State, now: Micros) {
 }
 
 /// Whether a Sense of `c` at `at` falls in a refractory period of the
-/// Chamber: the period its last event started (PM12.1, PM12.2), or, for the
-/// atrium in the ventricular-based cycle, an AV delay in progress (PM11.6).
+/// Chamber: the period its last event started (PM12.1, PM12.2); or, for the
+/// atrium in the ventricular-based cycle, an AV delay in progress (PM11.6)
+/// or the PVARP the last ventricular event started (PM12.3).
 #[inline(always)]
 fn refractory(p: &Params, st: &State, c: Chamber, at: Micros) -> bool {
     let ch = &st.chamber[c.index()];
-    let in_period = ch.seen && at.is_before(ch.refractory_until);
-    let in_av = matches!(c, Chamber::A) && ventricular_based(p) && st.atrial_since_ventricular;
-    in_period || in_av
+    if matches!(c, Chamber::A) && ventricular_based(p) {
+        st.atrial_since_ventricular || (st.chamber[Chamber::V.index()].seen && at.is_before(ch.refractory_until))
+    } else {
+        ch.seen && at.is_before(ch.refractory_until)
+    }
+}
+
+/// Whether a ventricular Sense at `at` falls in the Ventricular Blanking
+/// interval an atrial Pace started (PM4.5).
+#[inline(always)]
+fn blanked(st: &State, c: Chamber, at: Micros) -> bool {
+    let ch = &st.chamber[c.index()];
+    matches!(c, Chamber::V) && ch.blanked && at.is_before(ch.blanking_until)
 }
 
 /// One event applied to the state: the new state, and what to do with each
@@ -346,6 +433,10 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                 // PM5.7: a Chamber the Mode does not sense.
                 return (st, out);
             }
+            if blanked(&st, chamber, at) {
+                // PM4.5: discarded, without a Marker.
+                return (st, out);
+            }
             if refractory(p, &st, chamber, at) {
                 // PM4.4, PM11.6: a Refractory sense inhibits and triggers
                 // nothing.
@@ -371,7 +462,11 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                 (Response::Inhibited | Response::Tracked, Chamber::V) => {
                     // PM5.5: the pending ventricular Pace is cancelled; the
                     // cycle starts again from the Sense.
-                    ventricular_event(p, &mut st, at, false);
+                    let pvc = is_pvc(p, &st);
+                    ventricular_event(p, &mut st, at, false, pvc);
+                    if pvc {
+                        out.markers.augmentation = Some((Marker::Pvc, at));
+                    }
                 }
                 (Response::Inhibited, Chamber::A) => {
                     // PM5.5: the pending atrial Pace is cancelled. In DDI

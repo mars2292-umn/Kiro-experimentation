@@ -384,13 +384,20 @@ impl Rng {
 }
 
 struct Board {
+    /// The present, for an arming at an instant already past.
+    now: u32,
+    /// Whether the Chamber's armed instant is one the driver moved.
+    moved: [bool; 2],
     armed: [Option<u32>; 2],
     /// Fired and not reported: the instant.
     fired: [Option<u32>; 2],
 }
 
 impl Board {
-    fn apply(&mut self, a: &Arming) {
+    /// The arming applied as the driver applies it: an instant that is
+    /// not ahead of the present is moved one lead (500 µs) after it, and
+    /// the state is told (`rearmed`), as the Partition does.
+    fn apply(&mut self, a: &Arming, s: &mut State) {
         for (k, pace) in [a.atrial, a.ventricular].into_iter().enumerate() {
             if self.fired[k].is_some() {
                 continue;
@@ -398,13 +405,23 @@ impl Board {
             match pace {
                 Pace::Keep => {}
                 Pace::Withdraw => self.armed[k] = None,
-                Pace::At { at, .. } => self.armed[k] = Some(at.0),
+                Pace::At { at, .. } if at.0 > self.now => {
+                    self.armed[k] = Some(at.0);
+                    self.moved[k] = false;
+                }
+                Pace::At { .. } => {
+                    let at = self.now + 500;
+                    self.armed[k] = Some(at);
+                    self.moved[k] = true;
+                    *s = rearmed(s, if k == 0 { A } else { V }, Micros(at));
+                }
             }
         }
     }
     /// The compares that fire by `now`, the atrium's first when both do
     /// (it is the earlier in every cycle the step makes).
     fn run_to(&mut self, now: u32) {
+        self.now = now;
         for k in 0..2 {
             if let Some(x) = self.armed[k] {
                 if x <= now {
@@ -416,19 +433,41 @@ impl Board {
     }
 }
 
-fn run(mode: Mode, seed: u64, events: usize) -> (u32, u32, u32) {
-    let p = Params { sensed_av_offset: if seed % 3 == 0 { 30_000 } else { 0 }, ..params(mode) };
+/// What a generated run met.
+#[derive(Default, Debug, Clone, Copy)]
+struct Met {
+    paces: u32,
+    tracked: u32,
+    refractory: u32,
+    blanked: u32,
+    pvcs: u32,
+    extended: u32,
+    delayed_to_the_url: u32,
+}
+
+fn run(mode: Mode, seed: u64, events: usize) -> Met {
+    // The set varies with the seed: the offset, the dynamic AV delay, the
+    // URL (never a longer interval than the LRL's) and PVARP Extension.
+    let p = Params {
+        sensed_av_offset: if seed % 3 == 0 { 30_000 } else { 0 },
+        dynamic_av: seed % 2 == 0,
+        url: [interval_of_ppm(120), interval_of_ppm(90), interval_of_ppm(175)][(seed % 5 % 3) as usize],
+        pvarp_extension: if seed % 7 < 4 { 100_000 } else { 0 },
+        ..params(mode)
+    };
+    let mut met = Met::default();
     let e = p.lrl;
     let mut r = Rng(seed | 1);
-    let mut board = Board { armed: [None; 2], fired: [None; 2] };
+    let mut board = Board { now: 0, moved: [false; 2], armed: [None; 2], fired: [None; 2] };
     let (mut s, a) = step(&p, &State::POWER_ON_RESET, tick(0));
-    board.apply(&a);
+    board.apply(&a, &mut s);
     let mut now = 0u32;
-    let (mut paces, mut tracked, mut refractory_senses) = (0, 0, 0);
+    let mut paces = 0;
     // The last ventricular event the harness saw, for Property P2.
     let mut last_v: Option<u32> = None;
     for _ in 0..events {
-        now += 1 + r.below(250_000) as u32;
+        // A fast heart in some runs, a slow one (more Paces) in others.
+        now += 1 + r.below(if seed % 4 < 2 { 250_000 } else { 900_000 }) as u32;
         board.run_to(now);
         // Most of the time the Paces are reported before the next event,
         // the earlier first; sometimes the event comes first.
@@ -446,10 +485,11 @@ fn run(mode: Mode, seed: u64, events: usize) -> (u32, u32, u32) {
                     let (t, a) = step(&p, s, paced(c, x));
                     assert!(matches!(a.markers.atrial.or(a.markers.ventricular), Some((Marker::Pace { fused: false }, _))), "{mode:?} seed {seed}: a Pace the state did not expect");
                     *s = t;
-                    board.apply(&a);
+                    board.apply(&a, s);
                     *paces += 1;
                     if k == 1 {
-                        *last_v = Some(x);
+                        // A report may come after a later ventricular Sense.
+                        *last_v = Some(last_v.map_or(x, |l| l.max(x)));
                     }
                 }
             }
@@ -464,6 +504,26 @@ fn run(mode: Mode, seed: u64, events: usize) -> (u32, u32, u32) {
         };
         let before = accounted(&p, &s, Micros(now));
         let (t, a) = step(&p, &s, ev);
+        // Property P1: a ventricular Pace the step arms is no earlier than
+        // one URL interval after the last ventricular event (the Modes here
+        // have no triggered response).
+        if let (Pace::At { at, .. }, Some(l)) = (a.ventricular, last_v) {
+            let l = if matches!(a.markers.ventricular, Some((Marker::Sense { refractory: false }, _))) { now } else { l };
+            assert!(at.0 >= l + p.url, "{mode:?} seed {seed}: a ventricular Pace at {} within the URL interval of the event at {l}", at.0);
+            if at.0 == l + p.url && p.url < p.lrl {
+                met.delayed_to_the_url += 1;
+            }
+        }
+        // Property P8: the PVARP is extended in at most one of two
+        // successive cycles; and only after a PVC, with the extension on.
+        if t.pvarp_extended && !before.pvarp_extended {
+            assert!(matches!(a.markers.augmentation, Some((Marker::Pvc, _))) && p.pvarp_extension != 0);
+            met.extended += 1;
+        }
+        assert!(!(t.pvarp_extended && t.pvarp_extended_last_cycle), "{mode:?} seed {seed}: Property P8");
+        if matches!(a.markers.augmentation, Some((Marker::Pvc, _))) {
+            met.pvcs += 1;
+        }
         if let Event::Sense { chamber, .. } = ev {
             let m = match chamber {
                 Chamber::A => a.markers.atrial,
@@ -474,21 +534,30 @@ fn run(mode: Mode, seed: u64, events: usize) -> (u32, u32, u32) {
                     // Property P3.
                     assert_eq!(t, before, "{mode:?} seed {seed}");
                     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
-                    refractory_senses += 1;
+                    met.refractory += 1;
                 }
                 Some((Marker::Sense { refractory: false }, _)) => {
                     if matches!(chamber, Chamber::V) {
                         last_v = Some(now);
                     } else if matches!(p.mode.response, Response::Tracked) {
-                        tracked += 1;
+                        met.tracked += 1;
                     }
                 }
-                None => assert!(!p.mode.senses(chamber)),
+                None if p.mode.senses(chamber) => {
+                    // A ventricular Sense in the blanking interval after an
+                    // atrial Pace: discarded (PM4.5; Property P3).
+                    let v = before.chamber[1];
+                    assert!(matches!(chamber, Chamber::V) && v.blanked && now < v.blanking_until.0, "{mode:?} seed {seed}");
+                    assert_eq!(t, before);
+                    assert_eq!(a, Arming::NONE);
+                    met.blanked += 1;
+                }
+                None => {}
                 other => panic!("{other:?}"),
             }
         }
         s = t;
-        board.apply(&a);
+        board.apply(&a, &mut s);
         if !report_first {
             report(&mut s, &mut board, &mut paces, &mut last_v);
         }
@@ -513,31 +582,51 @@ fn run(mode: Mode, seed: u64, events: usize) -> (u32, u32, u32) {
         // and one AV delay before the end of the escape interval.
         let a_pending = s.chamber[0].pending;
         assert_eq!(a_pending.armed, p.mode.paces(A) && !s.atrial_since_ventricular, "{mode:?} seed {seed}");
-        if a_pending.armed {
+        if a_pending.armed && !board.moved[0] {
             if let Some(l) = last_v {
-                assert_eq!(a_pending.at.0, l + e - p.fixed_av);
+                // One paced AV delay before the end of the escape interval:
+                // the fixed delay, or a dynamic one within its limits.
+                let av = l + e - a_pending.at.0;
+                if p.dynamic_av {
+                    assert!((p.min_dynamic_av..=p.fixed_av).contains(&av), "{mode:?} seed {seed}: AV delay {av}");
+                } else {
+                    assert_eq!(av, p.fixed_av);
+                }
             }
         }
     }
-    (paces, tracked, refractory_senses)
+    met.paces = paces;
+    met
 }
 
 #[test]
 fn generated_runs_keep_the_compares_and_the_state_together() {
-    let mut totals = [(0u32, 0u32, 0u32); 4];
+    let mut totals = [Met::default(); 4];
     for (m, mode) in [Mode::DOO, Mode::DDI, Mode::VDD, Mode::DDD].into_iter().enumerate() {
         for seed in 1..=200u64 {
-            let (p, t, r) = run(mode, seed * 7919, 400);
-            totals[m].0 += p;
-            totals[m].1 += t;
-            totals[m].2 += r;
+            let r = run(mode, seed * 7919, 400);
+            let t = &mut totals[m];
+            t.paces += r.paces;
+            t.tracked += r.tracked;
+            t.refractory += r.refractory;
+            t.blanked += r.blanked;
+            t.pvcs += r.pvcs;
+            t.extended += r.extended;
+            t.delayed_to_the_url += r.delayed_to_the_url;
         }
     }
-    // Every Mode paced; the tracking Modes tracked; the sensing Modes had
-    // Refractory senses; DOO sensed nothing.
-    assert!(totals.iter().all(|t| t.0 > 1_000), "{totals:?}");
-    assert!(totals[2].1 > 1_000 && totals[3].1 > 1_000, "{totals:?}");
-    assert_eq!((totals[0].1, totals[0].2), (0, 0));
-    assert_eq!(totals[1].1, 0);
-    assert!(totals[1].2 > 1_000 && totals[2].2 > 1_000 && totals[3].2 > 1_000, "{totals:?}");
+    let [doo, ddi, vdd, ddd] = totals;
+    // Every Mode paced; the tracking Modes tracked, and had Paces delayed
+    // to the URL; the sensing Modes had Refractory senses, PVCs and
+    // extended PVARPs; the Modes that pace the atrium and sense the
+    // ventricle had blanked Senses; DOO sensed nothing.
+    assert!(totals.iter().all(|t| t.paces > 1_000), "{totals:?}");
+    assert!(vdd.tracked > 1_000 && ddd.tracked > 1_000, "{totals:?}");
+    assert!(vdd.delayed_to_the_url > 100 && ddd.delayed_to_the_url > 100, "{totals:?}");
+    assert_eq!((doo.tracked, doo.refractory, doo.blanked, doo.pvcs), (0, 0, 0, 0));
+    assert_eq!((ddi.tracked, vdd.blanked), (0, 0));
+    assert!(ddi.refractory > 1_000 && vdd.refractory > 1_000 && ddd.refractory > 1_000, "{totals:?}");
+    assert!(ddi.blanked > 20 && ddd.blanked > 20, "{totals:?}");
+    assert!(ddi.pvcs > 500 && vdd.pvcs > 500 && ddd.pvcs > 500, "{totals:?}");
+    assert!(ddi.extended > 100 && vdd.extended > 100 && ddd.extended > 100, "{totals:?}");
 }
