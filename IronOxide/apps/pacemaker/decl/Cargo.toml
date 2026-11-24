@@ -16,6 +16,8 @@ nrf52840_sweep = ["nrf52840"]
 nrf52840_measure = ["nrf52840"]
 # The rig runs' declaration (`src/nrf52840_rig.rs`, tasks 9.4 and 9.5).
 nrf52840_rig = ["nrf52840"]
+# The coverage runs' declaration (`src/nrf52840_coverage.rs`, task 9.9).
+nrf52840_coverage = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

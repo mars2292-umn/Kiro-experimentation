@@ -36,6 +36,8 @@ rig = ["nrf52840", "pacemaker-decl/nrf52840_rig"]
 # Task 9.8: `control` overruns its Budget and faults at stated instants, so
 # that the Kernel's fault paths are measured (measurement builds only).
 inject = ["nrf52840"]
+# Task 9.9: the coverage runs' declaration (a larger code region).
+coverage = ["nrf52840", "pacemaker-decl/nrf52840_coverage"]
 
 [dependencies]
 pacemaker-decl = { path = "../decl" }

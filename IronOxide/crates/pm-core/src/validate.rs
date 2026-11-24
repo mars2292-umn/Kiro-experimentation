@@ -23,6 +23,124 @@ use crate::params::{interval_of_ppm, ActivityThreshold, Params};
 #[allow(unused_imports)]
 use creusot_std::model::View;
 
+/// Property P5 for the App_Prover (task 12.3): the word sequences that are
+/// admitted, written as a predicate over the sequence. It is Table 19-1 row
+/// by row (`member`), Table 19-5 for the parameters the Mode uses
+/// (`limits`), and what this stage delivers (`stage`). `validate`'s
+/// contract is that it returns a parameter set exactly for these.
+#[cfg(creusot)]
+pub mod spec {
+    use crate::mode::{tracks_spec, Chambers, Mode};
+    use creusot_std::logic::Seq;
+    use creusot_std::macros::{logic, pearlite};
+    use creusot_std::model::View;
+
+    #[logic(open)]
+    pub fn stepped(v: u32, lo: u32, hi: u32, step: u32) -> bool {
+        pearlite! { lo <= v && v <= hi && (v@ - lo@) % step@ == 0 }
+    }
+
+    #[logic(open)]
+    pub fn lrl(v: u32) -> bool {
+        pearlite! { stepped(v, 30u32, 50u32, 5u32) || stepped(v, 50u32, 90u32, 1u32) || stepped(v, 90u32, 175u32, 5u32) }
+    }
+
+    #[logic(open)]
+    pub fn amplitude(v: u32) -> bool {
+        pearlite! { v@ == 0 || stepped(v, 5u32, 32u32, 1u32) || stepped(v, 35u32, 70u32, 5u32) }
+    }
+
+    #[logic(open)]
+    pub fn width(v: u32) -> bool {
+        pearlite! { v@ == 50 || stepped(v, 100u32, 1_900u32, 100u32) }
+    }
+
+    #[logic(open)]
+    pub fn sensitivity(v: u32) -> bool {
+        pearlite! { v@ == 25 || v@ == 50 || v@ == 75 || stepped(v, 100u32, 1_000u32, 50u32) }
+    }
+
+    #[logic(open)]
+    pub fn atr_duration(v: u32) -> bool {
+        pearlite! { v@ == 10 || stepped(v, 20u32, 80u32, 20u32) || stepped(v, 100u32, 2_000u32, 100u32) }
+    }
+
+    #[logic(open)]
+    pub fn rate_smoothing(v: u32) -> bool {
+        pearlite! { v@ == 0 || stepped(v, 3u32, 21u32, 3u32) || v@ == 25 }
+    }
+
+    /// Table 19-1, a row a line, for the 27 words after the Mode.
+    #[logic(open)]
+    pub fn member(w: Seq<u32>) -> bool {
+        pearlite! {
+            lrl(w[1])
+                && stepped(w[2], 50u32, 175u32, 5u32)
+                && stepped(w[3], 50u32, 175u32, 5u32)
+                && stepped(w[4], 70u32, 300u32, 10u32)
+                && w[5]@ <= 1
+                && stepped(w[6], 30u32, 100u32, 10u32)
+                && (w[7]@ == 0 || stepped(w[7], 10u32, 100u32, 10u32))
+                && amplitude(w[8])
+                && amplitude(w[9])
+                && width(w[10])
+                && width(w[11])
+                && sensitivity(w[12])
+                && sensitivity(w[13])
+                && stepped(w[14], 150u32, 500u32, 10u32)
+                && stepped(w[15], 150u32, 500u32, 10u32)
+                && stepped(w[16], 150u32, 500u32, 10u32)
+                && (w[17]@ == 0 || stepped(w[17], 50u32, 400u32, 50u32))
+                && (w[18]@ == 0 || lrl(w[18]))
+                && rate_smoothing(w[19])
+                && w[20]@ <= 1
+                && atr_duration(w[21])
+                && stepped(w[22], 1u32, 5u32, 1u32)
+                && stepped(w[23], 30u32, 60u32, 10u32)
+                && w[24]@ <= 6
+                && stepped(w[25], 10u32, 50u32, 10u32)
+                && stepped(w[26], 1u32, 16u32, 1u32)
+                && stepped(w[27], 2u32, 16u32, 1u32)
+        }
+    }
+
+    /// Table 19-5 for the Mode `m`: in the Modes that track, LRL ≤ URL,
+    /// VRP < URL interval, PVARP + Fixed AV Delay ≤ URL interval and, with
+    /// the Dynamic AV Delay On, the minimum ≤ the fixed delay; in the Mode
+    /// that uses the offset, the fixed delay ≥ the offset + 30 ms.
+    #[logic(open)]
+    pub fn limits(m: Mode, w: Seq<u32>) -> bool {
+        pearlite! {
+            (tracks_spec(m) ==>
+                w[1] <= w[2]
+                && w[14]@ * 1_000 < 60_000_000 / w[2]@
+                && (w[16]@ + w[4]@) * 1_000 <= 60_000_000 / w[2]@
+                && (w[5]@ != 1 || w[6] <= w[4]))
+            && (tracks_spec(m) && m.paces == Chambers::Both ==> w[4]@ >= w[7]@ + 30)
+        }
+    }
+
+    /// What stage E2 delivers: a fixed-rate Mode, hysteresis and rate
+    /// smoothing Off, and the Atrial Tachycardia Response Off where the
+    /// Mode would use it.
+    #[logic(open)]
+    pub fn stage(m: Mode, w: Seq<u32>) -> bool {
+        pearlite! { !m.adaptive && w[18]@ == 0 && w[19]@ == 0 && !(tracks_spec(m) && w[20]@ != 0) }
+    }
+
+    /// The admitted sequences.
+    #[logic(open)]
+    pub fn admitted(w: Seq<u32>) -> bool {
+        pearlite! {
+            w.len() == 28
+                && w[0]@ < 19
+                && member(w)
+                && limits(Mode::PROGRAMMABLE@[w[0]@], w)
+                && stage(Mode::PROGRAMMABLE@[w[0]@], w)
+        }
+    }
+}
+
 /// The number of words of a parameter set.
 pub const WORDS: usize = 28;
 
@@ -98,6 +216,7 @@ pub const NOMINAL_WORDS: [u32; WORDS] = [
 #[allow(clippy::manual_is_multiple_of)] // not const on the workspace's toolchain floor
 #[cfg_attr(creusot, creusot_std::macros::requires(step@ > 0))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> lo@ <= v@ && v@ <= hi@))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::stepped(v, lo, hi, step)))]
 const fn stepped(v: u32, lo: u32, hi: u32, step: u32) -> bool {
     v >= lo && v <= hi && (v - lo) % step == 0
 }
@@ -105,6 +224,7 @@ const fn stepped(v: u32, lo: u32, hi: u32, step: u32) -> bool {
 /// The Lower Rate Limit's values: 30 to 50 by 5, 50 to 90 by 1, 90 to 175 by 5.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 30 <= ppm@ && ppm@ <= 175))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::lrl(ppm)))]
 const fn is_lrl(ppm: u32) -> bool {
     stepped(ppm, 30, 50, 5) || stepped(ppm, 50, 90, 1) || stepped(ppm, 90, 175, 5)
 }
@@ -112,6 +232,7 @@ const fn is_lrl(ppm: u32) -> bool {
 /// The regulated amplitudes: Off, 0.5 to 3.2 V by 0.1, 3.5 to 7.0 V by 0.5.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 0 <= tenths@ && tenths@ <= 70))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::amplitude(tenths)))]
 const fn is_amplitude(tenths: u32) -> bool {
     tenths == 0 || stepped(tenths, 5, 32, 1) || stepped(tenths, 35, 70, 5)
 }
@@ -119,6 +240,7 @@ const fn is_amplitude(tenths: u32) -> bool {
 /// The pulse widths: 0.05 ms, 0.1 to 1.9 ms by 0.1.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 50 <= us@ && us@ <= 1900))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::width(us)))]
 const fn is_width(us: u32) -> bool {
     us == 50 || stepped(us, 100, 1_900, 100)
 }
@@ -126,6 +248,7 @@ const fn is_width(us: u32) -> bool {
 /// The sensitivities: 0.25, 0.5, 0.75 mV, 1.0 to 10 mV by 0.5.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 25 <= hundredths@ && hundredths@ <= 1000))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::sensitivity(hundredths)))]
 const fn is_sensitivity(hundredths: u32) -> bool {
     hundredths == 25 || hundredths == 50 || hundredths == 75 || stepped(hundredths, 100, 1_000, 50)
 }
@@ -133,6 +256,7 @@ const fn is_sensitivity(hundredths: u32) -> bool {
 /// The ATR Durations: 10, 20 to 80 by 20, 100 to 2,000 by 100 cardiac cycles.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 10 <= cc@ && cc@ <= 2000))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::atr_duration(cc)))]
 const fn is_atr_duration(cc: u32) -> bool {
     cc == 10 || stepped(cc, 20, 80, 20) || stepped(cc, 100, 2_000, 100)
 }
@@ -140,10 +264,12 @@ const fn is_atr_duration(cc: u32) -> bool {
 /// The Rate Smoothing values: Off, 3 to 21 by 3, 25 percent.
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result ==> 0 <= percent@ && percent@ <= 25))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::rate_smoothing(percent)))]
 const fn is_rate_smoothing(percent: u32) -> bool {
     percent == 0 || stepped(percent, 3, 21, 3) || percent == 25
 }
 
+#[cfg_attr(creusot, creusot_std::macros::ensures((result != None) == (code@ <= 6)))]
 #[inline(always)]
 const fn activity_threshold(code: u32) -> Option<ActivityThreshold> {
     Some(match code {
@@ -174,6 +300,7 @@ pub const fn delivered_in_e1(m: Mode) -> bool {
 /// The rate-adaptive Modes are stage E4.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == !m.adaptive))]
 pub const fn delivered_in_e2(m: Mode) -> bool {
     !m.adaptive
 }
@@ -196,6 +323,7 @@ pub const fn delivered_in_e2(m: Mode) -> bool {
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::requires(50 <= w[word::URL]@ && w[word::URL]@ <= 175))]
 #[cfg_attr(creusot, creusot_std::macros::requires(w[word::VRP]@ <= 500 && w[word::PVARP]@ <= 500 && w[word::FIXED_AV]@ <= 300 && w[word::SENSED_AV_OFFSET]@ <= 100))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == spec::limits(m, w@)))]
 const fn limits_hold(m: Mode, w: &[u32; WORDS]) -> bool {
     let tracking = if m.tracks() {
         let url_interval = interval_of_ppm(w[word::URL]);
@@ -215,6 +343,10 @@ const fn limits_hold(m: Mode, w: &[u32; WORDS]) -> bool {
 /// breaks an interactive limit of Table 19-5 ([`limits_hold`]), or the set
 /// is not one this stage delivers. A rate becomes its interval, rounded
 /// down, so that the rate delivered is not below the programmed one.
+///
+/// Contract (task 12.3), Property P5: a parameter set is returned exactly
+/// for the admitted sequences ([`spec::admitted`]).
+#[cfg_attr(creusot, creusot_std::macros::ensures((result != None) == spec::admitted(words@)))]
 #[inline(always)]
 #[must_use]
 pub fn validate(words: &[u32]) -> Option<Params> {

@@ -1,4 +1,4 @@
 target/pacemaker-flight-qemu/thumbv7em-none-eabihf/release/pacemaker: the entry stubs are the assembly source, instruction for instruction: rsk_irq_entry (40 instructions), rsk_svc_entry (12 instructions), rsk_unwind (24 instructions), rsk_memmanage_entry (16 instructions), rsk_busfault_entry (11 instructions), rsk_usagefault_entry (11 instructions), job_end_trampoline (2 instructions)
 target/pacemaker-flight-qemu/thumbv7em-none-eabihf/release/pacemaker: not linked in this binary: rsk_timer_entry
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.11s
      Running `target/debug/xtask stubs target/pacemaker-flight-qemu/thumbv7em-none-eabihf/release/pacemaker`

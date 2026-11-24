@@ -14,6 +14,7 @@ named beside it. Reads
   rig/task_9_2_run_*.md                 the longest response of each Task
   rig/task_9_4_e1_runs.json             every interval and width judged
   rig/task_9_5_inhibition_window.json   the Senses close before a Pace
+  rig/task_13_2_e2_runs.json            the dual-chamber and triggered runs
   crates/pm-hw/src/lib.rs               LEAD and GUARD
   requirements.md                       the tolerances PM-PAR-01, 05, 15
 
@@ -131,6 +132,29 @@ def window():
             "largest_swept_us": max(r["nominal_distance_us"] for r in runs)}
 
 
+def e2_runs():
+    """Over the E2 runs: per kind of Pace the count and the largest distance
+    from the instant due; the triggered delays; the PG's counts."""
+    path = os.path.join(HERE, "rig/task_13_2_e2_runs.json")
+    if not os.path.exists(path):
+        return None
+    runs = load("rig/task_13_2_e2_runs.json")["runs"]
+    errors, trig = {}, [0, 1e18, -1e18]
+    for r in runs:
+        j = r["judge"]
+        for k, e in j["errors_us"].items():
+            s = errors.setdefault(k, [0, 0.0])
+            s[0] += e["count"]
+            s[1] = max(s[1], abs(e["min"]), abs(e["max"]))
+        td = j.get("triggered_delay_us")
+        if td:
+            trig = [trig[0] + td["count"], min(trig[1], td["min"]), max(trig[2], td["max"])]
+    c = lambda k: sum((r["counts"] or {}).get(k, 0) for r in runs)
+    return {"runs": len(runs), "seconds": runs[0]["capture"]["seconds"], "verdicts": sorted(set(r["judge"]["verdict"] for r in runs)),
+            "judged": sum(r["judge"]["judged_paces"] for r in runs), "unjudged": sum(r["judge"]["unjudged_stretches"] for r in runs),
+            "errors": errors, "triggered": trig, "too_late": c("too_late"), "forced": c("forced"), "moved": c("moved")}
+
+
 def render():
     rep = load("rig/task_9_8_analysis/report.json")
     r = {t["id"].split(".")[1]: ms(t["r_cycles"]) for t in rep["tasks"]}
@@ -150,7 +174,7 @@ def render():
     o.append("# Evidence Document\n")
     o.append("**PACEMAKER on rsk: an experimental Application**\n")
     o.append("Written by `chains.py` from the records it names; do not edit by hand (`chains.py --check` fails when this file is not what the records give). "
-             "It holds the timing chains of stage E1 (task 9.3; PM24.1, PM24.2, PM27.6). The other evidence of the experiment is named per task in `tasks.md` and per criterion in `traceability.md`.\n")
+             "It holds the timing chains of stages E1 and E2 (tasks 9.3 and 13.1; PM24.1, PM24.2, PM27.6). The other evidence of the experiment is named per task in `tasks.md` and per criterion in `traceability.md`.\n")
     o.append("## The Analyzer's bounds\n")
     o.append(f"From `rig/task_9_8_analysis/report.json`: result **{rep['result']}**, utilization {rep['utilization_percent']} %. "
              "A response-time bound R is from the Task's Release to the end of its Job and includes the release lag (J_rel), the blocking, the Kernel's entries and the higher-Priority Tasks. "
@@ -194,15 +218,31 @@ def render():
              f"Were the Job to make the edge itself, the error would be up to R of `pace`, {f3(r['pace'])} ms, still within PM-PAR-01 ({par01:g} ms) but not within PM-PAR-03 (1 ms) or the pulse-width tolerances; that is why it does not. "
              f"`GUARD` ({guard} µs) and `LEAD` ({lead * 1000:.0f} µs) are the scheme's own constants (design, \"Arming and the lead\").\n")
 
-    o.append("## Chains of later stages, on the bounds of stage E1\n")
-    o.append("Not delivered yet; the figures are stage E1's bounds put into the later chains, to be restated when the stages are built (tasks 13.1, 20.1).\n")
+    o.append("## The chains of stage E2\n")
+    e2 = e2_runs()
     av_pace = WIDTH_MAX_US / 1000.0 + r["pace"] + lead
     av_sense = r["sense_a"] + lead
-    o.append("| Requirement | Chain | Bound with E1's figures | Must stay under | Held | Stage |\n|---|---|---|---|---|---|")
-    o.append(f"| AV delay after an atrial Pace (PM11) | pulse → `pace` arms the ventricular start | {WIDTH_MAX_US / 1000:.1f} + {f3(r['pace'])} + {lead:.1f} = {f3(av_pace)} ms | the smallest AV delay, {AV_MIN_US / 1000:g} ms | {held(av_pace, AV_MIN_US / 1000)} | E2 |")
-    o.append(f"| AV delay after an atrial Sense (PM11, PM5.6) | `sense_a` arms the ventricular start | {f3(r['sense_a'])} + {lead:.1f} = {f3(av_sense)} ms | {AV_MIN_US / 1000:g} ms | {held(av_sense, AV_MIN_US / 1000)} | E2 |")
-    o.append(f"| Triggered Pace (PM5.4) | Sense → sense Job → Pace at the present plus `LEAD` | {f3(max(r['sense_v'], r['sense_a']))} + {lead:.1f} = {f3(arm_after_sense)} ms | PM-PAR-01, {par01:g} ms | {held(arm_after_sense, par01)} | E2 |")
-    o.append(f"| Pace-Now, link loss, magnet, battery (PM6.6, PM20.2, PM8) | frame or pin → `link` → `control` | one `control` period ({f3(d['control'])} ms; R {f3(r['control'])} ms) and what `comms` adds | as the design's \"Timing Design\" states | not yet stated | E3 |")
+    trig = max(r["sense_v"], r["sense_a"]) + lead
+    if e2 is None:
+        o.append("Not measured yet (task 13.2).\n")
+    else:
+        o.append(f"The bounds are the Analyzer's above; the measurements are the {e2['runs']} rig runs of `rig/task_13_2_e2_runs.json` ({e2['seconds']} s of capture each), "
+                 f"judged by `rig/e2_runs.py` from the requirements: {e2['judged']} Paces judged, each against the instant it was due; verdicts {', '.join(e2['verdicts'])}.\n")
+        o.append("| Requirement | Chain | Bound of the chain | Must stay under | Held | Tolerance | Measured on the rig |\n|---|---|---|---|---|---|---|")
+        def far(kind):
+            e = e2["errors"].get(kind)
+            return "none in these runs" if e is None else f"{e[0]} Paces, the farthest {e[1]:.0f} µs from the instant due"
+        o.append(f"| AV delay after an atrial Pace (PM11.1 to PM11.3) | pulse → `pace` arms the ventricular start, if it is not armed there already | {WIDTH_MAX_US / 1000:.1f} + {f3(r['pace'])} + {lead:.1f} = {f3(av_pace)} ms | the smallest AV delay, {AV_MIN_US / 1000:g} ms | {held(av_pace, AV_MIN_US / 1000)} | PM-PAR-01, ±{par01:g} ms | {far('paced_av')} |")
+        o.append(f"| AV delay after a tracked atrial Sense, with the offset and the dynamic delay (PM5.6, PM11.4, PM11.5) | `sense_a` arms the ventricular start | {f3(r['sense_a'])} + {lead:.1f} = {f3(av_sense)} ms | {AV_MIN_US / 1000:g} ms | {held(av_sense, AV_MIN_US / 1000)} | PM-PAR-01, ±{par01:g} ms; the offset ±1 ms (PM-PAR-03) | {far('sensed_av')} |")
+        o.append(f"| The URL: a tracked Pace delayed to it (PM10.1, PM10.2) | the same Job | the same | the same | {held(av_sense, AV_MIN_US / 1000)} | PM-PAR-01, ±{par01:g} ms | {far('url')} |")
+        o.append(f"| The atrial Pace, one AV delay before the end of the escape interval (PM9.2) | a ventricular event → its Job arms the atrial start | R of the Job ({f3(max(r['pace'], r['sense_v']))} ms at most) + `LEAD` | the shortest atrial escape interval | held | PM-PAR-01, ±{par01:g} ms | {far('atrial_escape')} |")
+        o.append(f"| Triggered Pace (PM5.4) | Sense → sense Job → Pace one `LEAD` after the present | {f3(max(r['sense_v'], r['sense_a']))} + {lead:.1f} = {f3(trig)} ms | PM-PAR-01, {par01:g} ms | {held(trig, par01)} | — | {e2['triggered'][0]} triggered Paces, from {e2['triggered'][1]:.0f} to {e2['triggered'][2]:.0f} µs after their Sense |")
+        o.append("")
+        o.append(f"In those runs the PG counted {e2['too_late']} armings too late, {e2['forced']} forced pulses and {e2['moved']} Paces moved (every triggered Pace is one: the step asks for the Sense's own instant). "
+                 f"Stretches the judge left unjudged because a Sense fell within the tolerance of the end of a period: {e2['unjudged']}.\n")
+    o.append("## Chains of stage E3\n")
+    o.append("| Requirement | Chain | Bound with these figures | Stage |\n|---|---|---|---|")
+    o.append(f"| Pace-Now, link loss, magnet, battery (PM6.6, PM20.2, PM8) | frame or pin → `link` → `control` | one `control` period ({f3(d['control'])} ms; R {f3(r['control'])} ms) and what `comms` adds | E3 |")
     o.append("")
     return "\n".join(o)
 

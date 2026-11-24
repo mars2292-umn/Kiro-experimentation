@@ -38,7 +38,7 @@ rig = ["pacemaker-therapy/rig"]
 inject = ["pacemaker-therapy/inject"]
 # The coverage build (task 9.9): the Kernel zeroes the Partition's coverage
 # counters at instant 0; `cargo xtask pm-measure --coverage` builds it.
-coverage = ["rsk-kernel/coverage"]
+coverage = ["rsk-kernel/coverage", "pacemaker-therapy/coverage"]
 set-env = ["pacemaker-therapy/set-env"]
 
 [dependencies]

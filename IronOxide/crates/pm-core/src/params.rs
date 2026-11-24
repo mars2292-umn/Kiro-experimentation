@@ -13,6 +13,7 @@ use creusot_std::model::View;
 #[inline(always)]
 #[must_use]
 #[cfg_attr(creusot, creusot_std::macros::requires(ppm@ > 0))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == 60_000_000 / ppm@))]
 pub const fn interval_of_ppm(ppm: u32) -> u32 {
     60_000_000 / ppm
 }

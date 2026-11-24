@@ -7,10 +7,10 @@ typedef int[0,N-1] task_t;
 const int PRIO[N] = { 7, 6, 5, 4 };
 const int PERIOD[N] = { 1280000, 3200000, 3200000, 1280000 };
 const int DEADLINE[N] = { 128000, 192000, 256000, 1280000 };
-const int EXEC[N] = { 77955, 82268, 82311, 376640 };
-const int OWN[N] = { 60944, 60944, 60944, 352210 };
-const int JITTER[N] = { 6810, 6810, 6810, 6810 };
-const int BLOCK[N] = { 13918, 13918, 13918, 6957 };
+const int EXEC[N] = { 91502, 91829, 90094, 379237 };
+const int OWN[N] = { 68707, 68707, 68707, 356723 };
+const int JITTER[N] = { 7987, 7987, 7987, 7987 };
+const int BLOCK[N] = { 12460, 11852, 11852, 7107 };
 const bool SPORADIC[N] = { true, true, true, false };
 // Task_Model identifiers, by index (R31.7):
 // 0: therapy.pace
@@ -25,8 +25,8 @@ chan release[N];
 urgent broadcast chan go;  // dispatch: no time passes while a Task is eligible
 clock dl[N];              // time since the nominal release instant
 clock c[N];               // wall clock since the Job started
-typedef int[0,3313282] big_t;
-int[0,1656641] W[N];       // bound on c[i] at completion (EXEC of the Job and of every Job started while it was started), capped
+typedef int[0,3318476] big_t;
+int[0,1659238] W[N];       // bound on c[i] at completion (EXEC of the Job and of every Job started while it was started), capped
 big_t cap(task_t k, big_t v) { return v &gt; DEADLINE[k] + EXEC[k] - OWN[k] ? DEADLINE[k] + 1 + EXEC[k] - OWN[k] : v; }
 void begin(task_t i) { for (k : task_t) { if (started[k] &amp;&amp; k != i) { W[k] = cap(k, W[k] + EXEC[i]); } } W[i] = cap(i, EXEC[i]); running = i; started[i] = true; }
 bool preempts(task_t i, int j) { return j &lt; 0 || PRIO[i] &gt; PRIO[j] || (PRIO[i] == PRIO[j] &amp;&amp; i &lt; j); }

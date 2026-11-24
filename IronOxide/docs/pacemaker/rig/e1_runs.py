@@ -41,8 +41,9 @@ RATE = 1_000_000
 SECONDS = 30
 DURATION = 45
 MAGIC = 0x504D5247
-MODES = {"AOO": 5, "AAI": 6, "VOO": 7, "VVI": 8}
-WORD = {"MODE": 0, "LRL": 1, "A_WIDTH": 10, "V_WIDTH": 11, "VRP": 14, "ARP": 15}
+MODES = {"DDD": 1, "VDD": 2, "DDI": 3, "DOO": 4, "AOO": 5, "AAI": 6, "VOO": 7, "VVI": 8, "AAT": 9, "VVT": 10}
+WORD = {"MODE": 0, "LRL": 1, "URL": 2, "FIXED_AV": 4, "DYNAMIC_AV": 5, "MIN_DYNAMIC_AV": 6, "SENSED_AV_OFFSET": 7, "A_WIDTH": 10, "V_WIDTH": 11,
+        "VRP": 14, "ARP": 15, "PVARP": 16, "PVARP_EXTENSION": 17, "V_BLANKING": 23}
 COUNTS = ["started", "hw_fault", "records", "too_late", "moved", "forced", "dropped", "late_arms", "untimed"]
 SCRATCH = os.environ.get("PM_SCRATCH", "target/pm-rig-scratch")
 
@@ -219,4 +220,5 @@ def main():
     sys.exit(0 if ok else 1)
 
 
-main()
+if __name__ == "__main__":
+    main()

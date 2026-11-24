@@ -1,0 +1,256 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:87f06192b74886b7138b8ad2b7aea63300d18a26ff7b4bc4d1d885020682902a",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "j_rel",
+      "cycles": 6450,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)"
+      ],
+      "measured": {
+        "runs": 14999,
+        "max_observed": 5160,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_irq",
+      "cycles": 2584,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one run of the intake handler for a sporadic Task's source (TIMER3, TIMER2 or TIMER1), the Kernel's own record; no interrupt storm (R19.3 is not measured here)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)"
+      ],
+      "measured": {
+        "runs": 2499,
+        "max_observed": 2067,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_stamp",
+      "cycles": 195,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "from the atrial sense edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3], the stamp probe of HIL builds), to the timestamp of the intake of `sense_a`'s source that follows it: the edge counter's compare, the masking of any Kernel entry in progress, the exception entry and the handler's read of the time base. Measured on the atrial sense source only; the other two sources (TIMER2, TIMER3) have no probe and take the same handler",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 156,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_wake",
+      "cycles": 195,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the same lag over the atrial sense edges whose intake found no Job executing (the processor in the idle activity's WFI): the wake-up from sleep with the exception entry and the handler's read after it",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)"
+      ],
+      "measured": {
+        "runs": 375,
+        "max_observed": 156,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "l_kernel",
+      "cycles": 4450,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the longest hold of the run: the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler from its Rust half's beginning to its end with the unwind it runs before it returns (3560 cycles over 1 entries, closed by a timer entry; the longest single Rust half 2804; the longest run of entries back to back, each taken at an exception return and charged by the Analyzer as its own event's interference, 0 cycles) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 113892,
+        "max_observed": 3560,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dispatch",
+      "cycles": 3435,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 17499,
+        "max_observed": 2748,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_timer",
+      "cycles": 3505,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 19897,
+        "max_observed": 2804,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_detect",
+      "cycles": 3505,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 19897,
+        "max_observed": 2804,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_in",
+      "cycles": 549,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one lock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 17499,
+        "max_observed": 439,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_out",
+      "cycles": 2114,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 17499,
+        "max_observed": 1691,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_complete",
+      "cycles": 2738,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 17499,
+        "max_observed": 2190,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_svc",
+      "cycles": 290,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 21501,
+        "max_observed": 232,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_view",
+      "cycles": 504,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
+      "conditions": [
+        "one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 17499,
+        "max_observed": 403,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    }
+  ]
+}

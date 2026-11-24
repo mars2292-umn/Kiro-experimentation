@@ -2,7 +2,7 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: 2026-11-23, after the sixteenth wave of `tasks.md`. Kept by hand: bring it up to date when a contract is added, moved or removed. Line numbers are those of this date; the function names are what to search for.
+Status: 2026-11-24, after the nineteenth wave of `tasks.md`. Kept by hand: bring it up to date when a contract is added, moved or removed. Line numbers are those of this date; the function names are what to search for.
 
 This lists every property of the experiment that a prover or the compiler holds, with the place of its statement, the place of its proof, and the mutant that shows the statement is not empty. A property that is only tested is in the last section, so that the two are not confused. The properties are those of `design.md`, "Correctness Properties" (P1 to P12).
 
@@ -37,9 +37,10 @@ All in `crates/pm-core/src/step.rs`, member `pm-core-proof`. Each property is st
 | **P3** A refractory or blanked Sense changes nothing | A Sense the step marks as a Refractory sense, and a Sense it gives no Marker (not sensed by the Mode, or blanked), return the accounted state unchanged and neither arm nor withdraw | `sense`, lines 460 and 461; `step` calls it with `accounted(p, s, at)` (line 585) | `set_marker` 336, `arm_difference` 379 | `pm-step-p3-refractory-sense-withdraws` |
 | **P2**, in part: a Pace is pending within the escape interval | (a) In a Mode that paces the ventricle, a ventricular Pace that is pending stays pending through every event; likewise the atrial Pace in a Mode that paces the atrium alone. (b) After a tick one is pending. (c) After a Chamber's own event its Pace is pending at exactly the event plus the escape interval | (a) `step` 539, 540; (b) `step` 541; (c) `ventricular_event` 183, `atrial_event` 225 | `apply_pace` 269, `account` 284, `accounted` 302, `tick` 393, `sense` 458; `Pending::at` (`state.rs` 46), `escape` 104, `ventricular_based` 153 | `pm-step-p2-ventricular-pace-not-pending` |
 | **P1**, in part: no ventricular Pace within the URL interval | The ventricular Pace an atrial event leaves pending is the one that was pending, or is not before the last ventricular event plus the URL interval | `atrial_event`, line 229 | `before` and `Micros::is_before` (`time.rs` 22, 60), `Micros::plus` (`time.rs` 33) | `pm-step-p1-url-floor-dropped` |
-| **P10** No panic, overflow or index out of bounds | Every function of the crate, by the member proving at all: each arithmetic operation, array index and division is a goal | the whole crate | bounds on `validate`'s predicates (`validate.rs` 99 to 142), `limits_hold`'s preconditions (197, 198), `interval_of_ppm` (`params.rs` 15), `Chamber::index` (`mode.rs` 23) | — |
+| **P5** `validate` returns a parameter set exactly for the admitted word sequences | The result is a set exactly when the sequence satisfies `spec::admitted`: 28 words, a Mode code, every word a value of its row of Table 19-1 (`spec::member`), the limits of Table 19-5 for the parameters the Mode uses (`spec::limits`), and a set stage E2 delivers (`spec::stage`) | `validate` (`validate.rs` 352); the specification is the module `spec` (line 32) | each predicate returns what its row says (`stepped`, `is_lrl`, `is_amplitude`, `is_width`, `is_sensitivity`, `is_atr_duration`, `is_rate_smoothing`, `activity_threshold`); `limits_hold` returns `spec::limits`; `Mode::tracks`, `Mode::uses_sensed_av_offset` and `Mode::senses` (`mode.rs`); `interval_of_ppm` (`params.rs`) | `pm-validate-p5-url-row-widened`, `pm-validate-p5-limit-dropped` |
+| **P10** No panic, overflow or index out of bounds | Every function of the crate, by the member proving at all: each arithmetic operation, array index and division is a goal | the whole crate | bounds on `validate`'s predicates (`validate.rs` 220 to 268), `limits_hold`'s preconditions (324, 325), `interval_of_ppm` (`params.rs` 17), `Chamber::index` (`mode.rs` 25) | — |
 
-Supporting statements about the Mode, used by the above: `Chambers::has` (`mode.rs` 63) and `Mode::paces` (`mode.rs` 163) return exactly what the Mode's letters say.
+Supporting statements about the Mode, used by the above: `Chambers::has` (`mode.rs` 64), `Mode::paces` (176), `Mode::senses` (184) and `Mode::tracks` (199) return exactly what the Mode's letters say.
 
 **What P1 and P2 do not have.** "No later than the escape interval" and "no earlier than the URL interval" over every event are not proven. Instants wrap every 71.6 minutes and are compared by a signed difference (`Micros::since`, `time.rs` 53); the prover gives the cast to a signed number no meaning from 2^31 up, so only one direction of the comparison is provable: `before(a, b)` implies `a.is_before(b)` (`time.rs` 60). That direction is what P1's statement on `atrial_event` uses. The other statements are checked after every event by the generated run of `crates/pm-core/tests/step_dual.rs` (`generated_runs_keep_the_compares_and_the_state_together`).
 
@@ -68,7 +69,7 @@ The board trait's methods have no contract, so these proofs hold whatever values
 
 ## The change to rsk: fixed PPI channels
 
-Proven with rsk's own provers, by rsk's verification job, which has **not run** since the change (task 3.7); each was run by itself when it was written.
+Proven with rsk's own provers, by rsk's verification job. The job ran on 2026-11-24: `cargo xtask verify` on this tree **passed: 0 violations**, all 31 steps, 95 minutes. Among them: the Kernel_Proofs (Verus; the proofs of `rsk-logic` twice, 348 verified in both), 24 Kani harnesses of `rsk-kernel` (57 minutes, the model checker at up to 25 GB), the App_Prover on every member under both pairs of solvers, the four of this experiment included (`pm-core` 127 files, `pm-hw` 49, `therapy` 60, `therapy-nrf52840` 56), the Lean project, the Profile_Conformance_Suite, the clean-checkout rebuild, rsk\x27s own rig suites on the boards (self-test, spike, response, isolation with the Hardware_Model tests, boot checks, cycle attribution, stack painting) and the step that runs this Application on QEMU. The job gave two warnings: the committed UPPAAL corpus report is of other sources than this tree\x27s, so that item is inconclusive (UPPAAL was not run, by the user\x27s standing instruction); and Verus\x27s count of executable lines (5,123) is above the Build_System\x27s (4,598), for review. 109 of rsk\x27s 386 acceptance criteria have no Evidence_Item in the store, as before.
 
 | What | Where | Prover | Mutants |
 |---|---|---|---|
@@ -82,10 +83,9 @@ The Config_Checker's recomputation of the channel table from the Task_Model (`cr
 | Property | Its evidence instead |
 |---|---|
 | P1, P2: the orderings (above) | Generated run, `crates/pm-core/tests/step_dual.rs` |
-| P5: `validate` accepts exactly the admitted sets | Exhaustive tests, `crates/pm-core/tests/validate.rs`; the proof is task 12.3 |
 | P6's value, P7's "ahead of the counter" | Register model, `crates/pm-hw/tests/model.rs` |
 | P9: at most one Marker of each kind per event | The type of `Arming` (`crates/pm-core/src/event.rs`): three optional fields |
-| P11: the Therapy_Partition's deadlines | The Analyzer's report, `rig/task_9_8_analysis/` (of the stage E1 binaries) |
-| P12: every interval and width on the pins | The rig, `rig/task_9_4_e1_runs.json` (stage E1) |
+| P11: the Therapy_Partition's deadlines | The Analyzer's report, `rig/task_9_8_analysis/`: on the stage E2 records its result is FAIL (the sense Tasks' bounds over their deadlines, task 13.1) |
+| P12: every interval, AV delay and width on the pins | The rig: `rig/task_9_4_e1_runs.json`, `rig/task_13_2_e2_runs.json`, and an hour each of VVI and DDD (`rig/task_9_4_hour_vvi90.json`, `rig/task_13_2_hour_ddd.json`) |
 
 All mutants are in `docs/proof_mutations.toml` under their ids.

@@ -35,7 +35,33 @@ use crate::diag::{Report, Rule};
 use crate::workspace::Workspace;
 
 pub const BIN: &str = "pacemaker";
-pub const SETS: &[&str] = &["vvi-90", "aai-90"];
+pub const SETS: &[&str] = &["vvi-90", "aai-90", "ddd-90", "doo-mit"];
+
+/// The sets that are not cargo features of the Application: the text of
+/// the parameter set, given to the build in `PM_SET` (feature `set-env`).
+/// `ddd-90` (task 13.1): DDD at 90 ppm, for the dual-chamber paths of the
+/// step. `doo-mit` (task 13.3): DOO at 175 ppm with the shortest AV delay
+/// (70 ms), the longest atrial and the shortest ventricular pulse: the
+/// closest two pulse ends a programmable set gives, for `MIT_PACE`.
+pub fn env_text(set: &str) -> Option<&'static str> {
+    match set {
+        "ddd-90" => Some("0=1,1=90"),
+        "doo-mit" => Some("0=4,1=175,4=70,10=1900,11=50"),
+        _ => None,
+    }
+}
+
+/// The feature that selects `set`, with `PM_SET` put in this process's
+/// environment (the builds inherit it) for a set given as text.
+fn set_feature(set: &str) -> String {
+    match env_text(set) {
+        Some(text) => {
+            std::env::set_var("PM_SET", text);
+            "set-env".to_string()
+        }
+        None => format!("set-{set}"),
+    }
+}
 /// The Operating_Duration of the declaration variant `nrf52840_measure`.
 pub const DURATION_SECS: u64 = 300;
 /// The wait beyond it before the record is read.
@@ -64,12 +90,14 @@ pub fn features(set: &str) -> String {
 }
 
 pub fn features_of(set: &str, kind: Kind) -> String {
+    // The coverage build has its own declaration variant (a larger code
+    // region for the instrumented Partition), with the same duration.
     let more = match kind {
-        Kind::Records => "",
-        Kind::Inject => ",inject",
-        Kind::Coverage => ",coverage",
+        Kind::Records => "measure",
+        Kind::Inject => "measure,inject",
+        Kind::Coverage => "coverage",
     };
-    format!("nrf52840,debug-port,quiet,trace-ram,measure{more},set-{set}")
+    format!("nrf52840,debug-port,quiet,trace-ram,{more},{}", set_feature(set))
 }
 
 /// The library crates whose functions are instantiated in the Partition

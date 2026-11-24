@@ -1,0 +1,150 @@
+{
+ "task": "9.4 / 13.2: the hour-long run (PAR-05)",
+ "name": "vvi_lrl_90_fixed",
+ "PM_SET": "0=8,1=90",
+ "heart": "fixed",
+ "binaries": {
+  "pacemaker": "sha256:e0aa8719c23dbb685c9734bc21af174eef31dbf5b9dea0e1e9da77c775ace431",
+  "heart-sim": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+ },
+ "capture": {
+  "rate_hz": 100000,
+  "seconds": 3600.0,
+  "sha256": "sha256:a165b1ece40a963cd6efd01cfa8c98a4c209a86a40ba09b939be1bdc96bdc336"
+ },
+ "judge": {
+  "mode": "VVI",
+  "paces": {
+   "atrial": 0,
+   "ventricular": 4500
+  },
+  "senses_on_the_wire": {
+   "atrial": 4500,
+   "ventricular": 4500
+  },
+  "violations": [],
+  "judged_paces": 4496,
+  "unjudged_stretches": 0,
+  "counts": {
+   "ventricular_senses_effective": 1500,
+   "ventricular_senses_in_the_vrp": 3000
+  },
+  "pulse_widths": {
+   "ventricular": {
+    "count": 4500,
+    "min_us": 400.0,
+    "max_us": 400.0
+   }
+  },
+  "errors_us": {
+   "lrl": {
+    "count": 4496,
+    "min": -6.0,
+    "max": 4.0
+   }
+  },
+  "verdict": "PASS"
+ },
+ "pm_judge": {
+  "atrial": {
+   "fusions": 0,
+   "pace_intervals": {
+    "count": 0
+   },
+   "paces": 0,
+   "pulse_widths": {
+    "count": 0
+   },
+   "senses": 4500,
+   "senses_at_the_refractory_boundary": 0,
+   "senses_effective": 0,
+   "senses_refractory": 0
+  },
+  "av_delays_measured_not_judged": {
+   "count": 4500,
+   "max_us": 160000.0,
+   "min_us": 26660.0
+  },
+  "binaries": {},
+  "capture": {
+   "file": "hour.bin",
+   "length_us": 3600000000.0,
+   "rate_hz": 100000,
+   "sha256": "sha256:a165b1ece40a963cd6efd01cfa8c98a4c209a86a40ba09b939be1bdc96bdc336"
+  },
+  "escape_interval_us": 666666.0,
+  "mode": "VVI",
+  "parameter_words": [
+   8,
+   90,
+   120,
+   120,
+   150,
+   0,
+   50,
+   0,
+   35,
+   35,
+   400,
+   400,
+   75,
+   250,
+   320,
+   250,
+   250,
+   0,
+   0,
+   0,
+   0,
+   20,
+   1,
+   40,
+   3,
+   30,
+   8,
+   5
+  ],
+  "scenario": {
+   "atrial_beats": 4500,
+   "atrial_intervals": {
+    "count": 4499,
+    "max_us": 800000.0,
+    "min_us": 799990.0
+   },
+   "checked_against_its_table": true,
+   "conduction": {
+    "count": 4500,
+    "max_us": 160000.0,
+    "min_us": 159990.0
+   },
+   "mismatches": [],
+   "name": "fixed",
+   "ventricular_beats": 4500
+  },
+  "tolerances_us": {
+   "inhibition_window": 4000.0,
+   "interval": 8000.0,
+   "pulse_width": 200.0
+  },
+  "ventricular": {
+   "fusions": 0,
+   "pace_intervals": {
+    "count": 4499,
+    "max_us": 666670.0,
+    "min_us": 666660.0
+   },
+   "paces": 4500,
+   "pulse_widths": {
+    "count": 4500,
+    "max_us": 400.0,
+    "min_us": 400.0
+   },
+   "senses": 4500,
+   "senses_at_the_refractory_boundary": 0,
+   "senses_effective": 1500,
+   "senses_refractory": 3000
+  },
+  "verdict": "PASS",
+  "violations": []
+ }
+}

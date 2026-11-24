@@ -1,18 +1,18 @@
 {
   "schema": "rsk-analysis-report/1",
-  "result": "PASS",
+  "result": "FAIL",
   "statements": [
     "This analysis assumes a single core (R27.5): it is no evidence for a multi-core configuration.",
     "Interference bounds assume the Overrun handling of R18 (R18.9): a Task of a Partition whose Overrun_Response stops overrunning Jobs is charged Budget + Δ_detect + Δ_enforce + its longest Critical_Section; other Tasks are charged their Budget.",
     "Every offset is treated as zero (synchronous release, R29.1); release jitter J_rel applies to every Task.",
-    "MEASURED Kernel_Timing_Parameters (task 19.3; measurement-based with a margin, not a guaranteed bound, R34.6): measured WCET_Records of the HIL build `pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-vvi-90)` (sha256:c2a3cc1ff0eb5b90d471af3d047a28853bc20d6a1a6c0dcd6cf048597ae84370) of the Build_Manifest, not the analysed Flight_Build; the Kernel_Timing_Parameters' binary sha256:a508f969a7239f3338e45a63209351554049bafd81399446dbd394d94e0d4614 is the HIL build `pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-aai-90)` of the Build_Manifest, not the analysed Flight_Build; delta_lock_in: 548 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16124 runs, max 438 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one lock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_lock_out: 2114 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16124 runs, max 1691 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dispatch: 3445 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16124 runs, max 2756 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_complete: 2738 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16124 runs, max 2190 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_timer: 3555 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 18500 runs, max 2844 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_irq: 2584 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 1124 runs, max 2067 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one run of the intake handler for a sporadic Task's source (TIMER3, TIMER2 or TIMER1), the Kernel's own record; no interrupt storm (R19.3 is not measured here)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); delta_stamp: 195 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 375 runs, max 156 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: from the atrial sense edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3], the stamp probe of HIL builds), to the timestamp of the intake of `sense_a`'s source that follows it: the edge counter's compare, the masking of any Kernel entry in progress, the exception entry and the handler's read of the time base. Measured on the atrial sense source only; the other two sources (TIMER2, TIMER3) have no probe and take the same handler/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); l_kernel: 4587 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 115247 runs, max 3669 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the longest hold of the run: the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler from its Rust half's beginning to its end with the unwind it runs before it returns (3669 cycles over 1 entries, closed by a timer entry; the longest single Rust half 2844; the longest run of entries back to back, each taken at an exception return and charged by the Analyzer as its own event's interference, 0 cycles) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_detect: 3555 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 18500 runs, max 2844 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_enforce: 6957 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 75 runs, max 5565 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_hm: 5848 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 75 runs, max 4678 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: one fault entry applying the Partition's fault response (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_wake: 195 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 375 runs, max 156 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the same lag over the atrial sense edges whose intake found no Job executing (the processor in the idle activity's WFI): the wake-up from sleep with the exception entry and the handler's read after it/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); j_rel: 6810 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 14999 runs, max 5448 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); delta_svc: 292 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 31128 runs, max 233 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_view: 504 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16124 runs, max 403 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_restart: 6957 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 150 runs, max 5565 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: an entry that restarted a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_entry: 2802 cycles (measured, rsk-hil release-timing record, 118 runs, max 2241 +25%, scenarios: nrf52840_cycles (2 s), conditions: the cycles a Kernel entry charges the Job it interrupts outside the charge points: log's excess over control (49 Jobs) spread over the 118 entries that interrupted log's Jobs (the cycle test, R18.1)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included).",
+    "MEASURED Kernel_Timing_Parameters (task 19.3; measurement-based with a margin, not a guaranteed bound, R34.6): measured WCET_Records of the HIL build `pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-env)` (sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6) of the Build_Manifest, not the analysed Flight_Build; the Kernel_Timing_Parameters' binary sha256:87f06192b74886b7138b8ad2b7aea63300d18a26ff7b4bc4d1d885020682902a is the HIL build `pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-env)` of the Build_Manifest, not the analysed Flight_Build; delta_lock_in: 549 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 17499 runs, max 439 +25%, scenarios: nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s), conditions: one lock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_lock_out: 2239 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16500 runs, max 1791 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dispatch: 3550 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16500 runs, max 2840 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_complete: 4005 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 16500 runs, max 3204 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_timer: 3555 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 18895 runs, max 2844 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_irq: 2819 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 1500 runs, max 2255 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: one run of the intake handler for a sporadic Task's source (TIMER3, TIMER2 or TIMER1), the Kernel's own record; no interrupt storm (R19.3 is not measured here)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); delta_stamp: 3210 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 375 runs, max 2568 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: from the atrial sense edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3], the stamp probe of HIL builds), to the timestamp of the intake of `sense_a`'s source that follows it: the edge counter's compare, the masking of any Kernel entry in progress, the exception entry and the handler's read of the time base. Measured on the atrial sense source only; the other two sources (TIMER2, TIMER3) have no probe and take the same handler/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); l_kernel: 5228 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 106266 runs, max 4182 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: the longest hold of the run: the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler from its Rust half's beginning to its end with the unwind it runs before it returns (4182 cycles over 2 entries, closed by a epilogue entry; the longest single Rust half 2844; the longest run of entries back to back, each taken at an exception return and charged by the Analyzer as its own event's interference, 0 cycles) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_detect: 3555 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 18895 runs, max 2844 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_enforce: 7107 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 75 runs, max 5685 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_hm: 5848 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 75 runs, max 4678 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: one fault entry applying the Partition's fault response (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_wake: 3210 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 375 runs, max 2568 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: the same lag over the atrial sense edges whose intake found no Job executing (the processor in the idle activity's WFI): the wake-up from sleep with the exception entry and the handler's read after it/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); j_rel: 7987 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 14999 runs, max 6389 +25%, scenarios: nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s), conditions: the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)); delta_svc: 292 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 19872 runs, max 233 +25%, scenarios: nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s), conditions: the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_view: 504 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 17499 runs, max 403 +25%, scenarios: nrf52840_measure, set doo-mit, Heart_Simulator `fixed` (300 s), conditions: one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_restart: 7107 cycles (measured, xtask pm-measure: the Kernel's release-timing and entry record, 150 runs, max 5685 +25%, scenarios: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s), conditions: an entry that restarted a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_entry: 2802 cycles (measured, rsk-hil release-timing record, 118 runs, max 2241 +25%, scenarios: nrf52840_cycles (2 s), conditions: the cycles a Kernel entry charges the Job it interrupts outside the charge points: log's excess over control (49 Jobs) spread over the 118 entries that interrupted log's Jobs (the cycle test, R18.1)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included).",
     "PLACEHOLDER TIMING DATA: 7 input value(s) carry the method `placeholder` (no measurement or analysis): delta_release, delta_fp_save, delta_fp_restore, delta_dma_write, delta_stop, delta_send, delta_recv. This report is not timing evidence."
   ],
   "inputs": {
     "task_model": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/gen-nrf52840/task_model.json (fnv1a:e388eb4405605fb8)",
-    "wcet_records": "<placeholders> + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis/wcet.json (8 item(s) taken) (fnv1a:b6bade431740636c)",
-    "kernel_timing": "<placeholders> + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis_delta_entry.json (delta_entry) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_vvi_90.json (j_rel, delta_irq, delta_stamp, delta_wake, l_kernel, delta_dispatch, delta_timer, delta_detect, delta_lock_in, delta_lock_out, delta_complete, delta_svc, delta_view) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_kernel_timing_inject_vvi_90.json (delta_hm, delta_restart, delta_enforce) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_aai_90.json (delta_irq, delta_stamp, delta_wake, l_kernel, delta_dispatch, delta_timer, delta_detect, delta_lock_in, delta_lock_out, delta_complete, delta_svc, delta_view) (fnv1a:ec97c36733e56c54)",
-    "build_manifest": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis/build-manifest.json (fnv1a:286dee05d5a14fa9)"
+    "wcet_records": "<placeholders> + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis/wcet.json (8 item(s) taken) (fnv1a:8a5cdc26358c689a)",
+    "kernel_timing": "<placeholders> + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis_delta_entry.json (delta_entry) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_vvi_90.json (j_rel, delta_irq, delta_stamp, delta_wake, l_kernel, delta_dispatch, delta_timer, delta_detect, delta_lock_in, delta_lock_out, delta_complete, delta_svc, delta_view) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_kernel_timing_inject_vvi_90.json (delta_hm, delta_restart, delta_enforce) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_aai_90.json (j_rel, delta_irq, l_kernel, delta_dispatch, delta_timer, delta_detect, delta_lock_in, delta_lock_out, delta_complete, delta_svc, delta_view) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_ddd_90.json (delta_irq, l_kernel, delta_dispatch, delta_timer, delta_detect, delta_lock_in, delta_lock_out, delta_complete, delta_svc, delta_view) + /Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_2_kernel_timing_doo_mit.json (delta_lock_in, delta_view) (fnv1a:67d3207987cf4401)",
+    "build_manifest": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/docs/pacemaker/rig/task_9_8_analysis/build-manifest.json (fnv1a:054b2b1aacd1e708)"
   },
   "analyzer": "0.0.0",
   "profile": {
@@ -28,34 +28,34 @@
       "period_cycles": 1280000,
       "deadline_cycles": 128000,
       "c_cycles": 22400,
-      "b_cycles": 13918,
-      "b_source": "therapy.control#cs:timing",
-      "o_cycles": 38544,
-      "j_cycles": 6810,
+      "b_cycles": 12460,
+      "b_source": "therapy.sense_v#cs:timing",
+      "o_cycles": 46307,
+      "j_cycles": 7987,
       "interference": [
         {
           "task": "therapy.sense_v (intake, R19.2)",
-          "e_cycles": 2584,
+          "e_cycles": 2819,
           "jobs": 1,
-          "cycles": 2584
+          "cycles": 2819
         },
         {
           "task": "therapy.sense_v (timed events, R19.2)",
-          "e_cycles": 7110,
+          "e_cycles": 10665,
           "jobs": 1,
-          "cycles": 7110
+          "cycles": 10665
         },
         {
           "task": "therapy.sense_a (intake, R19.2)",
-          "e_cycles": 2584,
+          "e_cycles": 2819,
           "jobs": 1,
-          "cycles": 2584
+          "cycles": 2819
         },
         {
           "task": "therapy.sense_a (timed events, R19.2)",
-          "e_cycles": 7110,
+          "e_cycles": 10665,
           "jobs": 1,
-          "cycles": 7110
+          "cycles": 10665
         },
         {
           "task": "therapy.control (intake, R19.2)",
@@ -70,12 +70,12 @@
           "cycles": 3555
         }
       ],
-      "r_cycles": 108170,
+      "r_cycles": 123232,
       "schedulable": true,
-      "slack_cycles": 19830,
+      "slack_cycles": 4768,
       "wcet_provenance": [
-        "therapy.pace: 18088 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 14470 +25%, branch coverage 64%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2367 cycles/branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
-        "therapy.pace#cs:timing: 6499 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 374 runs, max 5199 +25%, branch coverage 64%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/374 executions, below PAR-02's 10000/branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
+        "therapy.pace: 19853 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 750 runs, max 15882 +25%, branch coverage 73%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/750 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2367 cycles/branch coverage 73 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
+        "therapy.pace#cs:timing: 12133 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 750 runs, max 9706 +25%, branch coverage 73%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/750 executions, below PAR-02's 10000/branch coverage 73 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
       ]
     },
     {
@@ -86,28 +86,28 @@
       "period_cycles": 3200000,
       "deadline_cycles": 192000,
       "c_cycles": 22400,
-      "b_cycles": 13918,
+      "b_cycles": 11852,
       "b_source": "therapy.control#cs:timing",
-      "o_cycles": 38544,
-      "j_cycles": 6810,
+      "o_cycles": 46307,
+      "j_cycles": 7987,
       "interference": [
         {
           "task": "therapy.pace",
-          "e_cycles": 77955,
+          "e_cycles": 91502,
           "jobs": 1,
-          "cycles": 77955
+          "cycles": 91502
         },
         {
           "task": "therapy.sense_a (intake, R19.2)",
-          "e_cycles": 2584,
+          "e_cycles": 2819,
           "jobs": 1,
-          "cycles": 2584
+          "cycles": 2819
         },
         {
           "task": "therapy.sense_a (timed events, R19.2)",
-          "e_cycles": 7110,
+          "e_cycles": 10665,
           "jobs": 1,
-          "cycles": 7110
+          "cycles": 10665
         },
         {
           "task": "therapy.control (intake, R19.2)",
@@ -122,12 +122,12 @@
           "cycles": 3555
         }
       ],
-      "r_cycles": 176431,
-      "schedulable": true,
-      "slack_cycles": 15569,
+      "r_cycles": 200642,
+      "schedulable": false,
+      "slack_cycles": 0,
       "wcet_provenance": [
-        "therapy.sense_v: 18674 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 14939 +25%, branch coverage 61%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2491 cycles/branch coverage 61 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
-        "therapy.sense_v#cs:timing: 10812 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 8649 +25%, branch coverage 61%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/branch coverage 61 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
+        "therapy.sense_v: 20324 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 16259 +25%, branch coverage 72%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2491 cycles/branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
+        "therapy.sense_v#cs:timing: 12460 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 9968 +25%, branch coverage 72%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
       ]
     },
     {
@@ -138,22 +138,22 @@
       "period_cycles": 3200000,
       "deadline_cycles": 256000,
       "c_cycles": 22400,
-      "b_cycles": 13918,
+      "b_cycles": 11852,
       "b_source": "therapy.control#cs:timing",
-      "o_cycles": 38544,
-      "j_cycles": 6810,
+      "o_cycles": 46307,
+      "j_cycles": 7987,
       "interference": [
         {
           "task": "therapy.pace",
-          "e_cycles": 77955,
+          "e_cycles": 91502,
           "jobs": 1,
-          "cycles": 77955
+          "cycles": 91502
         },
         {
           "task": "therapy.sense_v",
-          "e_cycles": 82268,
+          "e_cycles": 91829,
           "jobs": 1,
-          "cycles": 82268
+          "cycles": 91829
         },
         {
           "task": "therapy.control (intake, R19.2)",
@@ -168,12 +168,12 @@
           "cycles": 3555
         }
       ],
-      "r_cycles": 249005,
-      "schedulable": true,
-      "slack_cycles": 6995,
+      "r_cycles": 278987,
+      "schedulable": false,
+      "slack_cycles": 0,
       "wcet_provenance": [
-        "therapy.sense_a: 18719 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 14975 +25%, branch coverage 61%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2499 cycles/branch coverage 61 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
-        "therapy.sense_a#cs:timing: 10855 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 8684 +25%, branch coverage 61%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/branch coverage 61 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
+        "therapy.sense_a: 18654 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 14923 +25%, branch coverage 72%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2711 cycles/branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
+        "therapy.sense_a#cs:timing: 10725 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 375 runs, max 8580 +25%, branch coverage 72%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/375 executions, below PAR-02's 10000/branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
       ]
     },
     {
@@ -184,28 +184,28 @@
       "period_cycles": 1280000,
       "deadline_cycles": 1280000,
       "c_cycles": 320000,
-      "b_cycles": 6957,
+      "b_cycles": 7107,
       "b_source": "Partition stop/restart work (R14.10)",
-      "o_cycles": 32210,
-      "j_cycles": 6810,
+      "o_cycles": 36723,
+      "j_cycles": 7987,
       "interference": [
         {
           "task": "therapy.pace",
-          "e_cycles": 77955,
+          "e_cycles": 91502,
           "jobs": 1,
-          "cycles": 77955
+          "cycles": 91502
         },
         {
           "task": "therapy.sense_v",
-          "e_cycles": 82268,
+          "e_cycles": 91829,
           "jobs": 1,
-          "cycles": 82268
+          "cycles": 91829
         },
         {
           "task": "therapy.sense_a",
-          "e_cycles": 82311,
+          "e_cycles": 90094,
           "jobs": 1,
-          "cycles": 82311
+          "cycles": 90094
         },
         {
           "task": "Kernel housekeeping (R19.2)",
@@ -214,16 +214,16 @@
           "cycles": 3555
         }
       ],
-      "r_cycles": 612066,
+      "r_cycles": 648797,
       "schedulable": true,
-      "slack_cycles": 667934,
+      "slack_cycles": 631203,
       "wcet_provenance": [
-        "therapy.control: 21938 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 15000 runs, max 17550 +25%, branch coverage 55%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 2 (timer), 5090 cycles/branch coverage 55 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
-        "therapy.control#cs:timing: 13918 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 15000 runs, max 11134 +25%, branch coverage 55%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/branch coverage 55 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
+        "therapy.control: 20118 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 15000 runs, max 16094 +25%, branch coverage 64%, conditions: the Task entry: one Job's execution from the Budget accounting (R18.1)/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none/branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))",
+        "therapy.control#cs:timing: 11852 cycles (measured, xtask pm-measure: the Kernel's Budget accounting, 15000 runs, max 9481 +25%, branch coverage 64%, conditions: the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting/HIL build (trace-ram): the instrumentation's cost is included (R34.7)/cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)/branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4))"
       ]
     }
   ],
-  "utilization_percent": 41,
+  "utilization_percent": 43,
   "cross_check": {
     "status": "not_run",
     "detail": "run the UPPAAL cross-check with --uppaal"

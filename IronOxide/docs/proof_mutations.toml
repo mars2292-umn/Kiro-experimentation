@@ -3068,3 +3068,23 @@ replace = "                let _ = earliest;\n"
 expect = ["proof failed", "vc_atrial_event"]
 package = "pm-core-proof"
 prover = "creusot"
+
+[[mutation]]
+id = "pm-validate-p5-url-row-widened"
+kills = "Property P5 on `validate` (a parameter set is returned exactly for the admitted sequences, task 12.3): with the Upper Rate Limit's row widened to 180 ppm the program admits a sequence the specification does not"
+file = "crates/pm-core/src/validate.rs"
+find = "        && stepped(w[word::URL], 50, 175, 5)\n"
+replace = "        && stepped(w[word::URL], 50, 180, 5)\n"
+expect = ["proof failed", "vc_validate"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-validate-p5-limit-dropped"
+kills = "Property P5 on `validate`, through `limits_hold`'s contract: with LRL ≤ URL no longer required in the Modes that track, the program admits a set Table 19-5 refuses"
+file = "crates/pm-core/src/validate.rs"
+find = "        w[word::LRL] <= w[word::URL]\n            && w[word::VRP] * 1_000 < url_interval\n"
+replace = "        w[word::VRP] * 1_000 < url_interval\n"
+expect = ["proof failed", "vc_limits_hold"]
+package = "pm-core-proof"
+prover = "creusot"

@@ -2,46 +2,51 @@
 
 Coverage builds (nightly-2026-09-17), each run 300 s under its records' scenario:
 
-- set vvi-90: sha256:6d63cd1dca50079585c76afc5ea07dc487dd104b5fc3e5a986bc876e2901b706; nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)
-- set aai-90: sha256:a93abaec73b9cec5b9470656b235e4c842fb95b7f62cb3996c3e6e2c71bb7303; nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)
+- set vvi-90: sha256:df8117a0b3f4cb28ad6b48f49d54a984e5aad303f3f5609284249e0bfcfb54c8; nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)
+- set aai-90: sha256:2f6452b619f7448097d8f5adbf13ebadeaf0640eb83182b4dedbb8781143b812; nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)
+- set ddd-90: sha256:8b29ca174d54792a14a6bc8b9124ab9fd9cbdd4e319b9989158d47e36ce3930f; nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)
 
 A branch outcome is taken when a run of either set took it. Threshold: 50 % (`hil-rig.toml`, R34.4).
 
 | Task entry | Branch outcomes | Taken | Percent | Of its own functions | Of the shared functions |
 |---|---|---|---|---|---|
-| `therapy.pace` | 92 | 59 | 64 | 8 of 10 | 51 of 82 |
-| `therapy.sense_v` | 88 | 54 | 61 | 3 of 6 | 51 of 82 |
-| `therapy.sense_a` | 88 | 54 | 61 | 3 of 6 | 51 of 82 |
-| `therapy.control` | 194 | 108 | 55 | 57 of 112 | 51 of 82 |
+| `therapy.pace` | 194 | 143 | 73 | 9 of 10 | 134 of 184 |
+| `therapy.sense_v` | 190 | 138 | 72 | 4 of 6 | 134 of 184 |
+| `therapy.sense_a` | 190 | 138 | 72 | 4 of 6 | 134 of 184 |
+| `therapy.control` | 314 | 203 | 64 | 69 of 130 | 134 of 184 |
 
 Branch outcomes no run took (`line:column outcome`):
 
 - `_<pacemaker_therapy::board_nrf::Board$u20$as$u20$pm_hw::Board>::configure` (apps/pacemaker/therapy/src/board_nrf.rs; control): 2 of 8: 166:15 false, 173:16 false
-- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::arm` (crates/pm-hw/src/lib.rs; shared): 8 of 12: 283:12 true, 289:15 false, 290:16 true, 307:16 false, 315:12 true, 315:12 false, 328:12 true, 328:12 false
-- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::disarm` (crates/pm-hw/src/lib.rs; shared): 4 of 4: 341:12 true, 341:12 false, 344:12 true, 344:12 false
-- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::fired` (crates/pm-hw/src/lib.rs; shared): 3 of 12: 372:35 true, 375:27 false, 382:20 false
-- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::refresh` (crates/pm-hw/src/lib.rs; shared): 1 of 4: 355:36 false
-- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::sensed` (crates/pm-hw/src/lib.rs; shared): 2 of 8: 399:15 false, 413:12 true
-- `pacemaker_therapy::Timing::init` (apps/pacemaker/therapy/src/lib.rs; control): 2 of 4: 273:12 true, 278:20 false
-- `pacemaker_therapy::Timing::on_control` (apps/pacemaker/therapy/src/lib.rs; control): 1 of 4: 295:12 true
-- `pacemaker_therapy::Timing::on_pace` (apps/pacemaker/therapy/src/lib.rs; pace): 2 of 10: 241:49 true, 242:24 true
-- `pacemaker_therapy::Timing::on_sense` (apps/pacemaker/therapy/src/lib.rs; sense_v, sense_a): 3 of 6: 257:12 true, 257:25 true, 261:16 false
-- `pacemaker_therapy::event` (apps/pacemaker/therapy/src/lib.rs; shared): 1 of 6: 209:24 true
+- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::arm` (crates/pm-hw/src/lib.rs; shared): 4 of 8: 309:12 true, 318:15 false, 356:12 true, 356:12 false
+- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::disarm` (crates/pm-hw/src/lib.rs; shared): 1 of 2: 369:12 true
+- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::fired` (crates/pm-hw/src/lib.rs; shared): 3 of 12: 403:35 true, 406:27 false, 413:20 false
+- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::refresh` (crates/pm-hw/src/lib.rs; shared): 1 of 4: 384:36 false
+- `_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::sensed` (crates/pm-hw/src/lib.rs; shared): 2 of 8: 432:15 false, 446:12 true
+- `pacemaker_therapy::Timing::init` (apps/pacemaker/therapy/src/lib.rs; control): 2 of 4: 279:12 true, 284:20 false
+- `pacemaker_therapy::Timing::on_control` (apps/pacemaker/therapy/src/lib.rs; control): 1 of 4: 301:12 true
+- `pacemaker_therapy::Timing::on_pace` (apps/pacemaker/therapy/src/lib.rs; pace): 1 of 10: 248:24 true
+- `pacemaker_therapy::Timing::on_sense` (apps/pacemaker/therapy/src/lib.rs; sense_v, sense_a): 2 of 6: 263:25 true, 267:16 false
 - `pacemaker_therapy::sets::from_text` (apps/pacemaker/therapy/src/sets.rs; not counted: evaluated by the compiler only): 24 of 24: 52:18 true, 52:18 false, 52:33 true, 52:33 false, 54:12 true, 54:12 false, 54:25 true, 54:25 false, 58:16 true, 58:16 false, 59:20 true, 59:20 false, 62:23 true, 62:23 false, 65:19 true, 65:19 false, 68:12 true, 68:12 false, 68:25 true, 68:25 false, 69:16 true, 69:16 false, 69:28 true, 69:28 false
-- `pm_core::state::State::params` (crates/pm-core/src/state.rs; shared): 1 of 2: 201:35 false
-- `pm_core::step::account` (crates/pm-core/src/step.rs; shared): 1 of 4: 56:25 true
-- `pm_core::step::apply_pace` (crates/pm-core/src/step.rs; shared): 1 of 2: 47:21 false
-- `pm_core::step::arm_from` (crates/pm-core/src/step.rs; shared): 1 of 2: 94:8 false
-- `pm_core::step::step` (crates/pm-core/src/step.rs; shared): 7 of 16: 134:28 true, 134:47 false, 138:16 false, 138:35 true, 138:35 false, 153:16 false, 162:16 false
-- `pm_core::step::tick` (crates/pm-core/src/step.rs; shared): 1 of 6: 111:15 true
-- `pm_core::validate::delivered_in_e1` (crates/pm-core/src/validate.rs; control): 1 of 2: 170:5 false
-- `pm_core::validate::is_amplitude` (crates/pm-core/src/validate.rs; control): 2 of 4: 116:5 true, 116:20 true
-- `pm_core::validate::is_atr_duration` (crates/pm-core/src/validate.rs; control): 2 of 4: 137:5 true, 137:17 false
-- `pm_core::validate::is_lrl` (crates/pm-core/src/validate.rs; control): 2 of 4: 109:5 true, 109:32 false
-- `pm_core::validate::is_rate_smoothing` (crates/pm-core/src/validate.rs; control): 3 of 4: 144:5 false, 144:21 true, 144:21 false
-- `pm_core::validate::is_sensitivity` (crates/pm-core/src/validate.rs; control): 2 of 6: 130:5 true, 130:25 true
-- `pm_core::validate::is_width` (crates/pm-core/src/validate.rs; control): 1 of 2: 123:5 true
-- `pm_core::validate::stepped` (crates/pm-core/src/validate.rs; control): 1 of 4: 102:5 false
-- `pm_core::validate::validate` (crates/pm-core/src/validate.rs; control): 36 of 66: 183:8 true, 187:18 false, 188:12 false, 189:12 false, 190:12 false, 191:12 false, 192:12 false, 193:13 false, 193:47 true, 193:47 false, 194:12 false, 195:12 false, 196:12 false, 197:12 false, 198:12 false, 199:12 false, 200:12 false, 201:12 false, 202:12 false, 203:13 false, 203:46 true, 203:46 false, 204:13 false, 204:34 true, 204:34 false, 205:12 false, 206:12 false, 207:12 false, 208:12 false, 209:12 false, 210:12 false, 211:12 false, 213:8 true, 219:8 true, 219:34 true, 219:55 true
+- `pm_core::state::State::params` (crates/pm-core/src/state.rs; shared): 1 of 2: 202:35 false
+- `pm_core::step::atrial_event` (crates/pm-core/src/step.rs; shared): 4 of 20: 244:21 false, 248:12 false, 252:20 true, 262:25 false
+- `pm_core::step::blanked` (crates/pm-core/src/step.rs; shared): 1 of 2: 442:32 true
+- `pm_core::step::coupled` (crates/pm-core/src/step.rs; shared): 4 of 4: 163:5 true, 163:5 false, 163:30 true, 163:30 false
+- `pm_core::step::is_pvc` (crates/pm-core/src/step.rs; shared): 1 of 6: 171:5 false
+- `pm_core::step::paced_av` (crates/pm-core/src/step.rs; shared): 13 of 14: 118:8 false, 118:25 true, 118:25 false, 118:45 true, 118:45 false, 118:64 true, 118:64 false, 123:21 true, 123:21 false, 124:8 true, 124:8 false, 126:15 true, 126:15 false
+- `pm_core::step::sense` (crates/pm-core/src/step.rs; shared): 3 of 10: 470:8 true, 482:37 true, 482:37 false
+- `pm_core::step::step` (crates/pm-core/src/step.rs; shared): 5 of 16: 558:23 false, 558:40 true, 558:61 true, 558:61 false, 576:67 false
+- `pm_core::step::tick` (crates/pm-core/src/step.rs; shared): 1 of 12: 413:12 false
+- `pm_core::step::ventricular_event` (crates/pm-core/src/step.rs; shared): 5 of 16: 197:21 false, 199:8 false, 202:29 false, 202:48 true, 205:24 true
+- `pm_core::time::Micros::elapsed_since` (crates/pm-core/src/time.rs; shared): 1 of 2: 100:12 false
+- `pm_core::validate::is_amplitude` (crates/pm-core/src/validate.rs; control): 2 of 4: 237:5 true, 237:20 true
+- `pm_core::validate::is_atr_duration` (crates/pm-core/src/validate.rs; control): 2 of 4: 261:5 true, 261:17 false
+- `pm_core::validate::is_lrl` (crates/pm-core/src/validate.rs; control): 2 of 4: 229:5 true, 229:32 false
+- `pm_core::validate::is_rate_smoothing` (crates/pm-core/src/validate.rs; control): 3 of 4: 269:5 false, 269:21 true, 269:21 false
+- `pm_core::validate::is_sensitivity` (crates/pm-core/src/validate.rs; control): 2 of 6: 253:5 true, 253:25 true
+- `pm_core::validate::is_width` (crates/pm-core/src/validate.rs; control): 1 of 2: 245:5 true
+- `pm_core::validate::limits_hold` (crates/pm-core/src/validate.rs; control): 5 of 14: 330:9 false, 331:16 false, 332:16 false, 333:17 false, 338:5 false
+- `pm_core::validate::stepped` (crates/pm-core/src/validate.rs; control): 1 of 4: 221:5 false
+- `pm_core::validate::validate` (crates/pm-core/src/validate.rs; control): 38 of 72: 356:8 true, 360:18 false, 361:12 false, 362:12 false, 363:12 false, 364:12 false, 365:12 false, 366:13 false, 366:47 true, 366:47 false, 367:12 false, 368:12 false, 369:12 false, 370:12 false, 371:12 false, 372:12 false, 373:12 false, 374:12 false, 375:12 false, 376:13 false, 376:46 true, 376:46 false, 377:13 false, 377:34 true, 377:34 false, 378:12 false, 379:12 false, 380:12 false, 381:12 false, 382:12 false, 383:12 false, 384:12 false, 386:8 true, 392:8 true, 399:8 true, 399:34 true, 399:55 true, 399:105 true
 
 Verdict: **pass**

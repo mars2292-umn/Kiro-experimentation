@@ -1,0 +1,49 @@
+{
+ "task": "9.4 / 13.2: the hour-long run (PAR-05)",
+ "name": "ddd_fixed",
+ "PM_SET": "0=1,1=60",
+ "heart": "fixed",
+ "binaries": {
+  "pacemaker": "sha256:6debf7783d35cf4f3378e9ae319a32265e3b3c4247424a3cb2fe8077af777d0d",
+  "heart-sim": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+ },
+ "capture": {
+  "rate_hz": 100000,
+  "seconds": 3600.0,
+  "sha256": "sha256:f671614db3e701e1a72bf9575203a1693aedbb86de8cb691b8274ac11b863901"
+ },
+ "judge": {
+  "mode": "DDD",
+  "paces": {
+   "atrial": 0,
+   "ventricular": 4500
+  },
+  "senses_on_the_wire": {
+   "atrial": 4500,
+   "ventricular": 4500
+  },
+  "violations": [],
+  "judged_paces": 4496,
+  "unjudged_stretches": 0,
+  "counts": {
+   "atrial_senses_effective": 4500,
+   "tracked": 4500,
+   "ventricular_senses_in_the_vrp": 4500
+  },
+  "pulse_widths": {
+   "ventricular": {
+    "count": 4500,
+    "min_us": 400.0,
+    "max_us": 400.0
+   }
+  },
+  "errors_us": {
+   "sensed_av": {
+    "count": 4496,
+    "min": -10.0,
+    "max": 0.0
+   }
+  },
+  "verdict": "PASS"
+ }
+}

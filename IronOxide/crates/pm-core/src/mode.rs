@@ -106,6 +106,18 @@ pub const fn mode(paces: Chambers, senses: Chambers, response: Response, adaptiv
     Mode { paces, senses, response, adaptive }
 }
 
+/// For the App_Prover: the Mode tracks (what [`Mode::tracks`] returns).
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn tracks_spec(m: Mode) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! {
+        (m.paces == Chambers::V || m.paces == Chambers::Both)
+            && (m.senses == Chambers::A || m.senses == Chambers::Both)
+            && m.response == Response::Tracked
+    }
+}
+
 impl Mode {
     /// Off, which is OOO: no pacing, no sensing.
     pub const OFF: Mode = mode(Chambers::None, Chambers::None, Response::None, false);
@@ -168,6 +180,7 @@ impl Mode {
     /// Whether the Mode senses `c` (PM5.7).
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == (self.senses == Chambers::Both || (self.senses == Chambers::A && c == Chamber::A) || (self.senses == Chambers::V && c == Chamber::V))))]
     pub const fn senses(self, c: Chamber) -> bool {
         self.senses.has(c)
     }
@@ -182,6 +195,7 @@ impl Mode {
     /// parameters.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == tracks_spec(self)))]
     pub const fn tracks(self) -> bool {
         self.paces(Chamber::V) && self.senses(Chamber::A) && matches!(self.response, Response::Tracked)
     }
@@ -190,6 +204,7 @@ impl Mode {
     /// and DDDR, the tracking Modes that also pace the atrium.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == (tracks_spec(self) && self.paces == Chambers::Both)))]
     pub const fn uses_sensed_av_offset(self) -> bool {
         self.tracks() && self.paces(Chamber::A)
     }

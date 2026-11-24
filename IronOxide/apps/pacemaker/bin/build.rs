@@ -10,6 +10,8 @@ fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
     let gen = if std::env::var_os("CARGO_FEATURE_SWEEP").is_some() {
         "gen-nrf52840_sweep"
+    } else if std::env::var_os("CARGO_FEATURE_COVERAGE").is_some() {
+        "gen-nrf52840_coverage"
     } else if std::env::var_os("CARGO_FEATURE_MEASURE").is_some() {
         "gen-nrf52840_measure"
     } else if std::env::var_os("CARGO_FEATURE_RIG").is_some() {

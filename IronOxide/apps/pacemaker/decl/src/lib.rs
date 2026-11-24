@@ -31,7 +31,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
-#[cfg(all(feature = "nrf52840", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig"))))]
+#[cfg(all(feature = "nrf52840", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig", feature = "nrf52840_coverage"))))]
 mod nrf52840;
 #[cfg(feature = "nrf52840_sweep")]
 mod nrf52840_sweep;
@@ -39,6 +39,8 @@ mod nrf52840_sweep;
 mod nrf52840_measure;
 #[cfg(all(feature = "nrf52840_rig", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure"))))]
 mod nrf52840_rig;
+#[cfg(all(feature = "nrf52840_coverage", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig"))))]
+mod nrf52840_coverage;
 
 #[cfg(not(feature = "nrf52840"))]
 rsk::app! {
