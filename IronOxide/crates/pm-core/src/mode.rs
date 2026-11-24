@@ -21,6 +21,7 @@ impl Chamber {
     #[inline(always)]
     #[must_use]
     #[cfg_attr(creusot, creusot_std::macros::ensures(result@ < 2))]
+    #[cfg_attr(creusot, creusot_std::macros::ensures((self == Chamber::A ==> result@ == 0) && (self == Chamber::V ==> result@ == 1)))]
     pub const fn index(self) -> usize {
         match self {
             Chamber::A => 0,
@@ -59,6 +60,7 @@ impl Chambers {
     /// Whether the set contains `c`.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == (self == Chambers::Both || (self == Chambers::A && c == Chamber::A) || (self == Chambers::V && c == Chamber::V))))]
     pub const fn has(self, c: Chamber) -> bool {
         matches!((self, c), (Chambers::Both, _) | (Chambers::A, Chamber::A) | (Chambers::V, Chamber::V))
     }
@@ -158,6 +160,7 @@ impl Mode {
     /// Whether the Mode paces `c` (PM5.7).
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == (self.paces == Chambers::Both || (self.paces == Chambers::A && c == Chamber::A) || (self.paces == Chambers::V && c == Chamber::V))))]
     pub const fn paces(self, c: Chamber) -> bool {
         self.paces.has(c)
     }
@@ -172,6 +175,25 @@ impl Mode {
     /// The Chamber whose events start the escape interval: the ventricle in
     /// every Mode that paces or senses it, the atrium in the atrial Modes
     /// (PM9.2, PM9.3; design PD-06).
+    /// Whether the Mode tracks atrial Senses with ventricular Paces: VDD
+    /// and DDD and their rate-adaptive forms. These are the Modes Table
+    /// 19-3, as amended by Table 19-4, gives the Upper Rate Limit as a limit
+    /// of pacing, the Dynamic AV Delay, PVARP Extension and the ATR
+    /// parameters.
+    #[inline(always)]
+    #[must_use]
+    pub const fn tracks(self) -> bool {
+        self.paces(Chamber::V) && self.senses(Chamber::A) && matches!(self.response, Response::Tracked)
+    }
+
+    /// Whether the Mode uses the Sensed AV Delay Offset (Table 19-3): DDD
+    /// and DDDR, the tracking Modes that also pace the atrium.
+    #[inline(always)]
+    #[must_use]
+    pub const fn uses_sensed_av_offset(self) -> bool {
+        self.tracks() && self.paces(Chamber::A)
+    }
+
     #[inline(always)]
     #[must_use]
     pub const fn timing_chamber(self) -> Chamber {

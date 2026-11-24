@@ -303,3 +303,49 @@ fn a_ventricular_sense_just_after_an_atrial_pace_is_discarded() {
     let (s, _) = step(&p, &s, sense(A, 600_000));
     assert!(!s.chamber[1].blanked);
 }
+
+/// The allocation of Table 19-3 where the step reads a parameter (PM5.8):
+/// the Dynamic AV Delay and PVARP Extension in the Modes that track (VDD,
+/// DDD), the Sensed AV Delay Offset in DDD alone. Elsewhere a set that has
+/// them programmed behaves as if it had not.
+#[test]
+fn a_parameter_is_read_only_in_the_modes_the_table_gives_it_to() {
+    let all = |mode| Params { dynamic_av: true, sensed_av_offset: 30_000, pvarp_extension: 100_000, url: interval_of_ppm(175), ..params(mode) };
+
+    // DDI: the delay stays fixed after a short cycle, and a PVC is marked
+    // and extends nothing.
+    let p = all(Mode::DDI);
+    let s = started(&p);
+    let (s, a) = step(&p, &s, sense(V, 1_600_000));
+    assert_eq!((a.atrial, a.ventricular), (at(2_450_000), at(2_600_000)));
+    assert_eq!(a.markers.augmentation, pvc(1_600_000));
+    assert!(!s.pvarp_extended);
+    // DOO: the delay stays fixed (nothing is sensed; two paced cycles).
+    let p = all(Mode::DOO);
+    let s = started(&p);
+    let (s, _) = step(&p, &s, paced(A, 1_850_000));
+    let (_, a) = step(&p, &s, paced(V, 2_000_000));
+    assert_eq!((a.atrial, a.ventricular), (at(2_850_000), at(3_000_000)));
+
+    // VDD: dynamic and extended, without the offset. Cycle 600,000: the
+    // delay is 90,000; the PVC's PVARP runs to 1,950,000.
+    let p = all(Mode::VDD);
+    let (s, _) = step(&p, &State::POWER_ON_RESET, tick(0));
+    let (s, _) = step(&p, &s, paced(V, 1_000_000));
+    let (s, a) = step(&p, &s, sense(V, 1_600_000));
+    assert_eq!(a.ventricular, at(2_600_000));
+    assert!(s.pvarp_extended);
+    let (t, a) = step(&p, &s, sense(A, 1_900_000));
+    assert_eq!(a.markers.atrial, refractory(1_900_000));
+    assert_eq!(t, s);
+    let (_, a) = step(&p, &s, sense(A, 2_000_000));
+    assert_eq!(a.ventricular, at(2_090_000), "the paced delay: VDD has no offset");
+
+    // DDD: all three (the offset is in `the_offset_shortens_the_dynamic_delay`).
+    let p = all(Mode::DDD);
+    let s = started(&p);
+    let (s, _) = step(&p, &s, sense(V, 1_600_000));
+    assert!(s.pvarp_extended);
+    let (_, a) = step(&p, &s, sense(A, 2_000_000));
+    assert_eq!(a.ventricular, at(2_060_000));
+}

@@ -3014,3 +3014,57 @@ expect = ["VERIFICATION:- FAILED", "sim::read(0x4001_F910"]
 package = "rsk-kernel"
 prover = "kani"
 harness = "ppi_write_sets_exactly_the_declared_channels"
+
+# The PACEMAKER experiment's contracts on pm-core's step (docs/pacemaker
+# tasks 12.1 and 12.2, 2026-11-23): one mutation per contract, each
+# rejected by the App_Prover on the member `pm-core-proof`.
+
+[[mutation]]
+id = "pm-step-p4-therapy-state-changed"
+kills = "the step's Property P4 (the therapy State is the one given), carried by ventricular_event's contract: an event that changes the State is rejected"
+file = "crates/pm-core/src/step.rs"
+find = "    ch.blanked = false;\n    ch.pending = if p.mode.paces(Chamber::V)"
+replace = "    ch.blanked = false;\n    st.therapy = crate::state::Therapy::Magnet;\n    let ch = &mut st.chamber[Chamber::V.index()];\n    ch.pending = if p.mode.paces(Chamber::V)"
+expect = ["proof failed", "vc_ventricular_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p8-pvarp-extended-twice"
+kills = "the step's Property P8 (the PVARP is not extended in two successive cycles): with the test of the cycle before dropped, ventricular_event no longer keeps it"
+file = "crates/pm-core/src/step.rs"
+find = "        let extend = pvc && p.mode.tracks() && p.pvarp_extension != 0 && !st.pvarp_extended;\n"
+replace = "        let extend = pvc && p.mode.tracks() && p.pvarp_extension != 0;\n"
+expect = ["proof failed", "vc_ventricular_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p3-refractory-sense-withdraws"
+kills = "Property P3 on `sense` (a Sense marked refractory arms and withdraws nothing): a withdrawal beside the Refractory-sense Marker is rejected"
+file = "crates/pm-core/src/step.rs"
+find = "        set_marker(&mut out, chamber, Marker::Sense { refractory: true }, at);\n        return (st, out);\n"
+replace = "        set_marker(&mut out, chamber, Marker::Sense { refractory: true }, at);\n        out.ventricular = Pace::Withdraw;\n        return (st, out);\n"
+expect = ["proof failed", "vc_sense"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p2-ventricular-pace-not-pending"
+kills = "Property P2's invariant on the ventricle (after a ventricular event a Pace is pending at the event plus the escape interval): with no Pace left pending the contract of ventricular_event fails"
+file = "crates/pm-core/src/step.rs"
+find = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };\n"
+replace = "    ch.pending = Pending::NONE;\n"
+expect = ["proof failed", "vc_ventricular_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p1-url-floor-dropped"
+kills = "Property P1 on the atrial path (the ventricular Pace an atrial event leaves pending is the one that was pending or is not before the last ventricular event plus the URL interval): without the delay to the URL the contract of atrial_event fails"
+file = "crates/pm-core/src/step.rs"
+find = "                if end.is_before(earliest) {\n                    end = earliest;\n                }\n"
+replace = "                let _ = earliest;\n"
+expect = ["proof failed", "vc_atrial_event"]
+package = "pm-core-proof"
+prover = "creusot"

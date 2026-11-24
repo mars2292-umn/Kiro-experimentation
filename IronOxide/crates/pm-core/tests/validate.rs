@@ -93,13 +93,16 @@ fn the_rows_have_the_source_s_counts() {
     assert_eq!(count(word::ATR_DURATION), 1 + 4 + 20);
 }
 
+/// Stage E2 (task 11.6): the eleven fixed-rate Modes and no other. Until
+/// then this test named the five Modes of stage E1.
 #[test]
-fn the_modes_of_stage_e1_and_no_other() {
+fn the_modes_of_stage_e2_and_no_other() {
+    let fixed_rate = [Mode::OFF, Mode::DDD, Mode::VDD, Mode::DDI, Mode::DOO, Mode::AOO, Mode::AAI, Mode::VOO, Mode::VVI, Mode::AAT, Mode::VVT];
     for code in 0..40 {
         let mut w = base();
         w[word::MODE] = code;
         let expected = match Mode::PROGRAMMABLE.get(code as usize) {
-            Some(m) => [Mode::OFF, Mode::AOO, Mode::VOO, Mode::AAI, Mode::VVI].contains(m),
+            Some(m) => fixed_rate.contains(m),
             None => false,
         };
         assert_eq!(validate(&w).is_some(), expected, "mode code {code}");
@@ -221,4 +224,178 @@ fn each_word_reaches_its_field() {
         reserved: [0; 3],
     };
     assert_eq!(p, expected);
+}
+
+// Stage E2 (task 11.6): the interactive limits of Table 19-5, each
+// exhaustively over the values of the parameters it names and over every
+// fixed-rate Mode, against the limit written out here from the table and
+// from Table 19-3 as amended by Table 19-4, independently of `validate`.
+
+/// The fixed-rate Modes by code, with the two properties the limits turn
+/// on: whether the Mode tracks (VDD, DDD) and whether it is DDD.
+fn fixed_rate_modes() -> Vec<(u32, bool, bool)> {
+    (0..11u32)
+        .map(|code| {
+            let m = Mode::PROGRAMMABLE[code as usize];
+            (code, m == Mode::VDD || m == Mode::DDD, m == Mode::DDD)
+        })
+        .collect()
+}
+
+fn values(i: usize) -> Vec<u32> {
+    table().into_iter().find(|(j, _)| *j == i).unwrap().1
+}
+
+/// A set in which no limit binds but the one under test: the lowest LRL
+/// with the lowest URL (an interval of 1,200 ms), the shortest refractory
+/// periods and AV delay.
+fn loose(code: u32) -> [u32; WORDS] {
+    let mut w = NOMINAL_WORDS;
+    w[word::MODE] = code;
+    w[word::LRL] = 30;
+    w[word::URL] = 50;
+    w[word::VRP] = 150;
+    w[word::PVARP] = 150;
+    w[word::FIXED_AV] = 70;
+    w[word::MIN_DYNAMIC_AV] = 30;
+    w
+}
+
+#[test]
+fn every_loose_set_is_accepted_in_every_fixed_rate_mode() {
+    for (code, _, _) in fixed_rate_modes() {
+        assert!(validate(&loose(code)).is_some(), "mode code {code}");
+    }
+}
+
+/// LRL ≤ URL, in the Modes that track.
+#[test]
+fn limit_lrl_not_above_url() {
+    let mut cases = 0;
+    for (code, tracks, _) in fixed_rate_modes() {
+        for lrl in values(word::LRL) {
+            for url in values(word::URL) {
+                let mut w = loose(code);
+                w[word::LRL] = lrl;
+                w[word::URL] = url;
+                assert_eq!(validate(&w).is_some(), !tracks || lrl <= url, "mode {code} LRL {lrl} URL {url}");
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 11 * 62 * 26);
+}
+
+/// VRP < URL interval, in the Modes that track.
+#[test]
+fn limit_vrp_below_the_url_interval() {
+    for (code, tracks, _) in fixed_rate_modes() {
+        for vrp in values(word::VRP) {
+            for url in values(word::URL) {
+                let mut w = loose(code);
+                w[word::VRP] = vrp;
+                w[word::URL] = url;
+                // The URL interval in µs, rounded down as the PG keeps it.
+                let holds = vrp * 1_000 < 60_000_000 / url;
+                assert_eq!(validate(&w).is_some(), !tracks || holds, "mode {code} VRP {vrp} URL {url}");
+            }
+        }
+    }
+}
+
+/// PVARP + Fixed AV Delay ≤ URL interval, in the Modes that track.
+#[test]
+fn limit_pvarp_and_av_delay_within_the_url_interval() {
+    let (mut refused, mut accepted) = (0, 0);
+    for (code, tracks, _) in fixed_rate_modes() {
+        for pvarp in values(word::PVARP) {
+            for av in values(word::FIXED_AV) {
+                for url in values(word::URL) {
+                    let mut w = loose(code);
+                    w[word::PVARP] = pvarp;
+                    w[word::FIXED_AV] = av;
+                    w[word::URL] = url;
+                    let holds = (pvarp + av) * 1_000 <= 60_000_000 / url;
+                    let expected = !tracks || holds;
+                    assert_eq!(validate(&w).is_some(), expected, "mode {code} PVARP {pvarp} AV {av} URL {url}");
+                    if expected { accepted += 1 } else { refused += 1 }
+                }
+            }
+        }
+    }
+    assert!(refused > 1_000 && accepted > 1_000);
+}
+
+/// Minimum Dynamic AV Delay ≤ Fixed AV Delay, in the Modes that track,
+/// where the Dynamic AV Delay is On.
+#[test]
+fn limit_minimum_dynamic_av_delay_not_above_the_fixed() {
+    for (code, tracks, _) in fixed_rate_modes() {
+        for min in values(word::MIN_DYNAMIC_AV) {
+            for av in values(word::FIXED_AV) {
+                for dynamic in [0, 1] {
+                    let mut w = loose(code);
+                    w[word::MIN_DYNAMIC_AV] = min;
+                    w[word::FIXED_AV] = av;
+                    w[word::DYNAMIC_AV] = dynamic;
+                    let binds = tracks && dynamic == 1;
+                    assert_eq!(validate(&w).is_some(), !binds || min <= av, "mode {code} minimum {min} AV {av} dynamic {dynamic}");
+                }
+            }
+        }
+    }
+}
+
+/// Fixed AV Delay less the Sensed AV Delay Offset ≥ 30 ms, in DDD.
+#[test]
+fn limit_shortened_av_delay_not_below_30_ms() {
+    for (code, _, ddd) in fixed_rate_modes() {
+        for av in values(word::FIXED_AV) {
+            for offset in values(word::SENSED_AV_OFFSET) {
+                let mut w = loose(code);
+                w[word::FIXED_AV] = av;
+                w[word::SENSED_AV_OFFSET] = offset;
+                assert_eq!(validate(&w).is_some(), !ddd || av >= offset + 30, "mode {code} AV {av} offset {offset}");
+            }
+        }
+    }
+}
+
+/// The Atrial Tachycardia Response is refused in the Modes that would use
+/// it (stage E4) and is not looked at elsewhere, as in stage E1; hysteresis
+/// and rate smoothing are refused in every Mode until their stage.
+#[test]
+fn atr_hysteresis_and_smoothing_until_their_stage() {
+    for (code, tracks, _) in fixed_rate_modes() {
+        let mut w = loose(code);
+        w[word::ATR] = 1;
+        assert_eq!(validate(&w).is_some(), !tracks, "mode {code}");
+        for (i, v) in [(word::HRL, 30), (word::RATE_SMOOTHING, 12)] {
+            let mut w = loose(code);
+            w[i] = v;
+            assert_eq!(validate(&w), None, "mode {code} word {i}");
+        }
+    }
+}
+
+/// Property P5 per parameter in DDD, where every limit binds: with every
+/// other word at the loose set's value, a word is accepted exactly at the
+/// values of its row that keep the limits.
+#[test]
+fn each_word_in_ddd_is_accepted_exactly_at_its_table_values_within_the_limits() {
+    for (i, row) in table() {
+        for v in (0..=2_200).chain([u32::MAX]) {
+            let mut w = loose(1);
+            assert_eq!(Mode::PROGRAMMABLE[1], Mode::DDD);
+            w[i] = v;
+            let in_row = row.contains(&v);
+            let limits = w[word::LRL] <= w[word::URL]
+                && w[word::VRP].saturating_mul(1_000) < 60_000_000 / w[word::URL].max(1)
+                && (w[word::PVARP].saturating_add(w[word::FIXED_AV])).saturating_mul(1_000) <= 60_000_000 / w[word::URL].max(1)
+                && (w[word::DYNAMIC_AV] != 1 || w[word::MIN_DYNAMIC_AV] <= w[word::FIXED_AV])
+                && w[word::FIXED_AV] >= w[word::SENSED_AV_OFFSET].saturating_add(30);
+            let stage = w[word::HRL] == 0 && w[word::RATE_SMOOTHING] == 0 && w[word::ATR] == 0;
+            assert_eq!(validate(&w).is_some(), in_row && limits && stage, "word {i} value {v}");
+        }
+    }
 }

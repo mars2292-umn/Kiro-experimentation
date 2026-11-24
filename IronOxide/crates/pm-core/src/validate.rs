@@ -87,8 +87,8 @@ pub mod word {
     pub const RECOVERY_TIME: usize = 27;
 }
 
-/// The nominal set of Table 19-1 as words. It names DDD, which stage E1
-/// refuses; `Params::NOMINAL` is the same set as a value.
+/// The nominal set of Table 19-1 as words (the Mode is DDD);
+/// `Params::NOMINAL` is the same set as a value.
 pub const NOMINAL_WORDS: [u32; WORDS] = [
     1, 60, 120, 120, 150, 0, 50, 0, 35, 35, 400, 400, 75, 250, 320, 250, 250, 0, 0, 0, 0, 20, 1, 40, 3, 30, 8, 5,
 ];
@@ -170,8 +170,49 @@ pub const fn delivered_in_e1(m: Mode) -> bool {
     single && matches!(m.response, Response::None | Response::Inhibited) && !m.adaptive
 }
 
+/// Whether stage E2 delivers `m`: every programmable Mode at a fixed rate.
+/// The rate-adaptive Modes are stage E4.
+#[inline(always)]
+#[must_use]
+pub const fn delivered_in_e2(m: Mode) -> bool {
+    !m.adaptive
+}
+
+/// The interactive limits of Table 19-5 on the words `w`, each of which is
+/// a value of its row of Table 19-1, for the Mode `m`. A limit binds where
+/// the Mode uses every parameter it names (Table 19-3 as amended by Table
+/// 19-4):
+///
+/// - LRL ≤ URL; VRP < URL interval; PVARP + Fixed AV Delay ≤ URL interval;
+///   and, where the Dynamic AV Delay is On, Minimum Dynamic AV Delay ≤
+///   Fixed AV Delay: in the Modes that track (VDD, DDD), the only ones for
+///   which the Upper Rate Limit limits pacing and the delay can be dynamic;
+/// - Fixed AV Delay less the Sensed AV Delay Offset ≥ 30 ms: in DDD, the
+///   only fixed-rate Mode that uses the offset.
+///
+/// LRL ≤ MSR and HRL ≤ LRL belong to features of stage E4, which this
+/// stage refuses whole. ARP < URL interval binds nowhere: no Mode uses both
+/// the ARP (AAT, AAI) and the Upper Rate Limit (the tracking Modes).
+#[inline(always)]
+#[cfg_attr(creusot, creusot_std::macros::requires(50 <= w[word::URL]@ && w[word::URL]@ <= 175))]
+#[cfg_attr(creusot, creusot_std::macros::requires(w[word::VRP]@ <= 500 && w[word::PVARP]@ <= 500 && w[word::FIXED_AV]@ <= 300 && w[word::SENSED_AV_OFFSET]@ <= 100))]
+const fn limits_hold(m: Mode, w: &[u32; WORDS]) -> bool {
+    let tracking = if m.tracks() {
+        let url_interval = interval_of_ppm(w[word::URL]);
+        w[word::LRL] <= w[word::URL]
+            && w[word::VRP] * 1_000 < url_interval
+            && (w[word::PVARP] + w[word::FIXED_AV]) * 1_000 <= url_interval
+            && (w[word::DYNAMIC_AV] != 1 || w[word::MIN_DYNAMIC_AV] <= w[word::FIXED_AV])
+    } else {
+        true
+    };
+    let offset = !m.uses_sensed_av_offset() || w[word::FIXED_AV] >= w[word::SENSED_AV_OFFSET] + 30;
+    tracking && offset
+}
+
 /// The parameter set `words` describe, or `None` if the sequence is not
-/// exactly [`WORDS`] long, a word is not a value of Table 19-1, or the set
+/// exactly [`WORDS`] long, a word is not a value of Table 19-1, the set
+/// breaks an interactive limit of Table 19-5 ([`limits_hold`]), or the set
 /// is not one this stage delivers. A rate becomes its interval, rounded
 /// down, so that the rate delivered is not below the programmed one.
 #[inline(always)]
@@ -215,8 +256,15 @@ pub fn validate(words: &[u32]) -> Option<Params> {
     }
     let activity_threshold = activity_threshold(w[word::ACTIVITY_THRESHOLD])?;
 
-    // What this stage delivers.
-    if !delivered_in_e1(mode) || w[word::HRL] != 0 || w[word::RATE_SMOOTHING] != 0 {
+    // Table 19-5, for the parameters the Mode uses (PM19.3).
+    if !limits_hold(mode, w) {
+        return None;
+    }
+
+    // What this stage delivers: the fixed-rate Modes, without hysteresis,
+    // rate smoothing or, in the Modes that would use it, the Atrial
+    // Tachycardia Response (stage E4).
+    if !delivered_in_e2(mode) || w[word::HRL] != 0 || w[word::RATE_SMOOTHING] != 0 || (mode.tracks() && w[word::ATR] != 0) {
         return None;
     }
 

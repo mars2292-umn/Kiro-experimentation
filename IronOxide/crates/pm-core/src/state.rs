@@ -43,6 +43,7 @@ impl Pending {
     /// A Pace pending at `at`.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result.armed && result.at == at))]
     pub const fn at(at: Micros) -> Pending {
         Pending { armed: true, reserved: [0; 3], at }
     }

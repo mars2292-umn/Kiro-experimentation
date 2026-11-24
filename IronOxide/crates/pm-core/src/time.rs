@@ -16,10 +16,21 @@ pub const HALF_RANGE: u32 = 1 << 31;
 #[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Micros(pub u32);
 
+/// For the App_Prover: `a` is before `b`, as [`Micros::is_before`] decides
+/// it: the difference `b - a`, taken modulo 2^32, is from 1 to 2^31 - 1.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn before(a: Micros, b: Micros) -> bool {
+    use creusot_std::macros::pearlite;
+    use creusot_std::model::View;
+    pearlite! { 0 < (b.0 - a.0)@ && (b.0 - a.0)@ < 2147483648 }
+}
+
 impl Micros {
     /// The instant `d` microseconds after this one.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result.0 == self.0 + d))]
     pub const fn plus(self, d: u32) -> Micros {
         Micros(self.0.wrapping_add(d))
     }
@@ -35,6 +46,10 @@ impl Micros {
     /// this instant is after `earlier`.
     #[inline(always)]
     #[must_use]
+    // One direction only: the App_Prover gives the cast to a signed number
+    // no meaning for a difference of 2^31 or more, so it cannot be told
+    // that the result is then not positive.
+    #[cfg_attr(creusot, creusot_std::macros::ensures(0 < (self.0 - earlier.0)@ && (self.0 - earlier.0)@ < 2147483648 ==> result@ == (self.0 - earlier.0)@))]
     pub const fn since(self, earlier: Micros) -> i32 {
         self.0.wrapping_sub(earlier.0) as i32
     }
@@ -42,6 +57,7 @@ impl Micros {
     /// Whether this instant is strictly before `other`.
     #[inline(always)]
     #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(before(self, other) ==> result))]
     pub const fn is_before(self, other: Micros) -> bool {
         other.since(self) > 0
     }

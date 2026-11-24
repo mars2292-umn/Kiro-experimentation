@@ -517,7 +517,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
         // Property P8: the PVARP is extended in at most one of two
         // successive cycles; and only after a PVC, with the extension on.
         if t.pvarp_extended && !before.pvarp_extended {
-            assert!(matches!(a.markers.augmentation, Some((Marker::Pvc, _))) && p.pvarp_extension != 0);
+            assert!(matches!(a.markers.augmentation, Some((Marker::Pvc, _))) && p.pvarp_extension != 0 && p.mode.tracks());
             met.extended += 1;
         }
         assert!(!(t.pvarp_extended && t.pvarp_extended_last_cycle), "{mode:?} seed {seed}: Property P8");
@@ -587,7 +587,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
                 // One paced AV delay before the end of the escape interval:
                 // the fixed delay, or a dynamic one within its limits.
                 let av = l + e - a_pending.at.0;
-                if p.dynamic_av {
+                if p.dynamic_av && p.mode.tracks() {
                     assert!((p.min_dynamic_av..=p.fixed_av).contains(&av), "{mode:?} seed {seed}: AV delay {av}");
                 } else {
                     assert_eq!(av, p.fixed_av);
@@ -628,5 +628,8 @@ fn generated_runs_keep_the_compares_and_the_state_together() {
     assert!(ddi.refractory > 1_000 && vdd.refractory > 1_000 && ddd.refractory > 1_000, "{totals:?}");
     assert!(ddi.blanked > 20 && ddd.blanked > 20, "{totals:?}");
     assert!(ddi.pvcs > 500 && vdd.pvcs > 500 && ddd.pvcs > 500, "{totals:?}");
-    assert!(ddi.extended > 100 && vdd.extended > 100 && ddd.extended > 100, "{totals:?}");
+    // PVARP Extension is the tracking Modes' (Table 19-3): DDI marks its
+    // PVCs and extends nothing.
+    assert!(vdd.extended > 100 && ddd.extended > 100, "{totals:?}");
+    assert_eq!(ddi.extended, 0);
 }

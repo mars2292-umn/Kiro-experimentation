@@ -51,9 +51,11 @@
 //!   Blanking interval after an atrial Pace is discarded: nothing is armed
 //!   or withdrawn and no Marker is made.
 //!
-//! The step reads the Mode by its letters. What it does not deliver yet
-//! (hysteresis, the sensor rate, the State machine) is the work of tasks
-//! 16 and 19; `validate` admits only the Modes of stage E1 until task 11.6.
+//! The step reads the Mode by its letters, and reads a parameter only in
+//! the Modes Table 19-3, as amended by Table 19-4, gives it to (PM5.8): the
+//! Dynamic AV Delay and PVARP Extension in the Modes that track, the
+//! Sensed AV Delay Offset in DDD. What it does not deliver yet (hysteresis,
+//! the sensor rate, the State machine) is the work of tasks 16 and 19.
 //! In the ventricular-based cycle the atrium's refractory periods are the
 //! AV delay and the PVARP; the ARP is the single-chamber atrial Modes'
 //! (PM12.2).
@@ -72,12 +74,34 @@
 //! made pending.
 
 use crate::event::{Arming, Event, Marker, Pace};
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use crate::mode::Chambers;
 use crate::mode::{Chamber, Response};
+// The App_Prover's view operator (`@`) in the contracts below.
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use creusot_std::model::View;
+
+// The contracts (tasks 12.1 and 12.2). Each helper keeps what the step's
+// contract states, so that the App_Prover can carry it through:
+//
+// - Property P4: the therapy State is not changed (the State machine is
+//   stage E3; until then no event changes it).
+// - Property P8: the PVARP of the present cycle and of the one before are
+//   not both extended.
+// - Property P2, as far as it is stated without ordering instants on a
+//   counter that wraps: in a Mode that paces the ventricle a ventricular
+//   Pace stays pending once it is, and a tick makes it so; after a
+//   ventricular event it is pending at exactly the event plus the escape
+//   interval; likewise the atrial Pace of a Mode that paces the atrium
+//   alone.
 use crate::params::Params;
 use crate::state::{Pending, State};
 use crate::time::Micros;
 
 /// The escape interval in force: the LRL's (PM9.1).
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == p.lrl))]
 #[inline(always)]
 const fn escape(p: &Params) -> u32 {
     p.lrl
@@ -90,7 +114,8 @@ const fn escape(p: &Params) -> u32 {
 /// than the Fixed AV Delay.
 #[inline(always)]
 const fn paced_av(p: &Params, st: &State) -> u32 {
-    if !p.dynamic_av || !st.cycle_known || p.lrl == 0 {
+    // Table 19-3: the delay is dynamic in the Modes that track only.
+    if !p.dynamic_av || !p.mode.tracks() || !st.cycle_known || p.lrl == 0 {
         return p.fixed_av;
     }
     // In 64 bits: two 32-bit values' product has room.
@@ -109,7 +134,9 @@ const fn paced_av(p: &Params, st: &State) -> u32 {
 /// AV Delay Offset (PM11.5).
 #[inline(always)]
 const fn sensed_av(p: &Params, st: &State) -> u32 {
-    paced_av(p, st).saturating_sub(p.sensed_av_offset)
+    // Table 19-3: the offset is DDD's (and DDDR's).
+    let offset = if p.mode.uses_sensed_av_offset() { p.sensed_av_offset } else { 0 };
+    paced_av(p, st).saturating_sub(offset)
 }
 
 /// The escape interval of the atrium in the ventricular-based cycle: from a
@@ -123,6 +150,7 @@ const fn atrial_escape(p: &Params, st: &State) -> u32 {
 /// Whether the cycle is the ventricular-based one: the Mode paces the
 /// ventricle (PM9.2). Otherwise each paced Chamber is timed from its own
 /// events (PM9.3).
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == (p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both)))]
 #[inline(always)]
 const fn ventricular_based(p: &Params) -> bool {
     p.mode.paces(Chamber::V)
@@ -150,6 +178,10 @@ const fn is_pvc(p: &Params, st: &State) -> bool {
 /// ventricular-based cycle the start of the PVARP, extended after a PVC
 /// unless the cycle before was, and, in a Mode that paces both Chambers,
 /// the atrial Pace of the next cycle.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed && (^st).chamber@[1].pending.at.0 == v.0 + p.lrl && (^st).chamber@[1].last == v))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!(p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[0] == (*st).chamber@[0]))]
 #[inline(always)]
 fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bool) {
     let ch = &mut st.chamber[Chamber::V.index()];
@@ -166,7 +198,8 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
     st.atrial_since_ventricular = false;
     if ventricular_based(p) {
         // Property P8: not in two successive cycles.
-        let extend = pvc && p.pvarp_extension != 0 && !st.pvarp_extended;
+        // Table 19-3: PVARP Extension is the tracking Modes'.
+        let extend = pvc && p.mode.tracks() && p.pvarp_extension != 0 && !st.pvarp_extended;
         st.pvarp_extended_last_cycle = st.pvarp_extended;
         st.pvarp_extended = extend;
         let pvarp = if extend { p.pvarp.saturating_add(p.pvarp_extension) } else { p.pvarp };
@@ -186,6 +219,14 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
 /// already due sooner; an atrial Pace starts the Ventricular Blanking
 /// interval in a Mode that senses the ventricle (PM4.5). In an atrial Mode
 /// the event starts the ARP (PM12.2) and the next escape interval.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed && (^st).chamber@[0].pending.at.0 == a.0 + p.lrl && (^st).chamber@[0].last == a))]
+// Property P1 on the path it concerns: the ventricular Pace an atrial event
+// leaves pending is the one that was pending, or is not before the last
+// ventricular event plus the URL interval.
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].seen ==> (^st).chamber@[1].pending == (*st).chamber@[1].pending || !crate::time::before((^st).chamber@[1].pending.at, Micros((*st).chamber@[1].last.0 + p.url))))]
 #[inline(always)]
 fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: bool) {
     let based = ventricular_based(p);
@@ -223,6 +264,10 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
 }
 
 /// A Pace of `c` at `at`.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
 #[inline(always)]
 fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
     match c {
@@ -234,6 +279,10 @@ fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
 /// A pending Pace whose instant is at or before `instant` has been
 /// delivered: the armed compare fires without software. Apply it to `c`
 /// and remember that its `Paced` event is still to come.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
 #[inline(always)]
 fn account(p: &Params, st: &mut State, c: Chamber, instant: Micros) {
     let pending = st.chamber[c.index()].pending;
@@ -248,6 +297,10 @@ fn account(p: &Params, st: &mut State, c: Chamber, instant: Micros) {
 /// this state, so Property P3 is stated against it. The atrium first: in
 /// the ventricular-based cycle its Pace is the earlier of the two, and the
 /// ventricular Pace it leads to may be due as well.
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.therapy == s.therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*s).pvarp_extended && (*s).pvarp_extended_last_cycle) ==> !(result.pvarp_extended && result.pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed ==> result.chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed ==> result.chamber@[0].pending.armed))]
 #[inline(always)]
 #[must_use]
 pub fn accounted(p: &Params, s: &State, instant: Micros) -> State {
@@ -280,6 +333,8 @@ fn set_pace(a: &mut Arming, c: Chamber, pace: Pace) {
     }
 }
 
+#[cfg_attr(creusot, creusot_std::macros::ensures((^a).atrial == (*a).atrial && (^a).ventricular == (*a).ventricular && (^a).markers.augmentation == (*a).markers.augmentation))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(match c { Chamber::A => (^a).markers.atrial == Some((marker, at)) && (^a).markers.ventricular == (*a).markers.ventricular, Chamber::V => (^a).markers.ventricular == Some((marker, at)) && (^a).markers.atrial == (*a).markers.atrial }))]
 #[inline(always)]
 fn set_marker(a: &mut Arming, c: Chamber, marker: Marker, at: Micros) {
     match c {
@@ -321,6 +376,7 @@ fn difference(p: &Params, before: &State, after: &State, c: Chamber) -> Pace {
 }
 
 /// The arming of both Chambers from the states before and after.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^out).markers == (*out).markers))]
 #[inline(always)]
 fn arm_difference(p: &Params, before: &State, after: &State, out: &mut Arming) {
     out.atrial = difference(p, before, after, Chamber::A);
@@ -332,6 +388,10 @@ fn arm_difference(p: &Params, before: &State, after: &State, out: &mut Arming) {
 /// ventricular-based cycle the start is as after a ventricular event: the
 /// ventricular Pace one escape interval from now and, if the Mode paces the
 /// atrium, the atrial Pace one AV delay before it.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed))]
 #[inline(always)]
 fn tick(p: &Params, st: &mut State, now: Micros) {
     let paces_a = p.mode.paces(Chamber::A);
@@ -386,6 +446,99 @@ fn blanked(st: &State, c: Chamber, at: Micros) -> bool {
 /// Chamber's compares. `p` is the parameter set in force.
 ///
 /// Total, without side effect, allocation or loop, in integer arithmetic.
+/// A Sense of `chamber` at `at`, applied to the accounted state `before`.
+///
+/// Contract (task 12.1), Property P3 by what the step returns: a Sense it
+/// marks as a Refractory sense, and a Sense it gives no Marker (one the
+/// Mode does not sense, or a blanked one), leave the accounted state as it
+/// was and arm and withdraw nothing. The other contracts are those the
+/// step keeps.
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.0.therapy == before.therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*before).pvarp_extended && (*before).pvarp_extended_last_cycle) ==> !(result.0.pvarp_extended && result.0.pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*before).chamber@[1].pending.armed ==> result.0.chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*before).chamber@[0].pending.armed ==> result.0.chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.1.markers.atrial == None && result.1.markers.ventricular == None ==> result.0 == *before && result.1.atrial == Pace::Keep && result.1.ventricular == Pace::Keep))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.1.markers.atrial == Some((Marker::Sense { refractory: true }, at)) || result.1.markers.ventricular == Some((Marker::Sense { refractory: true }, at)) ==> result.0 == *before && result.1.atrial == Pace::Keep && result.1.ventricular == Pace::Keep))]
+#[inline(always)]
+fn sense(p: &Params, before: &State, chamber: Chamber, at: Micros) -> (State, Arming) {
+    let mut out = Arming::NONE;
+    let mut st = *before;
+    if !p.mode.senses(chamber) {
+        // PM5.7: a Chamber the Mode does not sense.
+        return (st, out);
+    }
+    if blanked(&st, chamber, at) {
+        // PM4.5: discarded, without a Marker.
+        return (st, out);
+    }
+    if refractory(p, &st, chamber, at) {
+        // PM4.4, PM11.6: a Refractory sense inhibits and triggers
+        // nothing.
+        set_marker(&mut out, chamber, Marker::Sense { refractory: true }, at);
+        return (st, out);
+    }
+    let paces = p.mode.paces(chamber);
+    match (p.mode.response, chamber) {
+        (Response::Triggered, _) if paces => {
+            // PM5.4: a Pace of the Chamber at once. The Sense is the
+            // Chamber's event until the Pace is, a moment later.
+            let period = match chamber {
+                Chamber::A => p.arp,
+                Chamber::V => p.vrp,
+            };
+            let ch = &mut st.chamber[chamber.index()];
+            ch.seen = true;
+            ch.last = at;
+            ch.last_paced = false;
+            ch.refractory_until = at.plus(period);
+            ch.pending = Pending::at(at);
+        }
+        (Response::Inhibited | Response::Tracked, Chamber::V) => {
+            // PM5.5: the pending ventricular Pace is cancelled; the
+            // cycle starts again from the Sense.
+            let pvc = is_pvc(p, &st);
+            ventricular_event(p, &mut st, at, false, pvc);
+            if pvc {
+                out.markers.augmentation = Some((Marker::Pvc, at));
+            }
+        }
+        (Response::Inhibited, Chamber::A) => {
+            // PM5.5: the pending atrial Pace is cancelled. In DDI
+            // the ventricular Pace stays where it was.
+            atrial_event(p, &mut st, at, false, false);
+        }
+        (Response::Tracked, Chamber::A) => {
+            // PM5.6: a ventricular Pace one AV delay after it.
+            atrial_event(p, &mut st, at, false, true);
+        }
+        _ => {
+            // A Mode that senses the Chamber and does not respond
+            // (the temporary Modes OAO, OVO, ODO): the event is kept.
+            let period = match chamber {
+                Chamber::A => p.arp,
+                Chamber::V => p.vrp,
+            };
+            let ch = &mut st.chamber[chamber.index()];
+            ch.seen = true;
+            ch.last = at;
+            ch.last_paced = false;
+            ch.refractory_until = at.plus(period);
+        }
+    }
+    arm_difference(p, before, &st, &mut out);
+    set_marker(&mut out, chamber, Marker::Sense { refractory: false }, at);
+    (st, out)
+}
+
+/// Contracts (tasks 12.1, 12.2): Property P4 (the therapy State is the one
+/// given); Property P8 (kept); Property P2's "a Pace is pending" for the
+/// ventricle in a Mode that paces it and for the atrium in a Mode that
+/// paces it alone (kept by every event, made so by a tick).
+#[cfg_attr(creusot, creusot_std::macros::ensures(result.0.therapy == s.therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!((*s).pvarp_extended && (*s).pvarp_extended_last_cycle) ==> !(result.0.pvarp_extended && result.0.pvarp_extended_last_cycle)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed ==> result.0.chamber@[1].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed ==> result.0.chamber@[0].pending.armed))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Tick { .. } => ((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> result.0.chamber@[1].pending.armed) && ((p.mode.paces == Chambers::A) ==> result.0.chamber@[0].pending.armed), _ => true }))]
 #[inline(always)]
 #[must_use]
 pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
@@ -427,73 +580,9 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
             (st, out)
         }
         Event::Sense { chamber, at, edges: _ } => {
+            // Property P3 is stated on `sense`, against this state.
             let before = accounted(p, s, at);
-            let mut st = before;
-            if !p.mode.senses(chamber) {
-                // PM5.7: a Chamber the Mode does not sense.
-                return (st, out);
-            }
-            if blanked(&st, chamber, at) {
-                // PM4.5: discarded, without a Marker.
-                return (st, out);
-            }
-            if refractory(p, &st, chamber, at) {
-                // PM4.4, PM11.6: a Refractory sense inhibits and triggers
-                // nothing.
-                set_marker(&mut out, chamber, Marker::Sense { refractory: true }, at);
-                return (st, out);
-            }
-            let paces = p.mode.paces(chamber);
-            match (p.mode.response, chamber) {
-                (Response::Triggered, _) if paces => {
-                    // PM5.4: a Pace of the Chamber at once. The Sense is the
-                    // Chamber's event until the Pace is, a moment later.
-                    let period = match chamber {
-                        Chamber::A => p.arp,
-                        Chamber::V => p.vrp,
-                    };
-                    let ch = &mut st.chamber[chamber.index()];
-                    ch.seen = true;
-                    ch.last = at;
-                    ch.last_paced = false;
-                    ch.refractory_until = at.plus(period);
-                    ch.pending = Pending::at(at);
-                }
-                (Response::Inhibited | Response::Tracked, Chamber::V) => {
-                    // PM5.5: the pending ventricular Pace is cancelled; the
-                    // cycle starts again from the Sense.
-                    let pvc = is_pvc(p, &st);
-                    ventricular_event(p, &mut st, at, false, pvc);
-                    if pvc {
-                        out.markers.augmentation = Some((Marker::Pvc, at));
-                    }
-                }
-                (Response::Inhibited, Chamber::A) => {
-                    // PM5.5: the pending atrial Pace is cancelled. In DDI
-                    // the ventricular Pace stays where it was.
-                    atrial_event(p, &mut st, at, false, false);
-                }
-                (Response::Tracked, Chamber::A) => {
-                    // PM5.6: a ventricular Pace one AV delay after it.
-                    atrial_event(p, &mut st, at, false, true);
-                }
-                _ => {
-                    // A Mode that senses the Chamber and does not respond
-                    // (the temporary Modes OAO, OVO, ODO): the event is kept.
-                    let period = match chamber {
-                        Chamber::A => p.arp,
-                        Chamber::V => p.vrp,
-                    };
-                    let ch = &mut st.chamber[chamber.index()];
-                    ch.seen = true;
-                    ch.last = at;
-                    ch.last_paced = false;
-                    ch.refractory_until = at.plus(period);
-                }
-            }
-            arm_difference(p, &before, &st, &mut out);
-            set_marker(&mut out, chamber, Marker::Sense { refractory: false }, at);
-            (st, out)
+            sense(p, &before, chamber, at)
         }
         Event::Tick { now, .. } => {
             let before = accounted(p, s, now);
