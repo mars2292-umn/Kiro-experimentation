@@ -20,6 +20,8 @@ rsk::app! {
         // The status `control` last sent to `link`, and the Jobs since.
         state control.status_sent: [u32; 4] = [0; 4];
         state control.status_age: u32 = 0;
+        // The Jobs since `control` last sent a batch to `diag` (task 22.1).
+        state control.events_age: u32 = 0;
         // Released by the end of a pulse: compares 4 and 5 of TIMER3 (PM27.5).
         task pace (sporadic, binds = TIMER3, mit = 20.ms(), mit_policy = defer, deadline = 2.ms(),
                    budget = 450.us(), priority = 7, resources = [timing]);
@@ -60,6 +62,31 @@ rsk::app! {
     // function accepts nothing.
     endpoint program: [u32; 30] { dcm => comms.link ops = 2, pg => therapy.control validate = crate::validate_program ops = 4 } capacity = 4, payload = 120;
     endpoint status: [u32; 4] { pg => therapy.control validate = crate::validate_status, dcm => comms.link ops = 2 } capacity = 2, payload = 16;
+
+    // History and diagnostics (design PD-07, Table 2; tasks 22.1 to 22.3):
+    // no peripheral, and nothing of it reaches `therapy`.
+    partition diag (level = D, crate = pacemaker_diag, code = 16.KiB(), ram = 16.KiB(), stack = 2.KiB(),
+                    fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
+                    mit_threshold = 10) {
+        // The histograms, the counts, the Marker buffer and the trend.
+        state history.store: crate::History = crate::History::new();
+        task history (periodic, period = 100.ms(), deadline = 100.ms(), budget = 2.ms(), priority = 1);
+    }
+
+    // The event records from `therapy` to `diag` (task 22.1): a batch of
+    // up to eight records of three words after four words of counts
+    // (`pm_core::record`). `control` sends at most one in a period;
+    // `history` takes up to two in one of its own, which is five of
+    // `control`'s: a batch the full Endpoint does not take stays in the
+    // ring of `therapy` and goes with the next (16 records in 100 ms is
+    // above any event rate the rig gives; a storm on both sense lines is
+    // some 45 a second). The capacity is two because the Endpoints'
+    // storage is the Kernel's RAM, and in the builds with the Kernel's
+    // trace what is left of that RAM is the Kernel's stack: with a capacity
+    // of four it was 20 bytes less than the stack's bound (finding B44).
+    // The channel toward `control` exists and is never read; its
+    // validation function accepts nothing.
+    endpoint events: [u32; 28] { pg => therapy.control validate = crate::validate_events ops = 1, log => diag.history ops = 2 } capacity = 2, payload = 112;
 
     // A sense edge: its instant captured by TIMER3, and counted (the fork).
     ppi sense_a_edge (event = GPIOTE[0x100], task = TIMER3[0x048], fork = TIMER1[0x008]);

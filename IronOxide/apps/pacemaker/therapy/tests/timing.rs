@@ -34,7 +34,10 @@ fn the_value_at_start_is_the_power_on_reset_state_with_nothing_armed() {
     assert_eq!((t.driver.last_start[0].0, t.driver.last_start[1].0, t.driver.late_arms, t.driver.untimed), (0, 0, 0, 0));
     // The ring is empty.
     assert_eq!(t.written, 0);
-    assert!(t.ring.iter().all(|r| r.kind == kind::NONE && r.chamber == 0 && r.at == 0 && r.reserved == [0; 2]));
+    assert!(t.ring.iter().all(|r| r.kind == kind::NONE && r.chamber == 0 && r.at == 0 && r.modifiers == 0 && r.augmentation == 0 && r.since == 0));
+    assert_eq!((t.drained, t.spare), (0, 0));
+    assert_eq!(t.marks, pacemaker_therapy::Marks::NONE);
+    assert_eq!((t.marks.last, t.marks.seen, t.marks.modifiers), ([0; 2], [0; 2], [0; 2]));
     assert_eq!(t.ring.len(), RING);
     assert_eq!((t.counts.too_late, t.counts.moved, t.counts.late, t.counts.dropped), (0, 0, 0, 0));
 }

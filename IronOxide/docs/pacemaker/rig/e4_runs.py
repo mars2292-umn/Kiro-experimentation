@@ -394,22 +394,16 @@ def run_atr():
           len(line_errors) >= 10 and all(abs(e) <= TOL for e in line_errors),
           {"fallback_begins_at_ventricular_event": n_fb, "at_s": vt[n_fb] / 1e6, "cycle_it_began_at_us": from_cycle, "intervals_on_the_line": len(line_errors),
            "error_us": st.spread([round(e) for e in line_errors]), "first_and_last_interval_us": [vt[n_fb + 1] - vt[n_fb], vt[n_c] - vt[n_c - 1]]})
-    # The Mode changes at the ventricular event after (the design's choice:
-    # a change is found by `control` and made at the next ventricular event).
-    # From there no Pace may follow an atrial event by the AV delay except by
-    # coincidence with the line, and the atrium is not paced.
+    # The Mode changes at that event too (PM14.6, PM14.8; finding B41: until
+    # 2026-11-25 it changed one ventricular event later). From it the atrium
+    # is not paced, and the Paces do not follow the atrial events except by
+    # coincidence with the line.
     ap = [p[1] for p in cap.pulses(st.ATRIAL)]
-    ap_in_vvir = [t / 1e6 for t in ap if vt[n_fb + 1] < t < vt[n_c + 1]]
+    ap_in_vvir = [t / 1e6 for t in ap if vt[n_fb] < t < vt[n_c]]
     not_tracked = [k for k in range(n_fb + 2, n_c + 1) if not any(abs(vt[k] - t - AV_US) <= TOL for t in a_events if vt[k] - 400_000 < t < vt[k])]
-    check(checks, "from the ventricular event after that the Mode is VVIR: the atrium is not paced, and the Paces do not follow the atrial events",
+    check(checks, "from the ventricular event at which Fallback begins the Mode is VVIR: the atrium is not paced, and the Paces do not follow the atrial events",
           not ap_in_vvir and len(not_tracked) >= (n_c - n_fb - 1) * 2 // 3,
           {"atrial_paces": ap_in_vvir, "ventricular_paces": n_c - n_fb - 1, "of_them_not_one_av_delay_after_an_atrial_event": len(not_tracked)})
-    # The one cycle between: DDD with the Fallback interval as its escape interval.
-    between = [t for t in ap if vt[n_fb] < t <= vt[n_fb + 1]]
-    senses = [int(t) for t in rises(cap, 6)]
-    check(checks, "the cycle between Fallback's beginning and the Mode's change is DDD's on the Fallback interval (reported: an atrial Pace in it, and the atrial edge nearest to it)", True,
-          {"atrial_paces": [{"after_the_ventricular_event_us": t - vt[n_fb], "before_the_next_ventricular_pace_us": vt[n_fb + 1] - t,
-                             "nearest_atrial_edge_us_before": min((t - x for x in senses if x <= t), default=None)} for t in between]})
     # Before Fallback and after the return: DDD, by the judge of stage E2.
     sets = {"LRL": 60}
     end1 = vt[n_fb] + 2_000
@@ -417,15 +411,14 @@ def run_atr():
     check(checks, "until Fallback begins the pacing is DDD's (the judge of stage E2 on the capture up to that ventricular event)", before["verdict"] == "PASS",
           {k: before[k] for k in ("judged_paces", "unjudged_stretches", "errors_us", "counts", "violations")})
     back = next((k for k in range(n_c, len(vt)) if any(abs(vt[k] - t - AV_US) <= TOL for t in a_events if vt[k] - 400_000 < t < vt[k])), None)
-    after = e2.judge(cap.data[vt[back - 1] - 2_000:], RATE, "DDD", sets, skip_us=0) if back else {"verdict": "FAIL", "violations": ["no Pace after an atrial event"]}
-    last_vvir = vt[n_c + 1] - vt[n_c]
-    check(checks, "Fallback ends at the ventricular event after the counter returns to 0 (the interval from it is the LRL interval), and the Mode is DDD again from the ventricular "
-          "event after that (the judge of stage E2 from there to the end)", back is not None and back == n_c + 2 and abs(last_vvir - LRL_US) <= TOL and after["verdict"] == "PASS",
-          {"fallback_ends_at_ventricular_event": n_c, "at_s": vt[n_c] / 1e6, "interval_from_it_us": last_vvir, "first_pace_after_an_atrial_event_is_event": back,
+    after = e2.judge(cap.data[vt[n_c] - 2_000:], RATE, "DDD", sets, skip_us=0)
+    check(checks, "Fallback ends at the ventricular event after the counter returns to 0, and the Mode is DDD again from that event: the next Pace follows an atrial event "
+          "(the judge of stage E2 from that event to the end)", back == n_c + 1 and after["verdict"] == "PASS",
+          {"fallback_ends_at_ventricular_event": n_c, "at_s": vt[n_c] / 1e6, "interval_from_it_us": vt[n_c + 1] - vt[n_c], "first_pace_after_an_atrial_event_is_event": back,
            **{k: after.get(k) for k in ("judged_paces", "unjudged_stretches", "errors_us", "counts", "violations")}})
     # The Mode the status reports, against the capture's instants.
     told = [(l["done"], l["detail"]["mode"]) for l in lines if l["op"] == "status" and l["ok"]]
-    t_in, t_out = cap.time_of(vt[n_fb + 1]), cap.time_of(vt[n_c + 1])
+    t_in, t_out = cap.time_of(vt[n_fb]), cap.time_of(vt[n_c])
     wrong = [(round(t - cap.t0, 2), m) for t, m in told if (t < t_in - 1.5 and m != 63) or (t_in + 1.5 < t < t_out - 1.5 and m != 106) or (t > t_out + 1.5 and m != 63)]
     check(checks, "the status reports DDD before, VVIR in Fallback and DDD after", not wrong and any(m == 106 for _, m in told) and told and told[-1][1] == 63,
           {"modes_told": [m for _, m in told], "against_the_capture": wrong})
@@ -445,8 +438,8 @@ def storm_edges(cap, bit):
 
 def run_storm():
     out, ok = {}, True
-    for name, mode, first in (("vvi", "VVI", 2), ("ddd", "DDD", 1)):
-        text = f"0={CODE[mode]},1=60"
+    for name, mode, first, more in (("vvi", "VVI", 2, ""), ("ddd", "DDD", 1, ""), ("ddd_atr", "DDD", 1, ",20=1,21=10,22=1")):
+        text = f"0={CODE[mode]},1=60{more}"
         pg = ef.build("nrf52840,debug-port,quiet,rig,set-env,trace-ram", "target/pacemaker-storm", {"PM_SET": text})
         elf, heart_text = flash_heart([0, 0, 0, 0, 0, first, 25000, 33000, 1, 3, 33000, 41000, 1])
         cap, _, ev = ef.run_attached(pg, 58)
@@ -476,17 +469,36 @@ def run_storm():
         expected = (end - begin) / LRL_US
         paced = len([p for p in v if begin <= p[1] <= end])
         check(checks, "no Pace is missing in the storm", abs(paced - expected) <= 2, {"paces": paced, "storm_s": (end - begin) / 1e6})
-        if mode == "DDD":
-            pairs = [min((vp[1] - ap[1] for vp in v if vp[1] > ap[1]), default=None) for ap in a if begin <= ap[1] <= end]
-            check(checks, "in the storm the atrium is paced before every ventricular Pace by the AV delay", len(pairs) >= 12 and st.all_near([p for p in pairs if p is not None], AV_US, TOL),
-                  st.spread([p for p in pairs if p is not None]))
+        if more:
+            # ATR on: the storm's atrial edges are atrial intervals shorter than
+            # the URL interval (PM14.1 counts every atrial interval), so ATR
+            # detects an onset, and after ATR Duration the Mode is VVIR at the
+            # LRL (the cycle Fallback begins at is the LRL's). Reported.
+            in_storm = [p[1] / 1e6 for p in a if begin <= p[1] <= end]
+            check(checks, "with ATR on the storm is taken for an atrial tachycardia (reported): the atrial Paces in the storm stop when Fallback begins, and those after it", True,
+                  {"atrial_paces_in_the_storm": len(in_storm), "the_last_s_after_the_storms_first_edge": in_storm[-1] - begin / 1e6 if in_storm else None,
+                   "atrial_paces_after_the_storm": len([p for p in a if p[1] > end])})
+        elif mode == "DDD":
+            # Every ventricular Pace of the storm but those of the cycles a
+            # storm's first edge falls in (that edge is a Sense: it is
+            # tracked, or inhibits the atrial Pace, and may come too late
+            # for a Pace already begun to be withdrawn).
+            av, without = [], []
+            for x, y in zip(v, v[1:]):
+                if not (begin <= x[1] and y[1] <= end) or any(x[1] <= o <= y[1] for o in onsets):
+                    continue
+                before = [y[1] - ap[1] for ap in a if x[1] < ap[1] < y[1]]
+                (av if before else without).append(before[-1] if before else y[1] / 1e6)
+            left_out = [{"onset_s": o / 1e6, "atrial_paces_in_its_cycle": len([ap for x, y in zip(v, v[1:]) if x[1] <= o <= y[1] for ap in a if x[1] < ap[1] < y[1]])} for o in onsets]
+            check(checks, "in the storm the atrium is paced before every ventricular Pace by the AV delay (the cycles of a storm's first edge left out and reported)",
+                  len(av) >= 12 and not without and st.all_near(av, AV_US, TOL), {"av_delays_us": st.spread(av), "ventricular_paces_without_an_atrial_pace_s": without, "cycles_left_out": left_out})
         else:
             check(checks, "the atrium is not paced", not a, len(a))
         evs = ef.own_events(ev, ef.partitions())
         names = [e["event"] for e in evs]
         check(checks, "the Kernel's log holds the end of the Operating_Duration and the safe state and nothing else: no restart, no MIT violation, no Overrun, no deadline miss",
               names == ["operating_end", "safe_state"], evs)
-        check(checks, "the driver's counts were read and show no forced or late arming", counts is not None and counts["hw_fault"] == 0 and counts["forced"] == 0 and counts["too_late"] == 0, counts)
+        check(checks, "the driver's counts were read and show no forced or late arming (a withdrawal that came too late is possible at a storm's first edge, one for each)", counts is not None and counts["hw_fault"] == 0 and counts["forced"] == 0 and counts["late_arms"] == 0 and counts["too_late"] <= len(onsets), counts)
         widths = [p[2] for p in v + a]
         check(checks, "every pulse is 0.40 ms wide", st.all_near(widths, 400, st.WIDTH_TOLERANCE_US), st.spread(widths))
         print(f"  storm, {mode}:", flush=True)

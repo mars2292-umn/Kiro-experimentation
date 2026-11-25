@@ -56,6 +56,7 @@ members = [
     "apps/pacemaker/system",
     "apps/pacemaker/therapy",
     "apps/pacemaker/comms",
+    "apps/pacemaker/diag",
     "apps/pacemaker/bin",
     "tools/dcm-stub",
     "xtask",
@@ -212,5 +213,6 @@ pacemaker-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = tr
 pacemaker-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker-therapy = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker-comms = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+pacemaker-diag = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 xtask = { targets = ["host"] }

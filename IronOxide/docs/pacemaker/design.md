@@ -193,7 +193,7 @@ tools/dcm-stub/        the DCM_Stub, a host program
 | `sense_a` | therapy | sporadic | TIMER1 compare | MIT 50 ms | 4 ms | 450 µs | 324.7 µs | 5 | The same for the atrium |
 | `control` | therapy | periodic | — | 20 ms | 20 ms | 5 ms | 488.0 µs | 4 | Init; commands and parameters from the Endpoint; State changes; magnet pin; battery and activity values; rate adaptation; ATR timing; link loss; drain the event ring to `diag` |
 | `link` | comms | periodic | — | 50 ms | 50 ms | 2 ms | 539.1 µs | 2 | One SPI frame each way; forward commands, return status and records |
-| `history` | diag | periodic | — | 100 ms | 100 ms | — | — | 1 | Histograms, trends, the Marker buffer; answer record requests |
+| `history` | diag | periodic | — | 100 ms | 100 ms | 2 ms | not measured | 1 | Histograms, trends, the Marker buffer (tasks 22.1 to 22.3); answer record requests (task 22.4) |
 
 Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage E5 (electrogram sampling) or as margin.
 
@@ -207,7 +207,7 @@ Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage
 |---|---|---|---|---|
 | `program` | `comms.link` → `therapy.control` | 30 words (`pm_core::wire`; 29 until task 19.5 gave a set its 29th word): a code and the DCM's frame number, then a parameter set for the two codes that carry one. One message for every frame of the DCM's that `link` hears: a command (PROGRAM, TEMPORARY, END_TEMPORARY, PACE_NOW), or the mark that a frame was heard | `therapy`'s validation function (R42.4: from level C to level A), `wire::admitted`: exactly the five codes, a set exactly when `validate` accepts it (Table 19-1 and Table 19-5; PM19.3, PM22.3), zeros where no set belongs | none: `control` takes up to four messages every period, and at most one command |
 | `status` | `therapy.control` → `comms.link` | 4 words: the State, the Mode in force, the battery level, whether `control` has the link as up; the count of verdicts; the last verdict and the frame it answers; the count of refused messages. Sent when it changes, when `comms` has restarted, and once a second | none needed (downward). The channel toward `control` is never read; its validation function accepts nothing | none |
-| `events` | `therapy.control` → `diag.history` | A batch of up to 8 event records | none needed (downward) | none |
+| `events` | `therapy.control` → `diag.history` | 28 words (`pm_core::record`; task 22.1): the count of records, the number of the first, the count of records the ring has lost and the sensor's interval, then up to 8 event records of three words. Capacity 2 | none needed (downward). The channel toward `control` is never read; its validation function accepts nothing | none: `control` sends one batch in a period of `history` at most (every fifth Job), and once a second an empty one; `history` takes up to two |
 | `records` | `diag.history` → `comms.link` | One histogram, trend or Marker frame | `comms`'s validation function (from level D to level C): frame kind and length in range | none |
 | `request` | `comms.link` → `diag.history` | A record request or a reset | none needed (downward) | none |
 
@@ -389,7 +389,27 @@ A link frame is 32 bytes each way, the same form in both directions (`pm-core`, 
 
 ### Event record
 
-Twelve bytes: the instant (TIMER3 microseconds), the Chamber, the Marker with its modifiers, the interval since the previous non-refractory event of the Chamber, and the augmentation Marker if any. The ring in `timing` holds 32 records; `control` drains up to 8 per period. At 175 ppm in both Chambers with a Refractory sense per beat, 20 ms produces under one record on average; the ring's overflow count is reported, never silent (PM18.8).
+Twelve bytes, three words on the Endpoint (`pm_core::record`; tasks 22.1 and 22.2): the instant (the therapy's microseconds, the low 32 bits); a byte each for the Marker, the Chamber, the modifiers of a Pace and the augmentation Marker; and the time since the Chamber's last non-refractory record. The ring in `timing` holds 32 records. A record leaves the ring when the Endpoint has taken the batch it is in; a ring full of records not taken loses its oldest, counts the loss, and tells the count in every batch (PM18.8, PM22.4). `diag` sees a batch that did not arrive by the records' numbers. In a storm of edges on both sense lines the ring wrote 12.5 records a second over the run; the Endpoint takes 80.
+
+As built (2026-11-25):
+
+- **The Markers** (PM18.5): AP and VP (with "fused" for a Pace that had a Sense in the inhibition window before it), AS and VS, a Refractory sense, AT, PVC, TN. AT is an atrial Sense whose interval from the atrial event before (the one ATR counts from, a refractory one included, where ATR is on; else the Chamber's last non-refractory event) is shorter than the URL interval.
+- **The modifiers of a Pace**: hysteresis, sensor rate, Rate Smoothing Up and Down. They say what made the escape interval the Pace ended what it was, by `pm_core::escape_modifiers`, which composes the interval as the step's `escape` does and is evaluated when the cycle begins. It decides nothing of the timing and has no contract; it is tested.
+- **The augmentation Markers**: ATR-Dur, ATR-FB and ATR-End from the change of ATR's phase in the step, PVP→ when the PVARP is extended after a PVC. One an event, with the event's first record (Property P9).
+- **The time since the Chamber's last non-refractory event** (PM18.6) is taken from the records: the instant of the Chamber's last record that was no Refractory sense and no noise. It is not taken from the step's state, which may have accounted a Pace before the Pace's report comes (finding B45).
+
+### What `diag` keeps (task 22.3)
+
+The Partition `diag` (level D, no peripheral) has one Task, `history`, every 100 ms. Its store is words in the Task's state (`apps/pacemaker/diag/src/history.rs`), empty when all zero:
+
+| Store | Content | When full |
+|---|---|---|
+| Rate histograms (PM18.1) | Four, of paced and sensed atrial and ventricular events, 17 bins: below 30 ppm, fifteen of 10 ppm from 30 to 179, and 180 or above. An event is counted at the rate of its record's interval. A Refractory sense and noise are in no histogram; AT is a sensed atrial event, PVC a sensed ventricular one | A count stops at the largest a word holds |
+| Counts (PM18.1) | PVCs; ATR episodes (the augmentation Marker ATR-Dur) | The same |
+| Marker buffer | The last 64 records | The oldest is discarded |
+| Trend (PM18.3) | 128 samples, one a second: the pacing interval (the ventricle's last paced interval, the atrium's while the ventricle is not paced) and the sensor's interval, both or either. Continuous (the start's value): the latest samples, stamped at the last. Fixed: from its start until full, stamped at the start | Continuous discards the oldest sample, Fixed every later one |
+
+A reset clears the four histograms and both counts together (PM18.2). The reset and the trend's start are functions of the store with host tests; the commands that call them come over the Endpoint `request` (task 22.4), as does everything that leaves `diag`: until then the store is read on the rig through the debug probe.
 
 ### Generated additions (rsk)
 

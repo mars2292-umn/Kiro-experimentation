@@ -12,6 +12,8 @@ pub mod rsk_state {
     pub static CONTROL_STATUS_SENT: ::rsk::ResourceCell<[u32 ; 4]> = ::rsk::ResourceCell::for_static([0 ; 4]);
     /// Per-Task state `therapy.control.status_age` (PR-25): touched by `control`'s Jobs only.
     pub static CONTROL_STATUS_AGE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
+    /// Per-Task state `therapy.control.events_age` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_EVENTS_AGE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
 }
@@ -27,6 +29,12 @@ pub mod rsk_validate {
     pub struct status_pg;
     impl ::rsk::Validate<[u32;4]> for status_pg {
         fn accept(m: &[u32;4]) -> bool { crate::validate_status(m) }
+    }
+    /// The validation function of role `pg` of Endpoint `events` (R42.4): `crate::validate_events`.
+    #[allow(non_camel_case_types)]
+    pub struct events_pg;
+    impl ::rsk::Validate<[u32;28]> for events_pg {
+        fn accept(m: &[u32;28]) -> bool { crate::validate_events(m) }
     }
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
@@ -44,7 +52,7 @@ pub mod rsk_target {
     pub mod layout {
         /// This Partition's index.
         pub const SELF: usize = 0;
-        pub const PARTITIONS: usize = 2;
+        pub const PARTITIONS: usize = 3;
         pub const KERNEL_FLASH: (u32, u32) = (0x00000000, 0x20000);
         pub const SHARED_CODE: (u32, u32) = (0x00020000, 0x10000);
         pub const KERNEL_RAM: (u32, u32) = (0x20000000, 0x8000);
@@ -52,21 +60,23 @@ pub mod rsk_target {
         pub const KERNEL_WINDOWS: [(u32, u32); 5] = [(0xe0000000, 0x100000), (0x40000000, 0x1000), (0x40008000, 0x1000), (0x40010000, 0x1000), (0x4001f000, 0x1000)];
         /// Each Partition's code and RAM region, and its stack size (the stack
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
-        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00040000, 0x40000), (0x00080000, 0x8000)];
-        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000), (0x20010000, 0x2000)];
-        pub const STACK: [u32; PARTITIONS] = [12288, 2048];
+        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00040000, 0x40000), (0x00088000, 0x8000), (0x00080000, 0x8000)];
+        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000), (0x20014000, 0x2000), (0x20010000, 0x4000)];
+        pub const STACK: [u32; PARTITIONS] = [12288, 2048, 2048];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the
         /// n-th eighth of the region is outside the view; HW-09).
-        pub const RAM_SRD: [u8; PARTITIONS] = [0x00, 0x00];
+        pub const RAM_SRD: [u8; PARTITIONS] = [0x00, 0x00, 0x00];
         /// Each Partition's peripheral windows, `(0, 0)` past its count.
         pub const WINDOWS: [[(u32, u32); 5]; PARTITIONS] = [
             [(0x40006000, 0x1000), (0x50000000, 0x1000), (0x40009000, 0x1000), (0x4000a000, 0x1000), (0x4001a000, 0x1000)],
             [(0x40004000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
+            [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
         ];
         /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).
         pub const WINDOWS_RO: [[bool; 5]; PARTITIONS] = [
             [false, false, false, false, false],
             [true, false, false, false, false],
+            [false, false, false, false, false],
         ];
     }
     /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
@@ -75,6 +85,7 @@ pub mod rsk_target {
 }
 const _: () = assert!(::core::mem::size_of::<[u32;30]>() <= 120, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
 const _: () = assert!(::core::mem::size_of::<[u32;4]>() <= 16, "the payload of Endpoint `status` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;28]>() <= 112, "the payload of Endpoint `events` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `therapy.pace` (Priority 7).
     pub struct Pace {
@@ -95,12 +106,16 @@ pub mod rsk_ctx {
         pub program: ::rsk::Endpoint<[u32;30], 30, super::rsk_validate::program_pg>,
         /// Role `pg` of Endpoint `status` (task 21.2; R38.1, R40.1): 2 messages of `[u32;4]` each way, received through the role's validation function (R42.4).
         pub status: ::rsk::Endpoint<[u32;4], 4, super::rsk_validate::status_pg>,
+        /// Role `pg` of Endpoint `events` (task 21.2; R38.1, R40.1): 2 messages of `[u32;28]` each way, received through the role's validation function (R42.4).
+        pub events: ::rsk::Endpoint<[u32;28], 28, super::rsk_validate::events_pg>,
         /// Per-Task state `sweep` (PR-25).
         pub sweep: ::rsk::PerTask<'static, [u32 ; 56]>,
         /// Per-Task state `status_sent` (PR-25).
         pub status_sent: ::rsk::PerTask<'static, [u32 ; 4]>,
         /// Per-Task state `status_age` (PR-25).
         pub status_age: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `events_age` (PR-25).
+        pub events_age: ::rsk::PerTask<'static, u32>,
     }
 }
 #[cfg(creusot)]
@@ -166,9 +181,11 @@ pub mod rsk_jobs {
             timing: ::rsk::Shared::new(&super::rsk_resources::TIMING, 0),
             program: ::rsk::Endpoint::new(0, 1),
             status: ::rsk::Endpoint::new(1, 0),
+            events: ::rsk::Endpoint::new(2, 0),
             sweep: ::rsk::PerTask::new(&super::rsk_state::CONTROL_SWEEP),
             status_sent: ::rsk::PerTask::new(&super::rsk_state::CONTROL_STATUS_SENT),
             status_age: ::rsk::PerTask::new(&super::rsk_state::CONTROL_STATUS_AGE),
+            events_age: ::rsk::PerTask::new(&super::rsk_state::CONTROL_EVENTS_AGE),
         });
     }
 }

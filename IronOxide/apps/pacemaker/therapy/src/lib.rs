@@ -28,33 +28,38 @@ pub mod sets;
 #[cfg(feature = "sweep")]
 mod sweep;
 
-use pm_core::{rearmed, step, Battery, Chamber, Event, Marker, Micros, Pace, State, Therapy};
+use pm_core::record::{self, aug};
+use pm_core::{escape_modifiers, rearmed, step, AtrPhase, Battery, Chamber, Event, Marker, Micros, Pace, State, Therapy};
 use pm_hw::{Armed, Disarmed, Driver, DriverState, Hw};
 
 /// The records the event ring holds.
 pub const RING: usize = 32;
 
-/// What a record of the ring is of.
-pub mod kind {
-    pub const NONE: u8 = 0;
-    pub const PACE: u8 = 1;
-    pub const PACE_FUSED: u8 = 2;
-    pub const SENSE: u8 = 3;
-    pub const SENSE_REFRACTORY: u8 = 4;
-}
+/// What a record of the ring is of: the Markers of `pm_core::record`.
+pub use pm_core::record::kind;
 
-/// One event of the therapy (design, "Event record"; the Marker stream of
-/// stage E5 is built from these).
+/// One event of the therapy (design, "Event record"; `pm_core::record`
+/// has it as the three words `control` sends to `diag`): twelve bytes.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 pub struct Record {
     pub kind: u8,
     /// 0 the atrium, 1 the ventricle.
     pub chamber: u8,
-    /// Always zero (a Partition static has no padding byte).
-    pub reserved: [u8; 2],
-    /// Its instant, in therapy microseconds.
+    /// The modifiers of a Pace (`record::modifier`), and the augmentation
+    /// Marker (`record::aug`).
+    pub modifiers: u8,
+    pub augmentation: u8,
+    /// Its instant, in therapy microseconds (the low 32 bits).
     pub at: u32,
+    /// The microseconds since the Chamber's last non-refractory event
+    /// before it (PM18.6); `record::NO_INTERVAL` if there was none.
+    pub since: u32,
+}
+
+impl Record {
+    /// The empty record: every byte zero.
+    pub const NONE: Record = Record { kind: kind::NONE, chamber: 0, modifiers: 0, augmentation: 0, at: 0, since: 0 };
 }
 
 /// What the driver's outcomes were, for the rig's report (PD-04, PD-02).
@@ -113,6 +118,9 @@ pub const LINK_LOST_JOBS: u32 = 8;
 /// `ops`), and the Jobs after which an unchanged status is sent again.
 pub const MESSAGES: usize = 4;
 pub const STATUS_REFRESH: u32 = 50;
+/// The Jobs of `control` from one batch for `diag` to the next: one period
+/// of `history` (100 ms).
+pub const EVENTS_JOBS: u32 = 5;
 
 /// What a Job of `control` took from the Endpoint `program`.
 #[derive(Clone, Copy)]
@@ -173,6 +181,15 @@ pub struct Timing {
     /// The event ring: the last `RING` records, `written` in all.
     pub ring: [Record; RING],
     pub written: u32,
+    /// The records handed to the Endpoint `events` or lost: the number of
+    /// the oldest record still to be sent (task 22.1). `written` less this
+    /// is never above `RING`.
+    pub drained: u32,
+    /// Always zero: the words after the ring are an even number, so that
+    /// the Resource, whose alignment is 8, ends without a padding byte.
+    pub spare: u32,
+    /// What the records are made from beside the step's state.
+    pub marks: Marks,
     pub counts: Counts,
     pub link: LinkSide,
 }
@@ -187,8 +204,11 @@ impl Timing {
             state: State::POWER_ON_RESET,
             driver: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0, now: Micros(0), now_count: 0 },
             board: board::Words::new(),
-            ring: [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING],
+            ring: [Record::NONE; RING],
             written: 0,
+            drained: 0,
+            spare: 0,
+            marks: Marks::NONE,
             counts: Counts { too_late: 0, moved: 0, late: 0, dropped: 0 },
             link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0, activity: 0, reserved: 0 },
         }
@@ -314,20 +334,151 @@ impl Timing {
 
 const CHAMBERS: [Chamber; 2] = [Chamber::A, Chamber::V];
 
-fn record(ring: &mut [Record; RING], written: &mut u32, counts: &mut Counts, r: Record) {
+/// A record into the ring. A ring that is full of records not yet handed
+/// to `events` loses its oldest, and the loss is counted (PM18.8, PM22.4:
+/// the ring never waits for `diag`).
+fn record(ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, counts: &mut Counts, r: Record) {
     ring[(*written as usize) % RING] = r;
-    if *written as usize >= RING {
+    if written.wrapping_sub(*drained) as usize >= RING {
         counts.dropped = counts.dropped.saturating_add(1);
+        *drained = drained.wrapping_add(1);
     }
     *written = written.wrapping_add(1);
 }
 
+/// What the records are made from beside the step's state (PM18.5,
+/// PM18.6). The step accounts a Pace as delivered at its instant when an
+/// event after that instant comes before the Pace's report (a tick, or a
+/// Sense, in the 0.4 ms of the pulse): the report then finds the Chamber's
+/// last event to be the Pace itself, and the cycle after it begun. So the
+/// instant of each Chamber's last non-refractory record is kept here, and
+/// the modifiers of the Pace that ends the cycle now running and of the
+/// one that ended the cycle before.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
+pub struct Marks {
+    /// The instant (the low 32 bits) of the Chamber's last non-refractory
+    /// record, and 1 once there is one.
+    pub last: [u32; 2],
+    pub seen: [u32; 2],
+    /// The modifiers of a Pace at the end of the cycle now running, and of
+    /// the cycle before it.
+    pub modifiers: [u32; 2],
+}
+
+impl Marks {
+    /// At start: every word zero.
+    pub const NONE: Marks = Marks { last: [0; 2], seen: [0; 2], modifiers: [0; 2] };
+}
+
+/// What an event's records need of the state before the step: whether an
+/// atrial Sense now is faster than the URL (AT: the interval from the
+/// last atrial event ATR has, or from the Chamber's last event, is
+/// shorter than the URL interval); whether each Chamber's Pace was
+/// accounted already; the instant of the timing Chamber's last event; and
+/// whether ATR is idle, in Duration or in Fallback (0, 1, 2).
+struct Before {
+    fast_atrial: bool,
+    accounted: [bool; 2],
+    cycle_from: Micros,
+    cycle_seen: bool,
+    phase: u8,
+}
+
+fn phase_of(state: &State) -> u8 {
+    match state.atr.phase {
+        AtrPhase::Idle => 0,
+        AtrPhase::Duration => 1,
+        AtrPhase::Fallback => 2,
+    }
+}
+
+fn before(state: &State, at: Micros) -> Before {
+    let p = state.params();
+    let a = state.chamber[0];
+    let own = state.own();
+    let atrial = if own.atr && own.mode.tracks() && state.atr.seen {
+        at.elapsed_since(state.atr.last_atrial)
+    } else if a.seen {
+        at.elapsed_since(a.last)
+    } else {
+        record::NO_INTERVAL
+    };
+    let timing = state.chamber[p.mode.timing_chamber().index()];
+    Before { fast_atrial: atrial < own.url, accounted: [a.unconfirmed, state.chamber[1].unconfirmed], cycle_from: timing.last, cycle_seen: timing.seen, phase: phase_of(state) }
+}
+
+/// After the step: if the timing Chamber's cycle began anew, the
+/// modifiers of the Pace that will end it are kept, and those of the cycle
+/// before beside them.
+fn cycle(marks: &mut Marks, was: &Before, state: &State) {
+    let p = state.params();
+    let timing = state.chamber[p.mode.timing_chamber().index()];
+    if timing.seen && (!was.cycle_seen || timing.last.0 != was.cycle_from.0) {
+        marks.modifiers[1] = marks.modifiers[0];
+        marks.modifiers[0] = escape_modifiers(p, state, timing.last) as u32;
+    }
+}
+
+/// The instant of an event (a command has none: it gives no record).
+fn instant(e: &Event) -> Micros {
+    match *e {
+        Event::Sense { at, .. } => at,
+        Event::Paced { at, .. } => at,
+        Event::Tick { now, .. } => now,
+        Event::Command(_) => Micros(0),
+    }
+}
+
+/// The augmentation Marker of an event (PM18.5): ATR's phase as it changed
+/// in the step (ATR-Dur, ATR-FB, ATR-End), or the PVARP extended after a
+/// PVC (PVP→).
+fn augmentation(was: u8, state: &State, pvc: bool) -> u8 {
+    let now = phase_of(state);
+    if now != was {
+        if now == 1 {
+            aug::ATR_DURATION
+        } else if now == 2 {
+            aug::ATR_FALLBACK
+        } else {
+            aug::ATR_END
+        }
+    } else if pvc && state.pvarp_extended {
+        aug::PVARP_EXTENDED
+    } else {
+        aug::NONE
+    }
+}
+
+/// The record's Marker of a Chamber's Marker of the step.
+fn kind_of(marker: Option<(Marker, Micros)>, atrium: bool, fast_atrial: bool, pvc: bool) -> u8 {
+    match marker {
+        Some((Marker::Pace { fused: false }, _)) => kind::PACE,
+        Some((Marker::Pace { fused: true }, _)) => kind::PACE_FUSED,
+        Some((Marker::Sense { refractory: false }, _)) => {
+            if atrium && fast_atrial {
+                kind::AT
+            } else if !atrium && pvc {
+                kind::PVC
+            } else {
+                kind::SENSE
+            }
+        }
+        Some((Marker::Sense { refractory: true }, _)) => kind::SENSE_REFRACTORY,
+        Some((Marker::Noise, _)) => kind::NOISE,
+        _ => kind::NONE,
+    }
+}
+
 /// One event: the step, then the arming it returns applied to the
 /// hardware, and its Markers put in the ring.
-fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, counts: &mut Counts, hw: &mut H, e: Event) {
+fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, hw: &mut H, e: Event) {
     let params = *state.params();
+    let was = before(state, instant(&e));
     let (next, arming) = step(&params, state, e);
     *state = next;
+    let pvc = matches!(arming.markers.augmentation, Some((Marker::Pvc, _)));
+    let mut augmentation = augmentation(was.phase, state, pvc);
     let mut k = 0;
     while k < 2 {
         let c = CHAMBERS[k];
@@ -358,19 +509,31 @@ fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32,
             Chamber::A => arming.markers.atrial,
             Chamber::V => arming.markers.ventricular,
         };
-        let kind = match marker {
-            Some((Marker::Pace { fused: false }, _)) => kind::PACE,
-            Some((Marker::Pace { fused: true }, _)) => kind::PACE_FUSED,
-            Some((Marker::Sense { refractory: false }, _)) => kind::SENSE,
-            Some((Marker::Sense { refractory: true }, _)) => kind::SENSE_REFRACTORY,
-            _ => kind::NONE,
-        };
+        let kind = kind_of(marker, k == 0, was.fast_atrial, pvc);
         if let (Some((_, at)), true) = (marker, kind != kind::NONE) {
             // The record keeps the instant's low 32 bits: the therapy timer's count.
-            record(ring, written, counts, Record { kind, chamber: k as u8, reserved: [0; 2], at: pm_hw::count_of(at).0 });
+            let count = pm_hw::count_of(at).0;
+            let paced = kind == kind::PACE || kind == kind::PACE_FUSED;
+            // A Pace accounted before its report ended the cycle before the one now running.
+            let modifiers = if !paced {
+                0
+            } else if was.accounted[k] {
+                (marks.modifiers[1] % 0x100) as u8
+            } else {
+                (marks.modifiers[0] % 0x100) as u8
+            };
+            let since = if marks.seen[k] != 0 { count.wrapping_sub(marks.last[k]) } else { record::NO_INTERVAL };
+            record(ring, written, drained, counts, Record { kind, chamber: k as u8, modifiers, augmentation, at: count, since });
+            if kind != kind::SENSE_REFRACTORY && kind != kind::NOISE {
+                marks.last[k] = count;
+                marks.seen[k] = 1;
+            }
+            // One augmentation Marker an event (Property P9): with its first record.
+            augmentation = aug::NONE;
         }
         k += 1;
     }
+    cycle(marks, &was, state);
 }
 
 impl Timing {
@@ -381,7 +544,7 @@ impl Timing {
         if self.link.tripped != 0 {
             return;
         }
-        let Timing { state, driver, board, ring, written, counts, .. } = self;
+        let Timing { state, driver, board, ring, written, drained, marks, counts, .. } = self;
         let mut hw = Driver::resume(board::Board { words: board }, *driver);
         let fired = hw.fired();
         let ventricle_first = fired.fired[0] && fired.fired[1] && fired.at[1].is_before(fired.at[0]);
@@ -390,7 +553,7 @@ impl Timing {
         while k < 2 {
             let c = order[k];
             if fired.fired[c.index()] {
-                event(state, ring, written, counts, &mut hw, Event::Paced { chamber: c, at: fired.at[c.index()] });
+                event(state, ring, written, drained, marks, counts, &mut hw, Event::Paced { chamber: c, at: fired.at[c.index()] });
             }
             k += 1;
         }
@@ -399,13 +562,13 @@ impl Timing {
 
     /// `sense_a`, `sense_v`: one service of the Chamber's sense line.
     fn on_sense(&mut self, c: Chamber) {
-        let Timing { state, driver, board, ring, written, counts, started, hw_fault, .. } = self;
+        let Timing { state, driver, board, ring, written, drained, marks, counts, started, hw_fault, .. } = self;
         if !*started || *hw_fault || self.link.tripped != 0 {
             return;
         }
         let mut hw = Driver::resume(board::Board { words: board }, *driver);
         if let Some(s) = hw.sensed(c) {
-            event(state, ring, written, counts, &mut hw, Event::Sense { chamber: c, at: s.at, edges: s.edges });
+            event(state, ring, written, drained, marks, counts, &mut hw, Event::Sense { chamber: c, at: s.at, edges: s.edges });
         }
         *driver = hw.state;
     }
@@ -454,7 +617,7 @@ impl Timing {
         if !self.started {
             self.init();
         }
-        let Timing { state, driver, board, ring, written, counts, hw_fault, link, .. } = self;
+        let Timing { state, driver, board, ring, written, drained, marks, counts, hw_fault, link, .. } = self;
         heard(link, inbox);
         // The battery level is taken first: it decides whether anything
         // else is done.
@@ -466,7 +629,7 @@ impl Timing {
         if !*hw_fault {
             let mut hw = Driver::resume(board::Board { words: board }, *driver);
             if tripped {
-                trip(state, ring, written, counts, link, &mut hw);
+                trip(state, ring, written, drained, marks, counts, link, &mut hw);
                 if command.is_some() {
                     v = verdict::DECLINED;
                     answered = true;
@@ -474,7 +637,7 @@ impl Timing {
             } else {
                 link.tripped = 0;
                 if let Some(command) = command {
-                    event(state, ring, written, counts, &mut hw, Event::Command(command));
+                    event(state, ring, written, drained, marks, counts, &mut hw, Event::Command(command));
                     if code_of(&inbox.command) == code::TEMPORARY && !state.temporary_wanted {
                         v = verdict::DECLINED;
                     }
@@ -482,7 +645,7 @@ impl Timing {
                 }
                 let now = hw.now();
                 let magnet = hw.magnet();
-                event(state, ring, written, counts, &mut hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
+                event(state, ring, written, drained, marks, counts, &mut hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
             }
             hw.refresh(Chamber::A);
             hw.refresh(Chamber::V);
@@ -556,7 +719,7 @@ fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool)
 /// begun ends at its own end compare), and the state is the Power-On
 /// Reset State with empty histories, which is the State entered when the
 /// level is back. Done once, in the first Job below the level.
-fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
+fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
     if link.tripped == 0 {
         let mut k = 0;
         while k < 2 {
@@ -566,8 +729,10 @@ fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, 
             k += 1;
         }
         *state = State::POWER_ON_RESET;
-        *ring = [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING];
+        *ring = [Record::NONE; RING];
         *written = 0;
+        *drained = 0;
+        *marks = Marks::NONE;
         link.tripped = 1;
     }
 }
@@ -586,6 +751,67 @@ fn status_of(state: &State, link: &LinkSide, battery: Battery) -> [u32; pm_core:
         refused: link.refused,
     }
     .words()
+}
+
+impl Timing {
+    /// The batch for the Endpoint `events` (task 22.1): the oldest records
+    /// not yet handed over, up to `record::BATCH` of them, with the number
+    /// of the first, the count of records the ring has lost and the
+    /// sensor's interval. The records stay in the ring until `delivered`
+    /// says the Endpoint took them: a full Endpoint keeps them here.
+    #[must_use]
+    pub fn batch(&self) -> [u32; record::EVENTS_WORDS] {
+        let mut b = [0u32; record::EVENTS_WORDS];
+        let waiting = self.written.wrapping_sub(self.drained) as usize;
+        let n = if waiting > record::BATCH { record::BATCH } else { waiting };
+        b[record::batch::COUNT] = n as u32;
+        b[record::batch::FIRST] = self.drained;
+        b[record::batch::DROPPED] = self.counts.dropped;
+        b[record::batch::SENSOR] = if self.state.sensor_known { self.state.sensor_interval } else { 0 };
+        let mut k = 0;
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(record::BATCH@ - k@))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= record::BATCH@))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(b@.len() == 28))]
+        while k < record::BATCH {
+            if k < n {
+                let r = self.ring[(self.drained.wrapping_add(k as u32) as usize) % RING];
+                let at = record::batch::RECORDS + record::RECORD_WORDS * k;
+                b[at] = r.at;
+                b[at + 1] = record::word1(r.kind, r.chamber, r.modifiers, r.augmentation);
+                b[at + 2] = r.since;
+            }
+            k += 1;
+        }
+        b
+    }
+
+    /// A record into the ring, as an event puts it (for the host tests of
+    /// the ring; the Tasks put their records through `event`).
+    pub fn push(&mut self, r: Record) {
+        record(&mut self.ring, &mut self.written, &mut self.drained, &mut self.counts, r);
+    }
+
+    /// The Endpoint took the batch of `count` records from number `first`.
+    /// The ring may have lost some of them since the batch was made (the
+    /// number of its oldest record moved on): it never goes back.
+    pub fn delivered(&mut self, first: u32, count: u32) {
+        let end = first.wrapping_add(count);
+        if end.wrapping_sub(self.drained) <= count {
+            self.drained = end;
+        }
+    }
+
+    /// No Endpoint takes the records (the QEMU declaration has no `diag`):
+    /// they are done with when `control` has run.
+    pub fn discard(&mut self) {
+        self.drained = self.written;
+    }
+}
+
+/// The validation function of the channel of `events` toward `control`,
+/// which carries nothing: no message is one.
+pub fn validate_events(_m: &[u32; record::EVENTS_WORDS]) -> bool {
+    false
 }
 
 /// Task `pace` (sporadic; released by the end of a pulse).
@@ -647,6 +873,27 @@ pub fn control(mut cx: rsk_ctx::Control) {
         }
     }
     let status = cx.timing.lock(|t| t.on_control(&inbox));
+    // The event records go to `diag` (task 22.1): the oldest in the ring,
+    // up to eight, when there are any, and once in `STATUS_REFRESH` Jobs
+    // an empty batch with the counts and the sensor's interval. One batch
+    // in `EVENTS_JOBS` Jobs at most, which is one in a period of
+    // `history`: the Endpoint holds two, and the Kernel records every send
+    // to a full Endpoint as an event of its own (finding B44). Outside the
+    // Critical_Section; the records leave the ring when the Endpoint has
+    // taken them, so a full Endpoint (or `diag` restarting) keeps them
+    // here and delays nothing (PM22.4).
+    let quiet = cx.events_age.get();
+    let mut sent = false;
+    if quiet.saturating_add(1) >= EVENTS_JOBS {
+        let batch = cx.timing.lock(|t| t.batch());
+        if batch[record::batch::COUNT] != 0 || quiet >= STATUS_REFRESH {
+            sent = true;
+            if cx.events.send(&batch).is_ok() {
+                cx.timing.lock(|t| t.delivered(batch[record::batch::FIRST], batch[record::batch::COUNT]));
+            }
+        }
+    }
+    cx.events_age.with(|a| *a = if sent { 0 } else { quiet.saturating_add(1) });
     // The status goes to `link` when it has changed, when `comms` has
     // restarted, and once in `STATUS_REFRESH` Jobs. A full channel is
     // left until the next refresh; an Endpoint that reports the peer's
@@ -718,6 +965,7 @@ pub fn control(mut cx: rsk_ctx::Control) {
 pub fn control(mut cx: rsk_ctx::Control) {
     let sensed = cx.timing.lock(|t| {
         let _ = t.on_control(&Inbox::none());
+        t.discard();
         board::Board { words: &mut t.board }.play()
     });
     if sensed & 1 != 0 {

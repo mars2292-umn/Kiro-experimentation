@@ -62,7 +62,31 @@ def build(features, target_dir, env):
                           "--target-dir", target_dir], capture_output=True, text=True, env={**os.environ, **env})
     if out.returncode != 0:
         sys.exit(out.stderr[-2000:])
-    return f"{target_dir}/{TARGET}/release/pacemaker"
+    elf = f"{target_dir}/{TARGET}/release/pacemaker"
+    kernel_stack_room(elf)
+    return elf
+
+
+KRAM_BYTES = 32_768
+KERNEL_STACK_BOUND = 1_368   # the Link_Checker's bound on the Flight build (docs/pacemaker/build_checks)
+
+
+def kernel_stack_room(elf):
+    """The Kernel's stack is what its RAM region has left above its data
+    (the linker script the Generator writes), and a build with the Kernel's
+    trace fills most of the region with the trace's buffers. No build check
+    runs on such a build, so the room is checked here: at least one and a
+    half times the Link_Checker's bound (finding B44: a build 20 bytes
+    short ran and gave records that could not be read)."""
+    used = 0
+    for line in st.sh(["/Library/Developer/CommandLineTools/usr/bin/llvm-size", "-A", elf]).stdout.splitlines():
+        f = line.split()
+        if len(f) == 3 and f[0] in (".kernel.data", ".kernel.bss", ".kernel.noinit", ".kernel.cov"):
+            used += int(f[1])
+    room = KRAM_BYTES - used
+    if room < KERNEL_STACK_BOUND * 3 // 2:
+        sys.exit(f"{elf}: the Kernel's RAM has {room} bytes left for its stack, whose bound is {KERNEL_STACK_BOUND}")
+    return room
 
 
 def heart(scenario):

@@ -11,6 +11,7 @@ EXTERN(__INTERRUPTS);
 PROVIDE(_stack_start = ORIGIN(KRAM) + LENGTH(KRAM));
 PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 12288);
 PROVIDE(_p1_stack_top = ORIGIN(P1RAM) + 2048);
+PROVIDE(_p2_stack_top = ORIGIN(P2RAM) + 2048);
 
 SECTIONS
 {
@@ -39,6 +40,12 @@ SECTIONS
     *libpacemaker_comms-*:*(.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
   } > P1CODE
+
+  .p2.text : ALIGN(4)
+  {
+    *libpacemaker_diag-*:*(.text .text.* .rodata .rodata.*)
+    . = ALIGN(4);
+  } > P2CODE
 
   .kernel.text : ALIGN(4)
   {
@@ -92,6 +99,22 @@ SECTIONS
     . = ALIGN(8);
     _p1_ecov = .;
   } > P1RAM
+
+  .p2.bss ORIGIN(P2RAM) + 2048 (NOLOAD) : ALIGN(4)
+  {
+    _p2_sbss = .;
+    *libpacemaker_diag-*:*(.bss .bss.* .data .data.* COMMON)
+    . = ALIGN(4);
+    _p2_ebss = .;
+  } > P2RAM
+
+  .p2.cov (NOLOAD) : ALIGN(8)
+  {
+    _p2_scov = .;
+    KEEP(*libpacemaker_diag-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p2_ecov = .;
+  } > P2RAM
 
   .kernel.data : ALIGN(4)
   {
@@ -147,6 +170,7 @@ SECTIONS
     LONG(_sbss); LONG(_ebss); LONG(0);
     LONG(_p0_sbss); LONG(_p0_ebss); LONG(0);
     LONG(_p1_sbss); LONG(_p1_ebss); LONG(0);
+    LONG(_p2_sbss); LONG(_p2_ebss); LONG(0);
     LONG(0); LONG(0); LONG(0);
     __rsk_data_table = .;
     LONG(_sdata); LONG(_edata); LONG(_sidata);
@@ -154,6 +178,7 @@ SECTIONS
     __rsk_cov_table = .;
     LONG(_p0_scov); LONG(_p0_ecov); LONG(0);
     LONG(_p1_scov); LONG(_p1_ecov); LONG(0);
+    LONG(_p2_scov); LONG(_p2_ecov); LONG(0);
     LONG(_k_scov); LONG(_k_ecov); LONG(0);
     LONG(0); LONG(0); LONG(0);
   } > KFLASH

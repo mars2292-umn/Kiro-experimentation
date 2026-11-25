@@ -343,10 +343,12 @@ fn an_atrial_tachycardia_goes_through_duration_into_fallback() {
     // close to it: some 5 to 6 s).
     let v_between = r.paces.iter().filter(|p| p.0 == V && p.1 > onset && p.1 <= fallback).count();
     assert_eq!(v_between, 10);
-    // The Mode in force: DDD until a ventricular event after Fallback
-    // began, VVIR from it.
+    // The Mode in force: DDD until the ventricular event at which Fallback
+    // begins, VVIR from it (finding B41; until 2026-11-25 this test had the
+    // Mode change one ventricular event later). The trace is of the ticks:
+    // the first that has the phase has the Mode.
     let switched = r.trace.iter().find(|t| t.1 == Mode::VVI.rate_adaptive()).expect("VVIR").0;
-    assert!(switched > fallback && switched <= fallback + 1_000_000 + 20_000, "{fallback} then {switched}");
+    assert_eq!(switched, fallback);
     assert!(r.trace.iter().all(|t| t.1 == if t.0 < switched { Mode::DDD } else { Mode::VVI.rate_adaptive() }));
     assert!(r.paces.iter().any(|p| p.0 == V && p.1 + 20_000 >= switched && p.1 <= switched), "the switch is at a ventricular event");
     // In Fallback no atrial Pace and no tracking: the ventricular interval
@@ -393,8 +395,11 @@ fn a_tachycardia_that_ends_in_fallback_returns_to_the_programmed_mode() {
     assert!(switched < 20_000_000);
     let back = r.trace.iter().find(|t| t.0 > switched && t.1 == Mode::DDD).expect("DDD again").0;
     // The counter is at zero 8 slow intervals after 30 s, at 36.4 s; the
-    // phase ends at the next ventricular event and the Mode at the one after.
-    assert!(back > 36_400_000 && back < 36_400_000 + 2_100_000, "{back}");
+    // phase ends at the next ventricular event and the Mode with it
+    // (finding B41; the bound was two intervals until 2026-11-25).
+    assert!(back > 36_400_000 && back < 36_400_000 + 1_020_000, "{back}");
+    let idle = r.trace.iter().find(|t| t.0 > switched && t.2 == AtrPhase::Idle).expect("Idle").0;
+    assert_eq!(back, idle, "the Mode is back in the tick that has the phase ended");
     assert!(r.trace.iter().filter(|t| t.0 > back).all(|t| t.1 == Mode::DDD && t.2 == AtrPhase::Idle));
     // Tracking again: a ventricular Pace one sensed AV delay after an atrial Sense.
     let last_a = senses.iter().rev().find(|s| s.1 < 59_000_000).unwrap().1;
@@ -682,4 +687,55 @@ fn a_parameter_the_mode_does_not_use_is_not_in_force() {
         assert_eq!(q.atr, m == Mode::VDD, "{m:?}");
         assert_eq!((s.permanent.hrl, s.permanent.rate_smoothing_up, s.permanent.atr), (1_500_000, 6, true), "kept as programmed");
     }
+}
+
+// ------------------------------------------------------------ task 22.2
+
+/// PM18.5: the modifiers of a Pace say what made its escape interval what
+/// it was: the HRL's after a Sense, the sensor's, or Rate Smoothing's Up
+/// or Down; none for a Pace at the LRL.
+#[test]
+fn the_modifiers_of_a_pace() {
+    use pm_core::escape_modifiers;
+    use pm_core::record::modifier;
+    let at = Micros(5_000_000);
+    // A plain set: none, whatever the state.
+    let p = set(Mode::VVI, 60);
+    let mut s = programmed(p);
+    assert_eq!(escape_modifiers(&p, &s, at), 0);
+    s.hysteresis_active = true;
+    s.sensor_known = true;
+    s.sensor_interval = 500_000;
+    s.cycle_known = true;
+    s.last_cycle = 600_000;
+    assert_eq!(escape_modifiers(&p, &s, at), 0, "no hysteresis, no sensor, no smoothing in the set");
+    // Hysteresis: only while a Sense has begun it.
+    let h = Params { hrl: interval_of_ppm(40), ..p };
+    assert_eq!(escape_modifiers(&h, &s, at), modifier::HYSTERESIS);
+    s.hysteresis_active = false;
+    assert_eq!(escape_modifiers(&h, &s, at), 0);
+    // The sensor: only when its interval is the shorter one.
+    let r = Params { mode: Mode::VVI.rate_adaptive(), msr: interval_of_ppm(120), ..p };
+    assert_eq!(escape_modifiers(&r, &s, at), modifier::SENSOR);
+    s.sensor_interval = 1_000_000;
+    assert_eq!(escape_modifiers(&r, &s, at), 0, "the sensor at the LRL");
+    // Rate Smoothing Down: the LRL interval after a cycle of 600 ms is cut to 672 ms.
+    let d = Params { rate_smoothing_down: 12, ..p };
+    assert_eq!(escape_modifiers(&d, &s, at), modifier::SMOOTHING_DOWN);
+    s.last_cycle = 950_000;
+    assert_eq!(escape_modifiers(&d, &s, at), 0, "within 12 % of the cycle before");
+    s.cycle_known = false;
+    s.last_cycle = 600_000;
+    assert_eq!(escape_modifiers(&d, &s, at), 0, "no cycle before");
+    // Rate Smoothing Up under the sensor: 500 ms after a cycle of 1000 ms is held at 970 ms.
+    s.cycle_known = true;
+    s.last_cycle = 1_000_000;
+    s.sensor_interval = 500_000;
+    let u = Params { rate_smoothing_up: 3, ..r };
+    assert_eq!(escape_modifiers(&u, &s, at), modifier::SENSOR + modifier::SMOOTHING_UP);
+    // The step's own escape interval agrees: the Pace after the Sense is one HRL interval later.
+    let (t, _) = step(&h, &programmed(h), tick(0, 0));
+    let (t, _) = step(&h, &t, sense(V, 600_000, 1));
+    assert_eq!(t.chamber[1].pending.at, Micros(2_100_000));
+    assert_eq!(escape_modifiers(&h, &t, Micros(600_000)), modifier::HYSTERESIS);
 }

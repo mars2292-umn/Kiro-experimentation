@@ -1,0 +1,2558 @@
+{
+ "runs": {
+  "events": {
+   "PM_SET": "0=1,1=60",
+   "heart": "env 0,0,0,0,0,1,25000,33000,1,3,33000,41000,1",
+   "binaries": {
+    "pacemaker": "sha256:d5dfa72519c201f41d8ee575c3459dd411ab6d37604939270fb9da2d2f2e8309",
+    "heart-sim": "sha256:7af65e0290b618851aa6ac693741c72b3118bd94dfd81f9922f786f792012edf"
+   },
+   "kernel_events": [
+    {
+     "event": "operating_end",
+     "partition": null,
+     "task": 255,
+     "instant_s": 45.0
+    },
+    {
+     "event": "safe_state",
+     "partition": null,
+     "task": 255,
+     "instant_s": 45.0
+    }
+   ],
+   "counts": {
+    "started": 1,
+    "hw_fault": 0,
+    "records": 563,
+    "too_late": 0,
+    "moved": 0,
+    "forced": 0,
+    "dropped": 0,
+    "late_arms": 0,
+    "untimed": 0
+   },
+   "store": {
+    "batches": 219,
+    "records": 563,
+    "lost": 0,
+    "dropped": 0,
+    "next_seq": 563,
+    "peer_changes": 0,
+    "markers_written": 563,
+    "histogram": {
+     "paced_atrial": [
+      0,
+      0,
+      0,
+      0,
+      44,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_atrial": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "paced_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      43,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "checks": [
+    {
+     "check": "the store and the driver's counts were read",
+     "ok": true,
+     "detail": {
+      "counts": {
+       "started": 1,
+       "hw_fault": 0,
+       "records": 563,
+       "too_late": 0,
+       "moved": 0,
+       "forced": 0,
+       "dropped": 0,
+       "late_arms": 0,
+       "untimed": 0
+      }
+     }
+    },
+    {
+     "check": "the storm is on the wire (16,000 atrial and 8,000 ventricular edges)",
+     "ok": true,
+     "detail": {
+      "atrial_edges": 16000,
+      "ventricular_edges": 8000
+     }
+    },
+    {
+     "check": "every record the Therapy_Partition wrote reached `diag`: none lost by the ring, no batch missing",
+     "ok": true,
+     "detail": {
+      "written_by_therapy": 563,
+      "taken_by_diag": 563,
+      "batches": 219,
+      "dropped_by_the_ring": 0,
+      "dropped_as_told_to_diag": 0,
+      "lost_batches_records": 0,
+      "peer_changes": 0
+     }
+    },
+    {
+     "check": "the run is the high event rate meant: noise Markers of both Chambers among the last records, and more than twice the records of a quiet run (2 a second)",
+     "ok": true,
+     "detail": {
+      "records_a_second_over_the_run": 12.511111111111111,
+      "noise_markers_among_the_last_64": 16
+     }
+    },
+    {
+     "check": "the Kernel's log holds the end of the Operating_Duration and the safe state and nothing else",
+     "ok": true,
+     "detail": [
+      {
+       "event": "operating_end",
+       "partition": null,
+       "task": 255,
+       "instant_s": 45.0
+      },
+      {
+       "event": "safe_state",
+       "partition": null,
+       "task": 255,
+       "instant_s": 45.0
+      }
+     ]
+    }
+   ],
+   "verdict": "PASS",
+   "task": "22.1"
+  },
+  "markers": {
+   "PM_SET": "0=1,1=60",
+   "heart": "fixed",
+   "binaries": {
+    "pacemaker": "sha256:eb2dfc4c69d5fe8f37c465eb4811944821aa5901d8780452d6748bb73d1182a1",
+    "heart-sim": "sha256:967404aa81bb51f2f3219f73cc350f35955b66e6c41c13164b4c1c1429814534"
+   },
+   "kernel_events": [],
+   "store": {
+    "batches": 112,
+    "records": 168,
+    "lost": 0,
+    "dropped": 0,
+    "next_seq": 168,
+    "seq_known": 1,
+    "peer_changes": 0,
+    "pvcs": 0,
+    "atr_episodes": 0,
+    "resets": 0,
+    "histogram": {
+     "paced_atrial": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_atrial": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      55,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "paced_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      55,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "markers_written": 168,
+    "trend_duration": 0,
+    "trend_what": 0,
+    "trend_written": 45,
+    "trend_stamp_ms": 44900,
+    "pace_interval": 799998,
+    "sensor_interval": 0,
+    "jobs": 0,
+    "markers": [
+     {
+      "at_us": 27810449,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 28450449,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 28600449,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 28610447,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 29250447,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 29400447,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 29410445,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 30050445,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 30200445,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 30210443,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 30850443,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 31000443,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 31010441,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 31650441,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 31800441,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 31810439,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 32450439,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 32600439,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 32610437,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 33250437,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 33400437,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 33410435,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 34050435,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 34200435,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 34210433,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 34850433,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 35000433,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 35010431,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 35650431,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 35800431,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 35810429,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 36450429,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 36600429,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 36610427,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 37250427,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 37400427,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 37410425,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 38050425,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 38200425,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 38210423,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 38850423,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 39000423,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 39010421,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 39650421,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 39800421,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 39810419,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 40450419,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 40600419,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 40610417,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 41250417,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 41400417,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 41410415,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 42050415,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 42200415,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 42210413,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 42850413,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 43000413,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 43010411,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 43650411,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 43800411,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 43810409,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     },
+     {
+      "at_us": 44450409,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 44600409,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 799998
+     },
+     {
+      "at_us": 44610407,
+      "kind": "sense_refractory",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 9998
+     }
+    ]
+   },
+   "trend": [
+    [
+     0,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ],
+    [
+     799998,
+     0
+    ]
+   ],
+   "checks": [
+    {
+     "check": "the store was read",
+     "ok": true,
+     "detail": null
+    },
+    {
+     "check": "the therapy's clock and the capture's are fitted on the ventricular Paces of the Marker buffer",
+     "ok": true,
+     "detail": {
+      "ventricular_pace_records": 21,
+      "matched": 21,
+      "rate_difference_ppm": -2.1655898287953335
+     }
+    },
+    {
+     "check": "every record of the Marker buffer has its edge on the capture within PM-PAR-04 (1 ms): a Pace its pulse, a Sense the sense mirror's edge",
+     "ok": true,
+     "detail": {
+      "records": 64,
+      "error_us": {
+       "ventricular_sense": {
+        "count": 22,
+        "min": -0.1281319558620453,
+        "max": 0.8017381727695465
+       },
+       "atrial_sense": {
+        "count": 21,
+        "min": -0.4746219962835312,
+        "max": 0.4552481323480606
+       },
+       "ventricular_pace": {
+        "count": 21,
+        "min": -0.4874458611011505,
+        "max": 0.45541128516197205
+       }
+      },
+      "furthest_us": 0.8017381727695465,
+      "without_an_edge": []
+     }
+    },
+    {
+     "check": "each record's time since the Chamber's last non-refractory event is the capture's within PM-PAR-04",
+     "ok": true,
+     "detail": {
+      "compared": 61,
+      "error_us": {
+       "count": 61,
+       "min": -1,
+       "max": 2
+      }
+     }
+    },
+    {
+     "check": "the Marker buffer holds what the scenario gives: tracked atrial Senses, ventricular Paces, and the conducted beat as a Refractory sense",
+     "ok": true,
+     "detail": {
+      "sense_refractory_v": 22,
+      "sense_a": 21,
+      "pace_v": 21
+     }
+    },
+    {
+     "check": "the paced ventricular histogram has the capture's ventricular Paces (one less: the first has no interval), nearly all at 70 to 79 a minute",
+     "ok": true,
+     "detail": {
+      "on_the_capture": 56,
+      "in_the_histogram": 55,
+      "at_70_to_79": 55,
+      "bins": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       55,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "check": "the sensed atrial histogram has the tracked beats, nearly all at 70 to 79 a minute; the sensed ventricular one is empty; the paced atrial one has the atrial Paces",
+     "ok": true,
+     "detail": {
+      "sensed_atrial": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       55,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "sensed_ventricular_total": 0,
+      "paced_atrial_total": 0,
+      "atrial_paces_on_the_capture": 1
+     }
+    },
+    {
+     "check": "no record was lost and the counts of PVCs and ATR episodes are zero",
+     "ok": true,
+     "detail": {
+      "records": 168,
+      "batches": 112,
+      "dropped": 0,
+      "lost": 0,
+      "pvcs": 0,
+      "atr_episodes": 0
+     }
+    },
+    {
+     "check": "the trend is Continuous with a sample a second: the pacing interval 800 ms, no sensor interval (the Mode is not rate-adaptive)",
+     "ok": true,
+     "detail": {
+      "samples": 45,
+      "pacing_interval_us": {
+       "count": 42,
+       "min": 799998,
+       "max": 799998
+      },
+      "stamp_ms": 44900
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "22.2, 22.3"
+  },
+  "atr_markers": {
+   "heart": "env 600,900,0,0,0,1,9000,31000,300",
+   "heart_binary": "sha256:79bec2c4a3716bd7f36242daca54b9294df0e94ec0e95fba07774317eea51aac",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795629892.996721,
+     "ok": true,
+     "op": "up",
+     "sent": 1795629892.744612,
+     "started": 1795629892.744612
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795629893.79655,
+     "ok": true,
+     "op": "set:0=1,1=60,20=1,21=10,22=1",
+     "sent": 1795629892.996773,
+     "started": 1795629892.996768
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 63,
+       "of": 0,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 14
+     },
+     "done": 1795629894.646582,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795629893.796572,
+     "started": 1795629893.796572
+    },
+    {
+     "detail": null,
+     "done": 1795629896.696568,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629894.646605,
+     "started": 1795629894.646605
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 7,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629896.846568,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629896.696583,
+     "started": 1795629896.696583
+    },
+    {
+     "detail": null,
+     "done": 1795629898.896589,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629896.846587,
+     "started": 1795629896.846587
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 8,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629899.04659,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629898.896603,
+     "started": 1795629898.896603
+    },
+    {
+     "detail": null,
+     "done": 1795629901.096605,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629899.046611,
+     "started": 1795629899.046611
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 9,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629901.246615,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629901.096617,
+     "started": 1795629901.096617
+    },
+    {
+     "detail": null,
+     "done": 1795629903.296619,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629901.246637,
+     "started": 1795629901.246637
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 10,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629903.446646,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629903.296632,
+     "started": 1795629903.296632
+    },
+    {
+     "detail": null,
+     "done": 1795629905.49663,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629903.446666,
+     "started": 1795629903.446666
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 11,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629905.646638,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629905.496644,
+     "started": 1795629905.496644
+    },
+    {
+     "detail": null,
+     "done": 1795629907.646664,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629905.646655,
+     "started": 1795629905.646655
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 12,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629907.796663,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629907.646678,
+     "started": 1795629907.646678
+    },
+    {
+     "detail": null,
+     "done": 1795629909.84675,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629907.796684,
+     "started": 1795629907.796684
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 13,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629909.996691,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629909.846762,
+     "started": 1795629909.846762
+    },
+    {
+     "detail": null,
+     "done": 1795629912.046693,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629909.996713,
+     "started": 1795629909.996713
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 14,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629912.196698,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629912.046705,
+     "started": 1795629912.046705
+    },
+    {
+     "detail": null,
+     "done": 1795629914.246699,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629912.196716,
+     "started": 1795629912.196716
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 15,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629914.39675,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629914.246712,
+     "started": 1795629914.246712
+    },
+    {
+     "detail": null,
+     "done": 1795629916.446723,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629914.396771,
+     "started": 1795629914.396771
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 16,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629916.596765,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629916.446736,
+     "started": 1795629916.446736
+    },
+    {
+     "detail": null,
+     "done": 1795629918.646739,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629916.596787,
+     "started": 1795629916.596787
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 17,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629918.796747,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629918.646754,
+     "started": 1795629918.646754
+    },
+    {
+     "detail": null,
+     "done": 1795629920.796802,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629918.796765,
+     "started": 1795629918.796765
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 18,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629920.946768,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629920.796816,
+     "started": 1795629920.796816
+    },
+    {
+     "detail": null,
+     "done": 1795629922.996768,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629920.946789,
+     "started": 1795629920.946789
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 19,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629923.146789,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629922.996782,
+     "started": 1795629922.996782
+    },
+    {
+     "detail": null,
+     "done": 1795629925.196783,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629923.146805,
+     "started": 1795629923.146805
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 20,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629925.346798,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629925.196795,
+     "started": 1795629925.196795
+    },
+    {
+     "detail": null,
+     "done": 1795629927.396805,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629925.346818,
+     "started": 1795629925.346818
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 21,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629927.546814,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629927.396819,
+     "started": 1795629927.396819
+    },
+    {
+     "detail": null,
+     "done": 1795629929.596824,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629927.546835,
+     "started": 1795629927.546835
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 22,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629929.746836,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629929.596837,
+     "started": 1795629929.596837
+    },
+    {
+     "detail": null,
+     "done": 1795629931.796837,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629929.746858,
+     "started": 1795629929.746858
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 23,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629931.946848,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629931.796849,
+     "started": 1795629931.796849
+    },
+    {
+     "detail": null,
+     "done": 1795629933.946938,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629931.946867,
+     "started": 1795629931.946867
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 24,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629934.096862,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629933.946952,
+     "started": 1795629933.946952
+    },
+    {
+     "detail": null,
+     "done": 1795629936.146896,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629934.096883,
+     "started": 1795629934.096883
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 25,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629936.296875,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629936.146908,
+     "started": 1795629936.146908
+    },
+    {
+     "detail": null,
+     "done": 1795629938.346887,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629936.296896,
+     "started": 1795629936.296896
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 26,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629938.496898,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629938.346901,
+     "started": 1795629938.346901
+    },
+    {
+     "detail": null,
+     "done": 1795629940.49694,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629938.496915,
+     "started": 1795629938.496915
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 27,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629940.646922,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629940.496954,
+     "started": 1795629940.496954
+    },
+    {
+     "detail": null,
+     "done": 1795629942.696924,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629940.646939,
+     "started": 1795629940.646939
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 28,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629942.846929,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629942.696937,
+     "started": 1795629942.696937
+    },
+    {
+     "detail": null,
+     "done": 1795629944.896941,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629942.84695,
+     "started": 1795629942.84695
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 29,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629945.046953,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629944.896953,
+     "started": 1795629944.896953
+    },
+    {
+     "detail": null,
+     "done": 1795629947.096966,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795629945.046975,
+     "started": 1795629945.046975
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 30,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795629947.246964,
+     "ok": true,
+     "op": "status",
+     "sent": 1795629947.096978,
+     "started": 1795629947.096978
+    }
+   ],
+   "store": {
+    "batches": 133,
+    "records": 133,
+    "lost": 0,
+    "dropped": 0,
+    "next_seq": 133,
+    "seq_known": 0,
+    "peer_changes": 2,
+    "pvcs": 0,
+    "atr_episodes": 1,
+    "resets": 0,
+    "histogram": {
+     "paced_atrial": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_atrial": [
+      1,
+      0,
+      0,
+      0,
+      23,
+      0,
+      0,
+      0,
+      13,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "paced_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      29,
+      1,
+      10,
+      23,
+      14,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "sensed_ventricular": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "markers_written": 133,
+    "trend_duration": 0,
+    "trend_what": 0,
+    "trend_written": 58,
+    "trend_stamp_ms": 57900,
+    "pace_interval": 899999,
+    "sensor_interval": 0,
+    "jobs": 8,
+    "markers": [
+     {
+      "at_us": 25609272,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 636626
+     },
+     {
+      "at_us": 26248778,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 639506
+     },
+     {
+      "at_us": 26891203,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 642425
+     },
+     {
+      "at_us": 27536588,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 645385
+     },
+     {
+      "at_us": 28184974,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 648386
+     },
+     {
+      "at_us": 28836403,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 651429
+     },
+     {
+      "at_us": 29490918,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 654515
+     },
+     {
+      "at_us": 30148563,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 657645
+     },
+     {
+      "at_us": 30809384,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 660821
+     },
+     {
+      "at_us": 31473427,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 664043
+     },
+     {
+      "at_us": 32140739,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 667312
+     },
+     {
+      "at_us": 32811370,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 670631
+     },
+     {
+      "at_us": 33485369,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 673999
+     },
+     {
+      "at_us": 34162787,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 677418
+     },
+     {
+      "at_us": 34843677,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 680890
+     },
+     {
+      "at_us": 35528092,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 684415
+     },
+     {
+      "at_us": 36216088,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 687996
+     },
+     {
+      "at_us": 36907722,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 691634
+     },
+     {
+      "at_us": 37603052,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 695330
+     },
+     {
+      "at_us": 38302137,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": "ATR-End",
+      "since_us": 699085
+     },
+     {
+      "at_us": 38992091,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 22799944
+     },
+     {
+      "at_us": 39142091,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 839954
+     },
+     {
+      "at_us": 39892089,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 40042089,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 40792086,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 40942086,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 41692084,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 41842084,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 42592082,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 42742082,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 43492079,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 43642079,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 44392078,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 44542078,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 45292075,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 45442075,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 46192073,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 46342073,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 47092070,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 47242070,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 47992068,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 48142068,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 48892067,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 49042067,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 49792064,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 49942064,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 50692061,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 50842061,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899997
+     },
+     {
+      "at_us": 51592059,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 51742059,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 52492057,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 52642057,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 53392056,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 53542056,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 54292052,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899996
+     },
+     {
+      "at_us": 54442052,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899996
+     },
+     {
+      "at_us": 55192050,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 55342050,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 56092048,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 56242048,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 56992046,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 57142046,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899998
+     },
+     {
+      "at_us": 57892045,
+      "kind": "sense",
+      "chamber": 0,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     },
+     {
+      "at_us": 58042045,
+      "kind": "pace",
+      "chamber": 1,
+      "modifiers": 0,
+      "augmentation": null,
+      "since_us": 899999
+     }
+    ]
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded and the store was read",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "the therapy's clock and the capture's are fitted on the ventricular Paces of the Marker buffer",
+     "ok": true,
+     "detail": {
+      "ventricular_pace_records": 42,
+      "matched": 42,
+      "rate_difference_ppm": -2.1747931685522914
+     }
+    },
+    {
+     "check": "every record of the Marker buffer has its edge on the capture within PM-PAR-04 (1 ms): a Pace its pulse, a Sense the sense mirror's edge",
+     "ok": true,
+     "detail": {
+      "records": 64,
+      "error_us": {
+       "ventricular_pace": {
+        "count": 42,
+        "min": -0.5044558942317963,
+        "max": 0.5524040795862675
+       },
+       "atrial_sense": {
+        "count": 22,
+        "min": -0.7026033774018288,
+        "max": 0.9131756201386452
+       }
+      },
+      "furthest_us": 0.9131756201386452,
+      "without_an_edge": []
+     }
+    },
+    {
+     "check": "each record's time since the Chamber's last non-refractory event is the capture's within PM-PAR-04",
+     "ok": true,
+     "detail": {
+      "compared": 62,
+      "error_us": {
+       "count": 62,
+       "min": 1,
+       "max": 3
+      }
+     }
+    },
+    {
+     "check": "the run went through Fallback and back (the Mode the status reports)",
+     "ok": true,
+     "detail": [
+      63,
+      63,
+      63,
+      63,
+      63,
+      106,
+      106,
+      106,
+      106,
+      106,
+      106,
+      106,
+      106,
+      106,
+      106,
+      63,
+      63,
+      63,
+      63,
+      63,
+      63,
+      63,
+      63,
+      63
+     ]
+    },
+    {
+     "check": "one ATR episode is counted, and ATR-End is among the last records with the tracking after it",
+     "ok": true,
+     "detail": {
+      "atr_episodes": 1,
+      "augmentation_markers_among_the_last_64": [
+       "ATR-End"
+      ],
+      "kinds": {
+       "pace": 42,
+       "sense": 22
+      }
+     }
+    },
+    {
+     "check": "the sensed atrial histogram has the rhythm's beats at 60 to 69 a minute and the tachycardia's non-refractory beats at 100 to 109 a minute",
+     "ok": true,
+     "detail": {
+      "sensed_atrial": [
+       1,
+       0,
+       0,
+       0,
+       23,
+       0,
+       0,
+       0,
+       13,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "check": "no record was lost",
+     "ok": true,
+     "detail": {
+      "records": 133,
+      "batches": 133,
+      "dropped": 0,
+      "lost": 0,
+      "peer_changes": 2
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "22.2"
+  }
+ },
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "B": "1366:1061:001050279833",
+  "C": "1366:1061:001050211852"
+ },
+ "capture": {
+  "rate_hz": 1000000,
+  "pins": "D0 the atrial pace pin, D1 the ventricular, D6 and D7 the Heart_Simulator's sense mirrors",
+  "marker_tolerance_us": 1000
+ }
+}

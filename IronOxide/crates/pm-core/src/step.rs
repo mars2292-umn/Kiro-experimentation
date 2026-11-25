@@ -259,6 +259,45 @@ fn escape(p: &Params, st: &State, at: Micros) -> u32 {
     e
 }
 
+/// The modifiers of a Pace at the end of the escape interval that the
+/// event at `from` began in the state `st` (PM18.5; `record::modifier`):
+/// what made that interval what it was, in the order [`escape`] composes
+/// it. A hysteresis Pace: the interval was the HRL's. A sensor-rate Pace:
+/// the sensor's interval was shorter and took its place. A Fallback
+/// interval that was shorter still takes the place of both and has no
+/// modifier (ATR-FB is an augmentation Marker). Rate Smoothing Up or Down:
+/// the smoothing made the interval longer, or shorter, than that.
+///
+/// It is for the Marker stream and decides nothing of the timing.
+#[inline(always)]
+#[must_use]
+pub fn escape_modifiers(p: &Params, st: &State, from: Micros) -> u8 {
+    use crate::record::modifier;
+    let hysteresis = st.hysteresis_active && p.hrl > p.lrl;
+    let mut e = if hysteresis { p.hrl } else { p.lrl };
+    let mut m = if hysteresis { modifier::HYSTERESIS } else { 0 };
+    if p.mode.adaptive && st.sensor_known && st.sensor_interval < e {
+        e = st.sensor_interval;
+        m = modifier::SENSOR;
+    }
+    if p.atr && matches!(st.atr.phase, AtrPhase::Fallback) {
+        let f = fallback_interval(p, st.atr.fallback_from, from.elapsed_since(st.atr.fallback_start));
+        if f < e {
+            e = f;
+            m = 0;
+        }
+    }
+    if (p.rate_smoothing_up != 0 || p.rate_smoothing_down != 0) && st.cycle_known {
+        let s = smoothed(e, st.last_cycle, p.rate_smoothing_up, p.rate_smoothing_down);
+        if s > e {
+            m = if m == modifier::SENSOR { modifier::SENSOR + modifier::SMOOTHING_UP } else if m == modifier::HYSTERESIS { modifier::HYSTERESIS + modifier::SMOOTHING_UP } else { modifier::SMOOTHING_UP };
+        } else if s < e {
+            m = if m == modifier::SENSOR { modifier::SENSOR + modifier::SMOOTHING_DOWN } else if m == modifier::HYSTERESIS { modifier::HYSTERESIS + modifier::SMOOTHING_DOWN } else { modifier::SMOOTHING_DOWN };
+        }
+    }
+    m
+}
+
 /// The AV delay after an atrial Pace (PM11.2 to PM11.4): the Fixed AV
 /// Delay; or, where the delay is dynamic and a cardiac cycle has been
 /// measured, that cycle's length times the Fixed AV Delay over the LRL
@@ -868,6 +907,15 @@ fn resolve(st: &mut State) {
 #[inline(always)]
 fn waiting(st: &State) -> bool {
     let mut t = *st;
+    // What the next ventricular event will do to ATR's phase (`switched`):
+    // the Mode it brings is in force from that event (finding B41).
+    if t.own().atr && t.own().mode.tracks() {
+        if matches!(t.atr.phase, AtrPhase::Duration) && t.atr.cycles_left <= 1 {
+            t.atr.phase = AtrPhase::Fallback;
+        } else if matches!(t.atr.phase, AtrPhase::Fallback) && t.atr.counter == 0 {
+            t.atr.phase = AtrPhase::Idle;
+        }
+    }
     resolve(&mut t);
     st.staged_valid
         || t.therapy as u8 != st.therapy as u8
@@ -892,6 +940,24 @@ fn waiting(st: &State) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures((result.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed))]
 #[inline(always)]
 fn switched(st: &mut State, chamber: Chamber, at: Micros, paced: bool) -> Params {
+    // PM14.6 to PM14.8: a ventricular event at which ATR Duration is out
+    // with the tachycardia still there begins Fallback, and one at which
+    // the tachycardia has ended ends it; the Mode changes at that event
+    // (finding B41: until 2026-11-25 it changed one ventricular event
+    // later, and DDD paced the atrium in the cycle between). `waiting`
+    // foresees both, so that the event comes here. `atr_ventricular`,
+    // called for the event below, then finds the phase as it is to be.
+    if matches!(chamber, Chamber::V) && st.own().atr && st.own().mode.tracks() {
+        if matches!(st.atr.phase, AtrPhase::Duration) && st.atr.cycles_left <= 1 {
+            let v = st.chamber[Chamber::V.index()];
+            st.atr.cycles_left = 0;
+            st.atr.phase = AtrPhase::Fallback;
+            st.atr.fallback_start = at;
+            st.atr.fallback_from = if v.seen { at.elapsed_since(v.last) } else { st.own().url };
+        } else if matches!(st.atr.phase, AtrPhase::Fallback) && st.atr.counter == 0 {
+            st.atr.phase = AtrPhase::Idle;
+        }
+    }
     resolve(st);
     let np = *st.params();
     st.chamber[Chamber::A.index()].pending = Pending::NONE;

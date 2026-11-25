@@ -12,8 +12,8 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0x917ee39a",
-  "layout_checksum": "0x182a0db9",
+  "config_checksum": "0x3a9fafbc",
+  "layout_checksum": "0x45783197",
   "operating_duration_ticks": 720000000,
   "safe_state": "crate::safe_state",
   "fp_flush_to_zero": false,
@@ -21,6 +21,10 @@
     0
   ],
   "priority_map": [
+    {
+      "level": 1,
+      "nvic": 224
+    },
     {
       "level": 2,
       "nvic": 192
@@ -48,7 +52,7 @@
   ],
   "capacities": {
     "lock_stack": 4,
-    "timer_slots": 17,
+    "timer_slots": 20,
     "event_log": 32,
     "derived": true
   },
@@ -234,13 +238,13 @@
       ],
       "mpu": {
         "code": {
-          "base": 262144,
+          "base": 278528,
           "size_log2": 14,
           "srd": 0,
           "usable_bytes": 16384
         },
         "ram": {
-          "base": 536936448,
+          "base": 536952832,
           "size_log2": 13,
           "srd": 0,
           "usable_bytes": 8192
@@ -260,6 +264,43 @@
       },
       "tasks": [
         "comms.link"
+      ],
+      "resources": [],
+      "signals": []
+    },
+    {
+      "id": "diag",
+      "crate": "pacemaker_diag",
+      "level": "D",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 16384,
+        "ram": 16384,
+        "stack": 2048,
+        "init_arena": 0
+      },
+      "peripherals": [],
+      "mpu": {
+        "code": {
+          "base": 262144,
+          "size_log2": 14,
+          "srd": 0,
+          "usable_bytes": 16384
+        },
+        "ram": {
+          "base": 536936448,
+          "size_log2": 14,
+          "srd": 0,
+          "usable_bytes": 16384
+        },
+        "windows": [],
+        "derived": true
+      },
+      "tasks": [
+        "diag.history"
       ],
       "resources": [],
       "signals": []
@@ -399,7 +440,8 @@
       "raises": [],
       "endpoint_roles": [
         "program.pg",
-        "status.pg"
+        "status.pg",
+        "events.pg"
       ],
       "nesting_depth": 1,
       "slots": {
@@ -445,6 +487,39 @@
       },
       "cs_sites": [],
       "entry": "::pacemaker_comms::rsk_jobs::link",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "diag.history",
+      "core": 0,
+      "partition": "diag",
+      "priority": 1,
+      "vector": 41,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 1600000,
+      "source": null,
+      "deadline_ticks": 1600000,
+      "budget_cycles": 128000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "endpoint_roles": [
+        "events.log"
+      ],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 15,
+        "deadline": 16,
+        "budget": 17
+      },
+      "cs_sites": [],
+      "entry": "::pacemaker_diag::rsk_jobs::history",
       "derived": [
         "vector",
         "nesting_depth",
@@ -556,6 +631,50 @@
         }
       ],
       "storage_offset": 1920,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "events",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 2,
+      "k": 2,
+      "ceiling": "kernel",
+      "payload_bytes": 112,
+      "payload_type": "[u32;28]",
+      "protocol": null,
+      "gating_rank": 0,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "pg",
+          "task": "therapy.control",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_events"
+            }
+          ]
+        },
+        {
+          "role": "log",
+          "task": "diag.history",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": []
+        }
+      ],
+      "storage_offset": 2048,
       "derived": [
         "k",
         "storage_offset"

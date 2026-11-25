@@ -519,11 +519,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacemaker-diag"
+version = "0.0.0"
+dependencies = [
+ "pacemaker-decl",
+ "pm-core",
+ "rsk",
+]
+
+[[package]]
 name = "pacemaker-system"
 version = "0.0.0"
 dependencies = [
  "pacemaker-comms",
  "pacemaker-decl",
+ "pacemaker-diag",
  "pacemaker-therapy",
  "pm-core",
  "rsk",
