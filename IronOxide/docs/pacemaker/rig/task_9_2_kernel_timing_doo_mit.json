@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:fda44dc976c216a54f74ae94a72e04136f8e943f754f4b3ae4107f190eec400c",
+  "binary_hash": "sha256:45e8cc5059db08f6da274c6241dc7a5fc7ef3920942edf70528692496ab77176",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 6358,
+      "cycles": 6548,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 20998,
-        "max_observed": 5086,
+        "max_observed": 5238,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -26,7 +26,7 @@
     },
     {
       "symbol": "delta_irq",
-      "cycles": 2853,
+      "cycles": 2957,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -35,7 +35,7 @@
       ],
       "measured": {
         "runs": 2499,
-        "max_observed": 2282,
+        "max_observed": 2365,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -91,7 +91,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 245436,
+        "runs": 245439,
         "max_observed": 4348,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -102,7 +102,7 @@
     },
     {
       "symbol": "delta_dispatch",
-      "cycles": 3663,
+      "cycles": 3643,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -111,7 +111,7 @@
       ],
       "measured": {
         "runs": 23499,
-        "max_observed": 2930,
+        "max_observed": 2914,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -129,7 +129,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 22894,
+        "runs": 22895,
         "max_observed": 3125,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -148,7 +148,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 22894,
+        "runs": 22895,
         "max_observed": 3125,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -197,7 +197,7 @@
     },
     {
       "symbol": "delta_complete",
-      "cycles": 3997,
+      "cycles": 3995,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -206,7 +206,7 @@
       ],
       "measured": {
         "runs": 23499,
-        "max_observed": 3197,
+        "max_observed": 3196,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -262,7 +262,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 23616,
+        "runs": 23617,
         "max_observed": 403,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -273,7 +273,7 @@
     },
     {
       "symbol": "delta_send",
-      "cycles": 3304,
+      "cycles": 3323,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -281,8 +281,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 5397,
-        "max_observed": 2643,
+        "runs": 5398,
+        "max_observed": 2658,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -292,7 +292,7 @@
     },
     {
       "symbol": "delta_recv",
-      "cycles": 1437,
+      "cycles": 1452,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -300,8 +300,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 26397,
-        "max_observed": 1149,
+        "runs": 26398,
+        "max_observed": 1161,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

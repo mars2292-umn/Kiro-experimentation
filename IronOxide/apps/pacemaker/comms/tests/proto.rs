@@ -18,12 +18,13 @@ fn status_of(f: &Frame) -> (u8, u8) {
 fn the_zero_state_is_the_new_state() {
     assert_eq!(
         Link::new(),
-        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 28],
-               forward_ready: 0, unforwarded: 0, forward: [0; 29], have_status: 0, status: [0; 4], told: [0; 3], battery: 0, resend_battery: 0 }
+        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 29],
+               forward_ready: 0, unforwarded: 0, forward: [0; 30], have_status: 0, status: [0; 4], told: [0; 3], battery: 0, resend_battery: 0 }
     );
     // Task 16.1 added the words of the two Endpoints (2 + 29 + 1 + 4 + 3);
-    // the battery level kept for a restarted `therapy` two more (2026-11-24).
-    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 28 * 4 + 28 * 4 + 41 * 4, "no padding");
+    // the battery level kept for a restarted `therapy` two more (2026-11-24);
+    // a set has 29 words since task 19.5 (28 before: three words more here).
+    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 29 * 4 + 29 * 4 + 42 * 4, "no padding");
 }
 
 #[test]
@@ -125,8 +126,8 @@ fn a_read_sends_the_five_parts_in_order_and_a_command_ends_it() {
 #[test]
 fn the_commands_of_later_tasks_are_not_served() {
     // END_TEMPORARY and PACE_NOW were in this list until task 16.1; `link` forwards them now (the test below).
-    // (SET_BATTERY too until task 16.5.)
-    for k in [ kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
+    // (SET_BATTERY too until task 16.5, SET_ACTIVITY until task 19.5.)
+    for k in [kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
         let mut l = Link::new();
         assert_eq!(status_of(&answer(&mut l, Some(&Frame::empty(3, k)))), (3, code::NOT_SERVED), "kind {k:#x}");
     }
@@ -228,6 +229,15 @@ fn a_new_status_is_told_once_in_place_of_idle() {
 
 #[test]
 fn a_battery_level_and_a_magnet_response_are_forwarded_with_their_byte() {
+    // An activity value takes the whole byte: none is refused (task 19.5).
+    let mut l = Link::new();
+    let mut f = Frame::empty(0x52, kind::SET_ACTIVITY);
+    f.len = 1;
+    for v in [0u8, 1, 128, 255] {
+        f.payload[0] = v;
+        assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x52, code::FORWARDED));
+        assert_eq!(take_forward(&mut l), Some(wire::message_with_value(wire::code::ACTIVITY, 0x52, v as u32)));
+    }
     for (k, top) in [(kind::SET_BATTERY, 4u8), (kind::SET_MAGNET_RESPONSE, 1)] {
         let mut l = Link::new();
         let mut f = Frame::empty(0x51, k);

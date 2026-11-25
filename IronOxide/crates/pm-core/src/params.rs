@@ -75,8 +75,12 @@ pub struct Params {
     pub pvarp_extension: u32,
     /// Hysteresis Rate Limit, as its interval; 0 is Off.
     pub hrl: u32,
-    /// Rate Smoothing in percent; 0 is Off.
-    pub rate_smoothing: u8,
+    /// Rate Smoothing Up in percent: by how much of the cycle before an
+    /// interval may be shorter; 0 is Off (PM16.3).
+    pub rate_smoothing_up: u8,
+    /// Rate Smoothing Down in percent: by how much of the cycle before an
+    /// interval may be longer; 0 is Off (PM16.3).
+    pub rate_smoothing_down: u8,
     /// ATR Mode on.
     pub atr: bool,
     /// ATR Duration, in cardiac cycles.
@@ -92,10 +96,10 @@ pub struct Params {
     pub response_factor: u8,
     /// Recovery Time.
     pub recovery_time: u32,
-    /// Always zero. The fields narrower than a word add up to 17 bytes;
+    /// Always zero. The fields narrower than a word add up to 18 bytes;
     /// these make the set a whole number of words with no padding byte, as
     /// a Partition static must be (rsk's check of R14.5 reads every byte).
-    pub reserved: [u8; 3],
+    pub reserved: [u8; 2],
 }
 
 impl Params {
@@ -117,7 +121,8 @@ impl Params {
         pvarp: 250_000,
         pvarp_extension: 0,
         hrl: 0,
-        rate_smoothing: 0,
+        rate_smoothing_up: 0,
+        rate_smoothing_down: 0,
         atr: false,
         atr_duration: 20,
         atr_fallback_time: 60_000_000,
@@ -126,7 +131,7 @@ impl Params {
         reaction_time: 30_000_000,
         response_factor: 8,
         recovery_time: 300_000_000,
-        reserved: [0; 3],
+        reserved: [0; 2],
     };
 
     /// The Power-On Reset parameters (PM7.1): VVI, an LRL of 65 ppm, a
@@ -162,7 +167,8 @@ impl Params {
         pvarp: 0,
         pvarp_extension: 0,
         hrl: 0,
-        rate_smoothing: 0,
+        rate_smoothing_up: 0,
+        rate_smoothing_down: 0,
         atr: false,
         atr_duration: 0,
         atr_fallback_time: 0,
@@ -171,7 +177,7 @@ impl Params {
         reaction_time: 0,
         response_factor: 0,
         recovery_time: 0,
-        reserved: [0; 3],
+        reserved: [0; 2],
     };
 
     /// The Pace-Now parameters (PM6.5): as Power-On Reset with a pulse width

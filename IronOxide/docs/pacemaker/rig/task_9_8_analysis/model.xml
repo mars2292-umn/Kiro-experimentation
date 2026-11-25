@@ -7,10 +7,10 @@ typedef int[0,N-1] task_t;
 const int PRIO[N] = { 7, 6, 5, 4, 2 };
 const int PERIOD[N] = { 1280000, 3200000, 3200000, 1280000, 3200000 };
 const int DEADLINE[N] = { 128000, 192000, 256000, 1280000, 3200000 };
-const int EXEC[N] = { 99344, 98816, 100482, 407509, 188389 };
-const int OWN[N] = { 70211, 70211, 70211, 370851, 172699 };
-const int JITTER[N] = { 6713, 6713, 6713, 6713, 6713 };
-const int BLOCK[N] = { 24272, 24272, 24272, 8479, 8479 };
+const int EXEC[N] = { 99820, 99749, 100508, 410202, 189535 };
+const int OWN[N] = { 71045, 71045, 71045, 371651, 173440 };
+const int JITTER[N] = { 7543, 7543, 7543, 7543, 7543 };
+const int BLOCK[N] = { 25780, 25780, 25780, 8714, 8714 };
 const bool SPORADIC[N] = { true, true, true, false, false };
 // Task_Model identifiers, by index (R31.7):
 // 0: therapy.pace

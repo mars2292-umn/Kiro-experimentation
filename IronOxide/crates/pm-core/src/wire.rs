@@ -5,7 +5,7 @@
 //! **`program`**, from `comms.link` to `therapy.control`:
 //! [`PROGRAM_WORDS`] words. Word 0 is a code in its low byte and, in the
 //! byte above, the sequence number of the DCM's frame that caused the
-//! message; words 1 to 28 are a parameter set for the two codes that carry
+//! message; words 1 to 29 are a parameter set for the two codes that carry
 //! one, a value in word 1 for the two that carry a value, and zero
 //! otherwise. `link` sends one message for every frame
 //! of the DCM's it hears: a command's, or [`code::HEARD`] for any other,
@@ -26,7 +26,7 @@ use crate::validate::{validate, WORDS};
 use creusot_std::model::View;
 
 /// The words of a `program` message and of a `status` message.
-pub const PROGRAM_WORDS: usize = 29;
+pub const PROGRAM_WORDS: usize = 30;
 pub const STATUS_WORDS: usize = 4;
 
 /// The codes of a `program` message: the kind of the DCM's frame for a
@@ -40,6 +40,8 @@ pub mod code {
     /// The battery level, in word 1: 0 BOL, 1 ERN, 2 ERT, 3 ERP, 4 below
     /// the Power-On Reset trip level (PM29.2, PM30.3).
     pub const BATTERY: u8 = 0x20;
+    /// The activity value, in word 1: 0 to 255 (PM29.3).
+    pub const ACTIVITY: u8 = 0x21;
     /// The magnet response, in word 1: 1 on, 0 off (PM8.4).
     pub const MAGNET_RESPONSE: u8 = 0x22;
 }
@@ -75,7 +77,7 @@ pub fn message_with_set(code: u8, seq: u8, words: &[u32; WORDS]) -> [u32; PROGRA
     let mut m = message(code, seq);
     let mut k = 0;
     #[cfg_attr(creusot, creusot_std::macros::variant(WORDS@ - k@))]
-    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 28 && m@.len() == 29))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 29 && m@.len() == 30))]
     while k < WORDS {
         m[k + 1] = words[k];
         k += 1;
@@ -119,7 +121,7 @@ pub fn set_of(m: &[u32; PROGRAM_WORDS]) -> [u32; WORDS] {
     let mut w = [0u32; WORDS];
     let mut k = 0;
     #[cfg_attr(creusot, creusot_std::macros::variant(WORDS@ - k@))]
-    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 28 && w@.len() == 28))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 29 && w@.len() == 29))]
     while k < WORDS {
         w[k] = m[k + 1];
         k += 1;
@@ -129,7 +131,8 @@ pub fn set_of(m: &[u32; PROGRAM_WORDS]) -> [u32; WORDS] {
 
 /// Whether `m` is a message of the Endpoint `program`: word 0 a code and a
 /// sequence number and nothing above them; with PROGRAM or TEMPORARY a set
-/// `validate` accepts; with BATTERY a level and with MAGNET_RESPONSE 0 or 1
+/// `validate` accepts; with BATTERY a level, with ACTIVITY a value up to
+/// 255 and with MAGNET_RESPONSE 0 or 1
 /// in word 1 and zeros after it; with the other codes zeros.
 #[inline(always)]
 #[must_use]
@@ -148,6 +151,11 @@ pub fn admitted(m: &[u32; PROGRAM_WORDS]) -> bool {
             return false;
         }
         1
+    } else if c == code::ACTIVITY {
+        if set[0] > 255 {
+            return false;
+        }
+        1
     } else if c == code::MAGNET_RESPONSE {
         if set[0] > 1 {
             return false;
@@ -160,7 +168,7 @@ pub fn admitted(m: &[u32; PROGRAM_WORDS]) -> bool {
     };
     let mut k = first;
     #[cfg_attr(creusot, creusot_std::macros::variant(WORDS@ - k@))]
-    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 28))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 29))]
     while k < WORDS {
         if set[k] != 0 {
             return false;

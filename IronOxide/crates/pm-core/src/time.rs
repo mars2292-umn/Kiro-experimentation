@@ -31,7 +31,18 @@ pub fn before(a: Micros, b: Micros) -> bool {
 pub fn sum(a: Micros, d: u32) -> creusot_std::prelude::Int {
     use creusot_std::macros::pearlite;
     use creusot_std::model::View;
-    pearlite! { if a.0@ + d@ > 18446744073709551615 { 18446744073709551615 } else { a.0@ + d@ } }
+    pearlite! { sum_i(a, d@) }
+}
+
+/// For the App_Prover: the instant `d` microseconds after `a`, for a `d`
+/// that is a bound and not a value of the program (the longest or the
+/// shortest escape interval a parameter set allows).
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn sum_i(a: Micros, d: creusot_std::prelude::Int) -> creusot_std::prelude::Int {
+    use creusot_std::macros::pearlite;
+    use creusot_std::model::View;
+    pearlite! { if a.0@ + d > 18446744073709551615 { 18446744073709551615 } else { a.0@ + d } }
 }
 
 impl Micros {

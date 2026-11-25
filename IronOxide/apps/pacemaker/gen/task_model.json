@@ -13,7 +13,7 @@
     "tick_hz": 25000000
   },
   "config_checksum": "0x42a4c468",
-  "layout_checksum": "0xa9761bbd",
+  "layout_checksum": "0x58691a30",
   "operating_duration_ticks": 75000000,
   "safe_state": "crate::safe_state",
   "fp_flush_to_zero": false,
@@ -108,7 +108,7 @@
       "deadline_miss": "RESTART_PARTITION",
       "mit_threshold": 10,
       "regions": {
-        "code": 32768,
+        "code": 65536,
         "ram": 32768,
         "stack": 12288,
         "init_arena": 0
@@ -119,9 +119,9 @@
       "mpu": {
         "code": {
           "base": 131072,
-          "size_log2": 15,
+          "size_log2": 16,
           "srd": 0,
-          "usable_bytes": 32768
+          "usable_bytes": 65536
         },
         "ram": {
           "base": 536903680,

@@ -52,7 +52,7 @@ rsk::app! {
     target = qemu_mps2_an386, profile = Ravenscar, operating_duration = 3000.ms(),
     safe_state = crate::safe_state, log_capacity = 32;
 
-    partition therapy (level = A, crate = pacemaker_therapy, code = 32.KiB(), ram = 32.KiB(), stack = 12.KiB(),
+    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 12.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
                        mit_threshold = 10) {
         peripherals = [CMSDK_DUALTIMER];

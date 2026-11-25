@@ -106,6 +106,20 @@ pub const fn mode(paces: Chambers, senses: Chambers, response: Response, adaptiv
     Mode { paces, senses, response, adaptive }
 }
 
+/// For the App_Prover: the Mode uses hysteresis (what
+/// [`Mode::uses_hysteresis`] returns): AAI, VVI, DDD and their
+/// rate-adaptive forms (Table 19-3).
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn hysteresis_spec(m: Mode) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! {
+        (m.paces == Chambers::A && m.senses == Chambers::A && m.response == Response::Inhibited)
+            || (m.paces == Chambers::V && m.senses == Chambers::V && m.response == Response::Inhibited)
+            || (m.paces == Chambers::Both && m.senses == Chambers::Both && m.response == Response::Tracked)
+    }
+}
+
 /// For the App_Prover: the Mode tracks (what [`Mode::tracks`] returns).
 #[cfg(creusot)]
 #[creusot_std::macros::logic(open)]
@@ -198,6 +212,27 @@ impl Mode {
     #[cfg_attr(creusot, creusot_std::macros::ensures(result == tracks_spec(self)))]
     pub const fn tracks(self) -> bool {
         self.paces(Chamber::V) && self.senses(Chamber::A) && matches!(self.response, Response::Tracked)
+    }
+
+    /// Whether the Mode uses hysteresis (Table 19-3): AAI, VVI, DDD and
+    /// their rate-adaptive forms.
+    #[inline(always)]
+    #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == hysteresis_spec(self)))]
+    pub const fn uses_hysteresis(self) -> bool {
+        matches!(
+            (self.paces, self.senses, self.response),
+            (Chambers::A, Chambers::A, Response::Inhibited) | (Chambers::V, Chambers::V, Response::Inhibited) | (Chambers::Both, Chambers::Both, Response::Tracked)
+        )
+    }
+
+    /// Whether the Mode uses Rate Smoothing (Table 19-3): the Modes that
+    /// use hysteresis, and VDD and VDDR.
+    #[inline(always)]
+    #[must_use]
+    #[cfg_attr(creusot, creusot_std::macros::ensures(result == (hysteresis_spec(self) || tracks_spec(self))))]
+    pub const fn uses_rate_smoothing(self) -> bool {
+        self.uses_hysteresis() || self.tracks()
     }
 
     /// Whether the Mode uses the Sensed AV Delay Offset (Table 19-3): DDD

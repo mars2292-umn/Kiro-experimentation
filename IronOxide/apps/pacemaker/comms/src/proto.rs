@@ -11,7 +11,7 @@
 //! | POLL | the same |
 //! | INTERROGATE | IDENTITY: the answered `seq`, three zero bytes, the model, the serial number |
 //! | PROGRAM_PART, TEMPORARY_PART | STATUS with RECEIVED, SET_COMPLETE or BAD_PART; a complete set is forwarded to `therapy` |
-//! | END_TEMPORARY, PACE_NOW, SET_BATTERY, SET_MAGNET_RESPONSE | STATUS with FORWARDED; the command is forwarded to `therapy` (the two with a byte: BAD_PART unless the length is 1) |
+//! | END_TEMPORARY, PACE_NOW, SET_BATTERY, SET_ACTIVITY, SET_MAGNET_RESPONSE | STATUS with FORWARDED; the command is forwarded to `therapy` (the two with a byte: BAD_PART unless the length is 1) |
 //! | READ_PARAMETERS | part 0 of the last complete set as PARAM_PART, the other parts in the periods after; STATUS with NO_SET if there is none |
 //! | any other kind of the DCM's | STATUS with NOT_SERVED |
 //! | a kind of the PG's | as bytes that are no frame |
@@ -314,11 +314,12 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
         l.forward = wire::message(f.kind, f.seq);
         return status(l, seq, f.seq, code::FORWARDED);
     }
-    // The battery level and the magnet response: one byte (the frame's
+    // The battery level, the activity value (task 19.5) and the magnet
+    // response: one byte (the frame's
     // kind is the message's code). A value `therapy` would refuse is
     // refused here. The level is kept, to be sent again if `therapy`
     // starts again (decided 2026-11-24).
-    if f.kind == kind::SET_BATTERY || f.kind == kind::SET_MAGNET_RESPONSE {
+    if f.kind == kind::SET_BATTERY || f.kind == kind::SET_ACTIVITY || f.kind == kind::SET_MAGNET_RESPONSE {
         if f.len != 1 {
             return status(l, seq, f.seq, code::BAD_PART);
         }

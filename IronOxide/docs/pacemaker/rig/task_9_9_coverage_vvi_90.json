@@ -1,7 +1,788 @@
 {
-  "binary_hash": "sha256:df8117a0b3f4cb28ad6b48f49d54a984e5aad303f3f5609284249e0bfcfb54c8",
+  "binary_hash": "sha256:3538ee39a9385e091d6bfe9bed9f06827e76056dc0f0e2f69e3ee373e660df55",
   "features": "nrf52840,debug-port,quiet,trace-ram,coverage,set-vvi-90",
   "functions": [
+    {
+      "branch_outcomes": 24,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link",
+      "not_taken": [
+        "170:8 true",
+        "170:20 true",
+        "205:12 true",
+        "206:12 true",
+        "206:12 false",
+        "220:16 false",
+        "223:8 false"
+      ],
+      "symbol": "_ZN15pacemaker_comms4link17h75a95b8a9dfc7f91E",
+      "taken": 17
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h000f06fb9c055d2fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h07c58d3d4374279aE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h19ca01354d0bffc6E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h22a1b89330a331f5E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h3519c7f0ca4791efE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h38f0169646576f76E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h4ebfbc651f715558E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h530d3e6f08c7d967E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17h9b1702ffc31bde99E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17haa46a06d81f35547E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hb0906e974e67f0a7E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hb18c754bca46a96fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hbbad87c8bdcc8272E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hc09c3fd9486eb759E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17he2214d146ff50f04E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17he2f57c8cfaf7c372E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hedeafe7966e8cc3bE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}",
+      "not_taken": [
+        "212:16 false"
+      ],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$17hff88b1550169dcb6E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::link::{closure}::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms4link28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h27bf5da4f21de4b5E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::not_resent",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto10not_resent17ha64f98da8ecbc4d9E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::take_resend",
+      "not_taken": [
+        "156:8 true"
+      ],
+      "symbol": "_ZN15pacemaker_comms5proto11take_resend17h8774864771e689b5E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 20,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::idle_or_part",
+      "not_taken": [
+        "223:8 true",
+        "223:28 true",
+        "223:28 false",
+        "223:58 true",
+        "223:58 false",
+        "225:26 true",
+        "225:26 false",
+        "226:16 true",
+        "226:16 false",
+        "232:59 true",
+        "232:87 true",
+        "236:19 true"
+      ],
+      "symbol": "_ZN15pacemaker_comms5proto12idle_or_part17he871edd8021a4df4E",
+      "taken": 8
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::peer_changed",
+      "not_taken": [
+        "146:8 true"
+      ],
+      "symbol": "_ZN15pacemaker_comms5proto12peer_changed17h435c11efa0b83575E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::take_forward",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto12take_forward17hd9db3053b322dd77E",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::not_forwarded",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto13not_forwarded17h4bec806a0eaeef0aE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 40,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::answer",
+      "not_taken": [
+        "248:20 false",
+        "261:8 false",
+        "266:8 true",
+        "266:8 false",
+        "274:8 true",
+        "274:8 false",
+        "274:40 true",
+        "274:40 false",
+        "275:12 true",
+        "275:12 false",
+        "275:27 true",
+        "275:27 false",
+        "280:12 true",
+        "280:12 false",
+        "280:40 true",
+        "280:40 false",
+        "290:20 true",
+        "290:20 false",
+        "303:8 true",
+        "303:8 false",
+        "304:12 true",
+        "304:12 false",
+        "313:8 true",
+        "313:8 false",
+        "313:41 true",
+        "313:41 false",
+        "322:8 true",
+        "322:8 false",
+        "322:39 true",
+        "322:39 false",
+        "322:71 true",
+        "322:71 false",
+        "323:12 true",
+        "323:12 false",
+        "327:12 true",
+        "327:12 false",
+        "330:12 true",
+        "330:12 false"
+      ],
+      "symbol": "_ZN15pacemaker_comms5proto6answer17h44a9e16544c442bdE",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::status",
+      "not_taken": [
+        "196:8 false"
+      ],
+      "symbol": "_ZN15pacemaker_comms5proto6status17h66a0c8b100e92cbfE",
+      "taken": 3
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::put_word",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto8put_word17hf374710291e61b87E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::status_in",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto9status_in17h84ff5e9552770803E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/decl/src/nrf52840_coverage.rs",
+      "function": "pacemaker_comms::rsk_jobs::link",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms8rsk_jobs4link17h7b617c9a729f70eaE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::take_back",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms9take_back17ha4d6770d929c3042E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::take_back::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms9take_back28_$u7b$$u7b$closure$u7d$$u7d$17hc61cbdba4ff51df0E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::take_back::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms9take_back28_$u7b$$u7b$closure$u7d$$u7d$17hc743aee1e0b85320E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/lib.rs",
+      "function": "pacemaker_comms::take_back::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms9take_back28_$u7b$$u7b$closure$u7d$$u7d$17hdbee0131fbf0e386E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::uses_hysteresis",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4mode4Mode15uses_hysteresis17hd129c0f88d260a43E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::uses_sensed_av_offset",
+      "not_taken": [
+        "244:9 true"
+      ],
+      "symbol": "_ZN7pm_core4mode4Mode21uses_sensed_av_offset17hbe156f4692e15095E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::paces",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4mode4Mode5paces17ha1214bf73448d804E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::senses",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4mode4Mode6senses17h308749e9b4702bd6E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::tracks",
+      "not_taken": [
+        "214:9 false",
+        "214:35 true"
+      ],
+      "symbol": "_ZN7pm_core4mode4Mode6tracks17hd3a8d85a71d5dd8cE",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Chambers::has",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4mode8Chambers3has17h521a86a5710bae6fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::message_with_set",
+      "not_taken": [
+        "81:11 true",
+        "81:11 false"
+      ],
+      "symbol": "_ZN7pm_core4wire16message_with_set17h5563110440ed9d96E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::message_with_value",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire18message_with_value17hc1e38ab456ad3b7aE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::Status::of_words",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire6Status8of_words17hc3112b2e2f9d12cfE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::set_of",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire6set_of17hdbc5ef3b231b5bfdE",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::code_of",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire7code_of17he94b52bfea20f579E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::message",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire7message17h5547580337ca675aE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 28,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::admitted",
+      "not_taken": [
+        "140:8 true",
+        "145:8 true",
+        "145:30 true",
+        "149:20 true",
+        "150:12 true",
+        "150:12 false",
+        "154:15 true",
+        "155:12 true",
+        "155:12 false",
+        "159:15 true",
+        "160:12 true",
+        "160:12 false",
+        "164:15 false",
+        "164:35 true",
+        "164:35 false",
+        "164:63 true",
+        "164:63 false",
+        "173:12 true"
+      ],
+      "symbol": "_ZN7pm_core4wire8admitted17h3d691bf3593e7089E",
+      "taken": 10
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::kind_known",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core5frame10kind_known17h094d4467d38ea24bE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::words_in_part",
+      "not_taken": [
+        "197:8 true",
+        "197:8 false",
+        "199:15 true",
+        "199:15 false"
+      ],
+      "symbol": "_ZN7pm_core5frame13words_in_part17he46e3aec92b60544E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::Frame::empty",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core5frame5Frame5empty17h3296ba00e8f0de8fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::crc16",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core5frame5crc1617h94a55949139c1ba6E",
+      "taken": 6
+    },
+    {
+      "branch_outcomes": 20,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::decode",
+      "not_taken": [
+        "170:37 true",
+        "174:8 true",
+        "174:29 true",
+        "174:46 true",
+        "174:72 true",
+        "174:86 true",
+        "182:12 true",
+        "184:19 true"
+      ],
+      "symbol": "_ZN7pm_core5frame6decode17hf6349a0a1ca36592E",
+      "taken": 12
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::encode",
+      "not_taken": [
+        "142:18 true"
+      ],
+      "symbol": "_ZN7pm_core5frame6encode17hd8e1189cbc44d609E",
+      "taken": 5
+    },
+    {
+      "branch_outcomes": 12,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::Assembly::accept",
+      "not_taken": [
+        "256:12 true",
+        "256:12 false",
+        "256:26 true",
+        "256:26 false",
+        "260:12 true",
+        "260:12 false",
+        "267:15 true",
+        "267:15 false",
+        "268:16 true",
+        "268:16 false",
+        "279:12 true",
+        "279:12 false"
+      ],
+      "symbol": "_ZN7pm_core5frame8Assembly6accept17hcb979abd9e34e625E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/frame.rs",
+      "function": "pm_core::frame::set_part",
+      "not_taken": [
+        "213:8 true",
+        "213:8 false",
+        "221:11 true",
+        "221:11 false",
+        "222:12 true",
+        "222:12 false"
+      ],
+      "symbol": "_ZN7pm_core5frame8set_part17hcb8e7e463a0a01c9E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/params.rs",
+      "function": "pm_core::params::interval_of_ppm",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core6params15interval_of_ppm17h12717c26ec14fb74E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 24,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::limits_hold",
+      "not_taken": [
+        "331:23 true",
+        "333:9 true",
+        "333:9 false",
+        "334:16 true",
+        "334:16 false",
+        "335:16 true",
+        "335:16 false",
+        "336:17 true",
+        "336:17 false",
+        "340:18 false",
+        "341:18 false",
+        "342:22 true",
+        "342:46 false",
+        "343:5 false",
+        "343:17 false",
+        "343:27 false"
+      ],
+      "symbol": "_ZN7pm_core8validate11limits_hold17h333843718db83864E",
+      "taken": 8
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_amplitude",
+      "not_taken": [
+        "236:5 true",
+        "236:20 true"
+      ],
+      "symbol": "_ZN7pm_core8validate12is_amplitude17hec4b0e54dfbb0671E",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_sensitivity",
+      "not_taken": [
+        "252:5 true",
+        "252:25 true"
+      ],
+      "symbol": "_ZN7pm_core8validate14is_sensitivity17h7b452ff048fcb4f2E",
+      "taken": 4
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_atr_duration",
+      "not_taken": [
+        "260:5 true",
+        "260:17 false"
+      ],
+      "symbol": "_ZN7pm_core8validate15is_atr_duration17hdf39a12404a68bdcE",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_rate_smoothing",
+      "not_taken": [
+        "268:5 false",
+        "268:21 true",
+        "268:21 false"
+      ],
+      "symbol": "_ZN7pm_core8validate17is_rate_smoothing17h838be7be0271ed13E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::activity_threshold",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core8validate18activity_threshold17hc36e235bc6a72c0fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_lrl",
+      "not_taken": [
+        "228:5 true",
+        "228:32 false"
+      ],
+      "symbol": "_ZN7pm_core8validate6is_lrl17he9173ccd2757dc16E",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::stepped",
+      "not_taken": [
+        "220:5 false"
+      ],
+      "symbol": "_ZN7pm_core8validate7stepped17h06da7e67133b7283E",
+      "taken": 3
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::is_width",
+      "not_taken": [
+        "244:5 true"
+      ],
+      "symbol": "_ZN7pm_core8validate8is_width17h5d94f4a283fedd4fE",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 66,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
+      "function": "pm_core::validate::validate",
+      "not_taken": [
+        "361:8 true",
+        "365:18 false",
+        "366:12 false",
+        "367:12 false",
+        "368:12 false",
+        "369:12 false",
+        "370:12 false",
+        "371:13 false",
+        "371:47 true",
+        "371:47 false",
+        "372:12 false",
+        "373:12 false",
+        "374:12 false",
+        "375:12 false",
+        "376:12 false",
+        "377:12 false",
+        "378:12 false",
+        "379:12 false",
+        "380:12 false",
+        "381:13 false",
+        "381:46 true",
+        "381:46 false",
+        "382:13 false",
+        "382:34 true",
+        "382:34 false",
+        "383:12 false",
+        "384:12 false",
+        "385:12 false",
+        "386:12 false",
+        "387:12 false",
+        "388:12 false",
+        "389:12 false",
+        "390:12 false",
+        "392:8 true",
+        "398:8 true",
+        "422:17 false"
+      ],
+      "symbol": "_ZN7pm_core8validate8validate17h4883f7c7c265bf48E",
+      "taken": 30
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/decl/src/nrf52840_coverage.rs",
+      "function": "pacemaker_comms::rsk_target::ms",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms10rsk_target2ms17h6065fcc8c80baea4E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "pacemaker_comms::proto::Link::new",
+      "not_taken": [],
+      "symbol": "_ZN15pacemaker_comms5proto4Link3new17h7ab41138b9bba3b6E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/comms/src/proto.rs",
+      "function": "_<pacemaker_comms::proto::Link$u20$as$u20$core::default::Default>::default",
+      "not_taken": [],
+      "symbol": "_ZN71_$LT$pacemaker_comms..proto..Link$u20$as$u20$core..default..Default$GT$7default17hd9bdbd94961fadf2E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/decl/src/nrf52840_coverage.rs",
+      "function": "_<pacemaker_therapy::rsk_validate::program_pg$u20$as$u20$rsk::Validate<$u5b$u32$u3b$$u20$30$u5d$>>::accept",
+      "not_taken": [],
+      "symbol": "_ZN110_$LT$pacemaker_therapy..rsk_validate..program_pg$u20$as$u20$rsk..Validate$LT$$u5b$u32$u3b$$u20$30$u5d$$GT$$GT$6accept17h6675db1e83f257a5E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::validate_program",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy16validate_program17h09140bd7f29a22d6E",
+      "taken": 0
+    },
     {
       "branch_outcomes": 0,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
@@ -15,7 +796,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::pace::{closure}",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy4pace28_$u7b$$u7b$closure$u7d$$u7d$17h1af370bc40b86828E",
+      "symbol": "_ZN17pacemaker_therapy4pace28_$u7b$$u7b$closure$u7d$$u7d$17h90626a57dbfd704fE",
       "taken": 0
     },
     {
@@ -52,60 +833,102 @@
       "taken": 0
     },
     {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Inbox::none",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy5Inbox4none17ha0ed3914faecc148E",
+      "taken": 0
+    },
+    {
       "branch_outcomes": 6,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::event",
       "not_taken": [
-        "209:24 true"
+        "343:24 true"
       ],
-      "symbol": "_ZN17pacemaker_therapy5event17h36f544123e584170E",
+      "symbol": "_ZN17pacemaker_therapy5event17hb0b45e60b641d2a3E",
       "taken": 5
     },
     {
-      "branch_outcomes": 4,
+      "branch_outcomes": 48,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::Timing::on_control",
       "not_taken": [
-        "301:12 true"
+        "453:12 true",
+        "465:12 true",
+        "474:12 true",
+        "477:16 true",
+        "477:16 false",
+        "480:23 true",
+        "480:23 false",
+        "483:23 true",
+        "483:23 false",
+        "485:23 true",
+        "485:23 false",
+        "487:23 true",
+        "487:23 false",
+        "489:23 true",
+        "489:23 false",
+        "491:23 true",
+        "491:23 false",
+        "496:43 false",
+        "499:12 false",
+        "501:16 true",
+        "508:20 true",
+        "508:20 false",
+        "510:27 true",
+        "510:27 false",
+        "521:20 true",
+        "521:20 false",
+        "527:24 true",
+        "529:24 true",
+        "529:24 false",
+        "529:70 true",
+        "529:70 false",
+        "542:12 true"
       ],
-      "symbol": "_ZN17pacemaker_therapy6Timing10on_control17h12f03baeab5a0053E",
-      "taken": 3
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
-      "function": "pacemaker_therapy::Timing::init",
-      "not_taken": [
-        "279:12 true",
-        "284:20 false"
-      ],
-      "symbol": "_ZN17pacemaker_therapy6Timing4init17h9d76c582db088bf5E",
-      "taken": 2
-    },
-    {
-      "branch_outcomes": 10,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
-      "function": "pacemaker_therapy::Timing::on_pace",
-      "not_taken": [
-        "247:31 true",
-        "247:49 true",
-        "247:49 false",
-        "248:24 true"
-      ],
-      "symbol": "_ZN17pacemaker_therapy6Timing7on_pace17h11bbf565f1bea5b4E",
-      "taken": 6
+      "symbol": "_ZN17pacemaker_therapy6Timing10on_control17hf9a6d4e4943afa11E",
+      "taken": 16
     },
     {
       "branch_outcomes": 6,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::init",
+      "not_taken": [
+        "419:12 true",
+        "424:26 false",
+        "425:20 false"
+      ],
+      "symbol": "_ZN17pacemaker_therapy6Timing4init17h5ce0973ee8d1a784E",
+      "taken": 3
+    },
+    {
+      "branch_outcomes": 12,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::Timing::on_pace",
+      "not_taken": [
+        "381:12 true",
+        "387:31 true",
+        "387:49 true",
+        "387:49 false",
+        "388:24 true"
+      ],
+      "symbol": "_ZN17pacemaker_therapy6Timing7on_pace17he7f1f2e018f77692E",
+      "taken": 7
+    },
+    {
+      "branch_outcomes": 8,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::Timing::on_sense",
       "not_taken": [
-        "263:12 true",
-        "263:25 true",
-        "267:16 false"
+        "403:12 true",
+        "403:25 true",
+        "403:38 true",
+        "407:16 false"
       ],
-      "symbol": "_ZN17pacemaker_therapy6Timing8on_sense17h685a2f233197cc37E",
-      "taken": 3
+      "symbol": "_ZN17pacemaker_therapy6Timing8on_sense17h6dad2d21f247946dE",
+      "taken": 4
     },
     {
       "branch_outcomes": 2,
@@ -116,11 +939,22 @@
       "taken": 2
     },
     {
-      "branch_outcomes": 0,
+      "branch_outcomes": 10,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::control",
+      "not_taken": [
+        "604:20 true",
+        "624:42 true"
+      ],
+      "symbol": "_ZN17pacemaker_therapy7control17h6fa061bba4f18765E",
+      "taken": 8
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::control::{closure}",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy7control17haa9c03b656633409E",
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17h1f685da8614afa17E",
       "taken": 0
     },
     {
@@ -128,7 +962,39 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::control::{closure}",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17ha856b8e32c72ef09E",
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17h364ca0853331c7a9E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::control::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17h36a42a4edc44319fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::control::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17h5c4e0ec84cf5e620E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::control::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17hadc2e0483cd8122eE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::control::{closure}",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy7control28_$u7b$$u7b$closure$u7d$$u7d$17he76a13bd64f1b79fE",
       "taken": 0
     },
     {
@@ -144,7 +1010,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::sense_a::{closure}",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy7sense_a28_$u7b$$u7b$closure$u7d$$u7d$17h9f9ee6b0a109355dE",
+      "symbol": "_ZN17pacemaker_therapy7sense_a28_$u7b$$u7b$closure$u7d$$u7d$17h68bf307c7ee43135E",
       "taken": 0
     },
     {
@@ -160,7 +1026,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::sense_v::{closure}",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy7sense_v28_$u7b$$u7b$closure$u7d$$u7d$17h8f3fc82bbad51183E",
+      "symbol": "_ZN17pacemaker_therapy7sense_v28_$u7b$$u7b$closure$u7d$$u7d$17hffa66ced21e1b916E",
       "taken": 0
     },
     {
@@ -248,11 +1114,11 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::arm",
       "not_taken": [
-        "309:12 true",
-        "318:15 false",
-        "335:16 false",
-        "356:12 true",
-        "356:12 false"
+        "375:12 true",
+        "386:15 false",
+        "403:16 false",
+        "426:12 true",
+        "426:12 false"
       ],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$3arm17hd0001950bdb1e4d5E",
       "taken": 3
@@ -270,9 +1136,9 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::fired",
       "not_taken": [
-        "403:35 true",
-        "406:27 false",
-        "413:20 false"
+        "473:35 true",
+        "476:27 false",
+        "483:20 false"
       ],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$5fired17h4190413e9af7344aE",
       "taken": 9
@@ -282,8 +1148,8 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::disarm",
       "not_taken": [
-        "369:12 true",
-        "369:12 false"
+        "439:12 true",
+        "439:12 false"
       ],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$6disarm17h2ee0a431308ca4d8E",
       "taken": 0
@@ -301,8 +1167,8 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::sensed",
       "not_taken": [
-        "432:15 false",
-        "446:12 true"
+        "502:15 false",
+        "516:12 true"
       ],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$6sensed17hb9e5396db41d8faaE",
       "taken": 6
@@ -312,25 +1178,25 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::refresh",
       "not_taken": [
-        "384:36 false"
+        "454:36 false"
       ],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$7refresh17h131d2bd8a1a7c010E",
       "taken": 3
     },
     {
-      "branch_outcomes": 0,
+      "branch_outcomes": 4,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "_<pm_hw::Driver<B>$u20$as$u20$pm_hw::Hw>::configure",
       "not_taken": [],
       "symbol": "_ZN52_$LT$pm_hw..Driver$LT$B$GT$$u20$as$u20$pm_hw..Hw$GT$9configure17h3c9ae79b4b9f2f6aE",
-      "taken": 0
+      "taken": 4
     },
     {
       "branch_outcomes": 2,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "pm_hw::Driver<B>::disarm_and_check",
       "not_taken": [
-        "267:12 false"
+        "310:12 false"
       ],
       "symbol": "_ZN5pm_hw15Driver$LT$B$GT$16disarm_and_check17he97f11fd77602766E",
       "taken": 1
@@ -344,11 +1210,29 @@
       "taken": 0
     },
     {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
+      "function": "pm_hw::Driver<B>::extend",
+      "not_taken": [
+        "294:12 true"
+      ],
+      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$6extend17h165ea78842218c19E",
+      "taken": 1
+    },
+    {
       "branch_outcomes": 0,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "pm_hw::Driver<B>::resume",
       "not_taken": [],
-      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$6resume17h46dddabb0870355aE",
+      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$6resume17h0885264119a43b3cE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
+      "function": "pm_hw::Driver<B>::present",
+      "not_taken": [],
+      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$7present17h103de2261b3cca42E",
       "taken": 0
     },
     {
@@ -356,7 +1240,39 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
       "function": "pm_hw::Driver<B>::write_end",
       "not_taken": [],
-      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$9write_end17hea2c7557935a3b17E",
+      "symbol": "_ZN5pm_hw15Driver$LT$B$GT$9write_end17h7a126b67c1e37017E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/count.rs",
+      "function": "pm_hw::count::Count::plus",
+      "not_taken": [],
+      "symbol": "_ZN5pm_hw5count5Count4plus17h53b456407c8bd7a0E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/count.rs",
+      "function": "pm_hw::count::Count::minus",
+      "not_taken": [],
+      "symbol": "_ZN5pm_hw5count5Count5minus17h9dee0225125d8494E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/count.rs",
+      "function": "pm_hw::count::Count::since",
+      "not_taken": [],
+      "symbol": "_ZN5pm_hw5count5Count5since17h86c96d7d8993f87cE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-hw/src/lib.rs",
+      "function": "pm_hw::count_of",
+      "not_taken": [],
+      "symbol": "_ZN5pm_hw8count_of17h0679a30b71dd76fcE",
       "taken": 0
     },
     {
@@ -364,7 +1280,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/board_nrf.rs",
       "function": "_<pacemaker_therapy::board_nrf::Board$u20$as$u20$pm_hw::Board>::now",
       "not_taken": [],
-      "symbol": "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$3now17hb3eb3662dd1c2840E",
+      "symbol": "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$3now17h73539c706961b728E",
       "taken": 0
     },
     {
@@ -388,48 +1304,42 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/board_nrf.rs",
       "function": "_<pacemaker_therapy::board_nrf::Board$u20$as$u20$pm_hw::Board>::configure",
       "not_taken": [
-        "166:15 false",
-        "173:16 false"
+        "181:15 false",
+        "188:16 false"
       ],
       "symbol": "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$9configure17he154177c81e248beE",
       "taken": 6
     },
     {
-      "branch_outcomes": 2,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
-      "function": "pm_core::mode::Mode::uses_sensed_av_offset",
-      "not_taken": [
-        "209:9 true"
-      ],
-      "symbol": "_ZN7pm_core4mode4Mode21uses_sensed_av_offset17hbe156f4692e15095E",
-      "taken": 1
-    },
-    {
       "branch_outcomes": 0,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
-      "function": "pm_core::mode::Mode::paces",
+      "function": "pm_core::mode::Mode::rate_adaptive",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4mode4Mode5paces17ha1214bf73448d804E",
-      "taken": 0
-    },
-    {
-      "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
-      "function": "pm_core::mode::Mode::senses",
-      "not_taken": [],
-      "symbol": "_ZN7pm_core4mode4Mode6senses17h308749e9b4702bd6E",
+      "symbol": "_ZN7pm_core4mode4Mode13rate_adaptive17h19db5de94e981a24E",
       "taken": 0
     },
     {
       "branch_outcomes": 4,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
-      "function": "pm_core::mode::Mode::tracks",
+      "function": "pm_core::mode::Mode::timing_chamber",
       "not_taken": [
-        "200:9 false",
-        "200:35 true"
+        "250:12 true",
+        "250:12 false",
+        "250:38 true",
+        "250:38 false"
       ],
-      "symbol": "_ZN7pm_core4mode4Mode6tracks17hd3a8d85a71d5dd8cE",
-      "taken": 2
+      "symbol": "_ZN7pm_core4mode4Mode14timing_chamber17h539789ab2b75097eE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
+      "function": "pm_core::mode::Mode::uses_rate_smoothing",
+      "not_taken": [
+        "235:9 false"
+      ],
+      "symbol": "_ZN7pm_core4mode4Mode19uses_rate_smoothing17h37fdaa01b70a9b7bE",
+      "taken": 1
     },
     {
       "branch_outcomes": 0,
@@ -448,11 +1358,123 @@
       "taken": 0
     },
     {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::interval_of",
+      "not_taken": [
+        "47:8 true",
+        "47:8 false",
+        "51:8 true",
+        "51:8 false"
+      ],
+      "symbol": "_ZN7pm_core4rate11interval_of17h4b06ab9470dd024bE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 20,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::sensor_next",
+      "not_taken": [
+        "111:8 true",
+        "111:8 false",
+        "114:18 true",
+        "114:18 false",
+        "116:15 true",
+        "116:15 false",
+        "123:8 true",
+        "123:8 false",
+        "124:23 true",
+        "124:23 false",
+        "125:23 true",
+        "125:23 false",
+        "127:12 true",
+        "127:12 false",
+        "133:23 true",
+        "133:23 false",
+        "134:23 true",
+        "134:23 false",
+        "135:12 true",
+        "135:12 false"
+      ],
+      "symbol": "_ZN7pm_core4rate11sensor_next17h1d5eaebd61449649E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 8,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::fallback_interval",
+      "not_taken": [
+        "152:8 true",
+        "152:8 false",
+        "152:24 true",
+        "152:24 false",
+        "152:52 true",
+        "152:52 false",
+        "158:8 true",
+        "158:8 false"
+      ],
+      "symbol": "_ZN7pm_core4rate17fallback_interval17h5bba378bf07d4bf0E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 8,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::target",
+      "not_taken": [
+        "88:8 true",
+        "88:8 false",
+        "88:23 true",
+        "88:23 false",
+        "91:21 true",
+        "91:21 false",
+        "94:8 true",
+        "94:8 false"
+      ],
+      "symbol": "_ZN7pm_core4rate6target17ha04ab4f63ad09792E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 4,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::rate_of",
+      "not_taken": [
+        "31:8 true",
+        "31:8 false",
+        "35:8 true",
+        "35:8 false"
+      ],
+      "symbol": "_ZN7pm_core4rate7rate_of17hb7b6fb22bde4f6c1E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 14,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::smoothed",
+      "not_taken": [
+        "172:20 true",
+        "172:20 false",
+        "173:22 true",
+        "173:22 false",
+        "176:8 true",
+        "176:8 false",
+        "176:19 true",
+        "176:19 false",
+        "178:15 true",
+        "178:15 false",
+        "178:28 true",
+        "178:28 false",
+        "179:12 true",
+        "179:12 false"
+      ],
+      "symbol": "_ZN7pm_core4rate8smoothed17h64ab332eed1cea81E",
+      "taken": 0
+    },
+    {
       "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/mode.rs",
-      "function": "pm_core::mode::Chambers::has",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/rate.rs",
+      "function": "pm_core::rate::threshold",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4mode8Chambers3has17h521a86a5710bae6fE",
+      "symbol": "_ZN7pm_core4rate9threshold17h925b4db438515d66E",
       "taken": 0
     },
     {
@@ -460,17 +1482,41 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::apply_pace",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step10apply_pace17hba7b74b0dc9a39ecE",
+      "symbol": "_ZN7pm_core4step10apply_pace17h23f697ff976685ebE",
       "taken": 0
+    },
+    {
+      "branch_outcomes": 16,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::atr_atrial",
+      "not_taken": [
+        "435:8 false",
+        "435:20 true",
+        "435:20 false",
+        "438:8 true",
+        "438:8 false",
+        "439:12 true",
+        "439:12 false",
+        "440:16 true",
+        "440:16 false",
+        "443:19 true",
+        "443:19 false",
+        "450:27 true",
+        "450:27 false",
+        "455:31 true",
+        "455:31 false"
+      ],
+      "symbol": "_ZN7pm_core4step10atr_atrial17h2883ccef0e47768bE",
+      "taken": 1
     },
     {
       "branch_outcomes": 10,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::difference",
       "not_taken": [
-        "371:15 true"
+        "653:15 true"
       ],
-      "symbol": "_ZN7pm_core4step10difference17h4d752a91a5885bebE",
+      "symbol": "_ZN7pm_core4step10difference17h04e36e1ded592249E",
       "taken": 9
     },
     {
@@ -478,14 +1524,14 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::refractory",
       "not_taken": [
-        "430:35 true",
-        "430:35 false",
-        "431:9 true",
-        "431:9 false",
-        "431:41 true",
-        "431:41 false"
+        "717:35 true",
+        "717:35 false",
+        "718:9 true",
+        "718:9 false",
+        "718:41 true",
+        "718:41 false"
       ],
-      "symbol": "_ZN7pm_core4step10refractory17hbf6350998235d2f8E",
+      "symbol": "_ZN7pm_core4step10refractory17hcaa448ddd88a7d01E",
       "taken": 2
     },
     {
@@ -497,32 +1543,50 @@
       "taken": 0
     },
     {
-      "branch_outcomes": 20,
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::asynchronous",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4step12asynchronous17h32839ea3bd22270fE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 30,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::atrial_event",
       "not_taken": [
-        "233:20 true",
-        "233:20 false",
-        "238:8 true",
-        "238:8 false",
-        "244:12 true",
-        "244:12 false",
-        "244:21 true",
-        "244:21 false",
-        "248:12 true",
-        "248:12 false",
-        "250:16 true",
-        "250:16 false",
-        "252:20 true",
-        "252:20 false",
-        "256:16 true",
-        "256:16 false",
-        "256:36 true",
-        "256:36 false",
-        "262:25 true",
-        "262:25 false"
+        "488:20 true",
+        "488:20 false",
+        "491:20 true",
+        "491:20 false",
+        "495:8 true",
+        "495:8 false",
+        "501:12 true",
+        "501:12 false",
+        "501:21 true",
+        "501:21 false",
+        "505:12 true",
+        "505:12 false",
+        "507:16 true",
+        "507:16 false",
+        "509:20 true",
+        "509:20 false",
+        "513:16 true",
+        "513:16 false",
+        "513:36 true",
+        "513:36 false",
+        "521:12 true",
+        "521:12 false",
+        "522:36 true",
+        "522:36 false",
+        "522:46 true",
+        "522:46 false",
+        "524:16 true",
+        "524:16 false",
+        "529:53 true",
+        "529:53 false"
       ],
-      "symbol": "_ZN7pm_core4step12atrial_event17h8e07891309764392E",
+      "symbol": "_ZN7pm_core4step12atrial_event17h9d9a3cf9403cd444E",
       "taken": 0
     },
     {
@@ -530,7 +1594,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::atrial_escape",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step13atrial_escape17h8b49665f2a909d52E",
+      "symbol": "_ZN7pm_core4step13atrial_escape17h851900deb0e01401E",
       "taken": 0
     },
     {
@@ -538,64 +1602,111 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::arm_difference",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step14arm_difference17h404f530c6472086dE",
+      "symbol": "_ZN7pm_core4step14arm_difference17h15ae7f5a4e8235c1E",
       "taken": 0
+    },
+    {
+      "branch_outcomes": 10,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::atr_ventricular",
+      "not_taken": [
+        "398:8 false",
+        "402:8 true",
+        "402:8 false",
+        "410:16 true",
+        "410:16 false",
+        "413:43 true",
+        "413:43 false",
+        "417:16 true",
+        "417:16 false"
+      ],
+      "symbol": "_ZN7pm_core4step15atr_ventricular17h40fde070aabd660eE",
+      "taken": 1
     },
     {
       "branch_outcomes": 0,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::ventricular_based",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step17ventricular_based17h55a9d6ff93b31b47E",
+      "symbol": "_ZN7pm_core4step17ventricular_based17hd780be5ebba3682cE",
       "taken": 0
     },
     {
-      "branch_outcomes": 16,
+      "branch_outcomes": 22,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::ventricular_event",
       "not_taken": [
-        "197:21 false",
-        "199:8 false",
-        "202:22 true",
-        "202:29 true",
-        "202:29 false",
-        "202:48 true",
-        "202:48 false",
-        "205:24 true",
-        "207:12 true"
+        "359:8 false",
+        "362:42 true",
+        "366:49 false",
+        "368:8 false",
+        "371:22 true",
+        "371:29 true",
+        "371:29 false",
+        "371:48 true",
+        "371:48 false",
+        "374:24 true",
+        "376:12 true"
       ],
-      "symbol": "_ZN7pm_core4step17ventricular_event17h7a9152d1af4cf698E",
-      "taken": 7
+      "symbol": "_ZN7pm_core4step17ventricular_event17h189688b6b84516ffE",
+      "taken": 11
     },
     {
-      "branch_outcomes": 16,
+      "branch_outcomes": 50,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::step",
       "not_taken": [
-        "555:47 false",
-        "558:23 false",
-        "558:40 true",
-        "558:61 true",
-        "558:61 false",
-        "576:67 false"
+        "1069:47 false",
+        "1070:16 true",
+        "1070:37 true",
+        "1070:37 false",
+        "1081:23 false",
+        "1081:40 true",
+        "1081:61 true",
+        "1081:61 false",
+        "1099:67 false",
+        "1112:16 true",
+        "1118:16 true",
+        "1121:16 true",
+        "1121:41 true",
+        "1121:41 false",
+        "1121:66 true",
+        "1121:66 false",
+        "1121:92 true",
+        "1121:92 false",
+        "1121:126 true",
+        "1121:126 false",
+        "1130:16 true",
+        "1130:25 true",
+        "1130:25 false",
+        "1141:16 true",
+        "1142:31 true",
+        "1142:31 false",
+        "1155:16 true",
+        "1190:62 true",
+        "1190:62 false",
+        "1190:76 true",
+        "1190:76 false",
+        "1202:24 true",
+        "1202:24 false"
       ],
-      "symbol": "_ZN7pm_core4step4step17h9ee470543163484dE",
-      "taken": 10
+      "symbol": "_ZN7pm_core4step4step17h42983467123088ccE",
+      "taken": 17
     },
     {
       "branch_outcomes": 12,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::tick",
       "not_taken": [
-        "398:8 false",
-        "402:16 true",
-        "407:12 false",
-        "413:12 true",
-        "413:12 false",
-        "414:16 true",
-        "414:16 false"
+        "684:8 false",
+        "689:16 true",
+        "694:12 false",
+        "699:12 true",
+        "699:12 false",
+        "700:16 true",
+        "700:16 false"
       ],
-      "symbol": "_ZN7pm_core4step4tick17h5519555e24bd9a43E",
+      "symbol": "_ZN7pm_core4step4tick17h6471abdb52398d4cE",
       "taken": 5
     },
     {
@@ -603,33 +1714,52 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::sense",
       "not_taken": [
-        "470:8 true",
-        "482:37 true",
-        "482:37 false",
-        "501:16 true"
+        "972:8 true",
+        "984:37 true",
+        "984:37 false",
+        "1003:16 true"
       ],
-      "symbol": "_ZN7pm_core4step5sense17h244ea1f67f39d196E",
+      "symbol": "_ZN7pm_core4step5sense17h1386f741597056fdE",
       "taken": 6
     },
     {
-      "branch_outcomes": 0,
+      "branch_outcomes": 26,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::escape",
-      "not_taken": [],
-      "symbol": "_ZN7pm_core4step6escape17hc81572ce2f9e0e02E",
-      "taken": 0
+      "not_taken": [
+        "238:22 true",
+        "238:46 true",
+        "238:46 false",
+        "240:8 true",
+        "240:27 true",
+        "240:27 false",
+        "240:46 true",
+        "240:46 false",
+        "243:8 true",
+        "245:12 true",
+        "245:12 false",
+        "249:9 true",
+        "249:37 true",
+        "249:68 true",
+        "249:68 false",
+        "252:23 true",
+        "253:8 true",
+        "256:8 true"
+      ],
+      "symbol": "_ZN7pm_core4step6escape17hed4bb3b9e97265f2E",
+      "taken": 8
     },
     {
       "branch_outcomes": 6,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::is_pvc",
       "not_taken": [
-        "171:5 false",
-        "171:29 true",
-        "171:58 true",
-        "171:58 false"
+        "323:5 false",
+        "323:29 true",
+        "323:58 true",
+        "323:58 false"
       ],
-      "symbol": "_ZN7pm_core4step6is_pvc17h99e0e20cd618fdc8E",
+      "symbol": "_ZN7pm_core4step6is_pvc17h5aec0add27ba1712E",
       "taken": 2
     },
     {
@@ -637,7 +1767,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::account",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step7account17hbd5c7f2bb36bd898E",
+      "symbol": "_ZN7pm_core4step7account17h127304c3e20dbda9E",
       "taken": 4
     },
     {
@@ -645,9 +1775,9 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::blanked",
       "not_taken": [
-        "442:32 true"
+        "729:32 true"
       ],
-      "symbol": "_ZN7pm_core4step7blanked17h6ae5bba3f35baaa8E",
+      "symbol": "_ZN7pm_core4step7blanked17h6143847c06290210E",
       "taken": 1
     },
     {
@@ -655,12 +1785,12 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::coupled",
       "not_taken": [
-        "163:5 true",
-        "163:5 false",
-        "163:30 true",
-        "163:30 false"
+        "315:5 true",
+        "315:5 false",
+        "315:30 true",
+        "315:30 false"
       ],
-      "symbol": "_ZN7pm_core4step7coupled17hd86cfea6fca27555E",
+      "symbol": "_ZN7pm_core4step7coupled17hce99fe3f4f3ddba6E",
       "taken": 0
     },
     {
@@ -668,42 +1798,117 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::rearmed",
       "not_taken": [
-        "322:8 true",
-        "322:8 false"
+        "604:8 true",
+        "604:8 false"
       ],
-      "symbol": "_ZN7pm_core4step7rearmed17h180c1d0ebf04ad71E",
+      "symbol": "_ZN7pm_core4step7rearmed17ha84a6abef94e9dfbE",
       "taken": 0
+    },
+    {
+      "branch_outcomes": 18,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::resolve",
+      "not_taken": [
+        "828:8 true",
+        "840:21 true",
+        "840:44 true",
+        "840:44 false",
+        "842:31 true",
+        "843:31 true",
+        "843:31 false",
+        "846:8 false",
+        "849:8 true",
+        "849:21 true",
+        "849:21 false",
+        "849:39 true",
+        "849:39 false"
+      ],
+      "symbol": "_ZN7pm_core4step7resolve17haff196d66ea55eeaE",
+      "taken": 5
+    },
+    {
+      "branch_outcomes": 8,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::waiting",
+      "not_taken": [
+        "867:5 true",
+        "868:12 true",
+        "869:12 true",
+        "870:12 true"
+      ],
+      "symbol": "_ZN7pm_core4step7waiting17h48bff10ce63b6c4fE",
+      "taken": 4
     },
     {
       "branch_outcomes": 2,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::arm_from",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step8arm_from17hd7b07ecf66f67b34E",
+      "symbol": "_ZN7pm_core4step8arm_from17h3ce987388a4a3535E",
       "taken": 2
+    },
+    {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::depleted",
+      "not_taken": [
+        "739:8 true",
+        "739:8 false",
+        "741:15 true",
+        "741:15 false",
+        "741:29 true",
+        "741:29 false"
+      ],
+      "symbol": "_ZN7pm_core4step8depleted17h6e79b0c68c1f03a1E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 10,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::in_force",
+      "not_taken": [
+        "768:13 true",
+        "770:8 true",
+        "774:8 true",
+        "788:8 true",
+        "791:8 true"
+      ],
+      "symbol": "_ZN7pm_core4step8in_force17h16c7784c6c6d4421E",
+      "taken": 5
     },
     {
       "branch_outcomes": 14,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::paced_av",
       "not_taken": [
-        "118:8 true",
-        "118:8 false",
-        "118:25 true",
-        "118:25 false",
-        "118:45 true",
-        "118:45 false",
-        "118:64 true",
-        "118:64 false",
-        "123:21 true",
-        "123:21 false",
-        "124:8 true",
-        "124:8 false",
-        "126:15 true",
-        "126:15 false"
+        "270:8 true",
+        "270:8 false",
+        "270:25 true",
+        "270:25 false",
+        "270:45 true",
+        "270:45 false",
+        "270:64 true",
+        "270:64 false",
+        "275:21 true",
+        "275:21 false",
+        "276:8 true",
+        "276:8 false",
+        "278:15 true",
+        "278:15 false"
       ],
-      "symbol": "_ZN7pm_core4step8paced_av17h2d1ecfab8f87039bE",
+      "symbol": "_ZN7pm_core4step8paced_av17hf74ef6501a6d2fc6E",
       "taken": 0
+    },
+    {
+      "branch_outcomes": 14,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::serviced",
+      "not_taken": [
+        "931:35 true",
+        "935:17 true"
+      ],
+      "symbol": "_ZN7pm_core4step8serviced17h2f906778bc37b28cE",
+      "taken": 12
     },
     {
       "branch_outcomes": 0,
@@ -714,11 +1919,34 @@
       "taken": 0
     },
     {
+      "branch_outcomes": 6,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::switched",
+      "not_taken": [
+        "898:30 true",
+        "898:30 false",
+        "898:39 true",
+        "898:39 false",
+        "898:70 true",
+        "898:70 false"
+      ],
+      "symbol": "_ZN7pm_core4step8switched17h9f93567e18323514E",
+      "taken": 0
+    },
+    {
       "branch_outcomes": 0,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::accounted",
       "not_taken": [],
-      "symbol": "_ZN7pm_core4step9accounted17h28a7b91d946d7d03E",
+      "symbol": "_ZN7pm_core4step9accounted17hf403fbcc5eede723E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
+      "function": "pm_core::step::is_timing",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4step9is_timing17h2367a0d3ed79d759E",
       "taken": 0
     },
     {
@@ -726,21 +1954,22 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/step.rs",
       "function": "pm_core::step::sensed_av",
       "not_taken": [
-        "138:21 true",
-        "138:21 false"
+        "290:21 true",
+        "290:21 false"
       ],
-      "symbol": "_ZN7pm_core4step9sensed_av17he01d5f7eae6b5f06E",
+      "symbol": "_ZN7pm_core4step9sensed_av17hfddc6043479241deE",
       "taken": 0
     },
     {
-      "branch_outcomes": 2,
+      "branch_outcomes": 4,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/time.rs",
       "function": "pm_core::time::Micros::elapsed_since",
       "not_taken": [
-        "100:12 false"
+        "114:12 true",
+        "118:16 true"
       ],
       "symbol": "_ZN7pm_core4time6Micros13elapsed_since17h90a2672e7a50787cE",
-      "taken": 1
+      "taken": 2
     },
     {
       "branch_outcomes": 0,
@@ -751,28 +1980,24 @@
       "taken": 0
     },
     {
-      "branch_outcomes": 0,
+      "branch_outcomes": 2,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/time.rs",
       "function": "pm_core::time::Micros::plus",
-      "not_taken": [],
+      "not_taken": [
+        "56:19 true"
+      ],
       "symbol": "_ZN7pm_core4time6Micros4plus17h51893b042b0d33b1E",
-      "taken": 0
+      "taken": 1
     },
     {
-      "branch_outcomes": 0,
+      "branch_outcomes": 2,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/time.rs",
       "function": "pm_core::time::Micros::minus",
-      "not_taken": [],
+      "not_taken": [
+        "64:19 false"
+      ],
       "symbol": "_ZN7pm_core4time6Micros5minus17haf773173fa04905eE",
-      "taken": 0
-    },
-    {
-      "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/time.rs",
-      "function": "pm_core::time::Micros::since",
-      "not_taken": [],
-      "symbol": "_ZN7pm_core4time6Micros5since17h37bf04ebf3f7a2f0E",
-      "taken": 0
+      "taken": 1
     },
     {
       "branch_outcomes": 0,
@@ -781,6 +2006,64 @@
       "not_taken": [],
       "symbol": "_ZN7pm_core4time6Micros9is_before17h828db858ccd0485bE",
       "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::battery_of",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire10battery_of17ha4ef41df08470b6eE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::battery_byte",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire12battery_byte17h08d975d62c869230E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::therapy_byte",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire12therapy_byte17ha5c1a1869eba9027E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::Status::words",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire6Status5words17h0e79c6270d53adbaE",
+      "taken": 2
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::seq_of",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire6seq_of17hdb6ab7c4b5763106E",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::value_of",
+      "not_taken": [],
+      "symbol": "_ZN7pm_core4wire8value_of17hf635fd82e431f5deE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/wire.rs",
+      "function": "pm_core::wire::mode_byte",
+      "not_taken": [
+        "187:85 true"
+      ],
+      "symbol": "_ZN7pm_core4wire9mode_byte17h85385ecc2458d6c4E",
+      "taken": 1
     },
     {
       "branch_outcomes": 0,
@@ -793,11 +2076,21 @@
     {
       "branch_outcomes": 2,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/state.rs",
+      "function": "pm_core::state::State::own",
+      "not_taken": [
+        "286:35 false"
+      ],
+      "symbol": "_ZN7pm_core5state5State3own17hba70b8baef78ed83E",
+      "taken": 1
+    },
+    {
+      "branch_outcomes": 2,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/state.rs",
       "function": "pm_core::state::State::params",
       "not_taken": [
-        "202:35 false"
+        "267:12 true"
       ],
-      "symbol": "_ZN7pm_core5state5State6params17h0eab880ad5ab80a1E",
+      "symbol": "_ZN7pm_core5state5State6params17h4d9a66470e0f5d9bE",
       "taken": 1
     },
     {
@@ -810,172 +2103,11 @@
     },
     {
       "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/params.rs",
-      "function": "pm_core::params::interval_of_ppm",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/decl/src/nrf52840_coverage.rs",
+      "function": "_<pacemaker_therapy::rsk_validate::status_pg$u20$as$u20$rsk::Validate<$u5b$u32$u3b$$u20$4$u5d$>>::accept",
       "not_taken": [],
-      "symbol": "_ZN7pm_core6params15interval_of_ppm17h12717c26ec14fb74E",
+      "symbol": "_ZN108_$LT$pacemaker_therapy..rsk_validate..status_pg$u20$as$u20$rsk..Validate$LT$$u5b$u32$u3b$$u20$4$u5d$$GT$$GT$6accept17h028b948f619e6155E",
       "taken": 0
-    },
-    {
-      "branch_outcomes": 14,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::limits_hold",
-      "not_taken": [
-        "328:23 true",
-        "330:9 true",
-        "330:9 false",
-        "331:16 true",
-        "331:16 false",
-        "332:16 true",
-        "332:16 false",
-        "333:17 true",
-        "333:17 false",
-        "337:18 false",
-        "338:5 false"
-      ],
-      "symbol": "_ZN7pm_core8validate11limits_hold17h333843718db83864E",
-      "taken": 3
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_amplitude",
-      "not_taken": [
-        "237:5 true",
-        "237:20 true"
-      ],
-      "symbol": "_ZN7pm_core8validate12is_amplitude17hec4b0e54dfbb0671E",
-      "taken": 2
-    },
-    {
-      "branch_outcomes": 6,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_sensitivity",
-      "not_taken": [
-        "253:5 true",
-        "253:25 true"
-      ],
-      "symbol": "_ZN7pm_core8validate14is_sensitivity17h7b452ff048fcb4f2E",
-      "taken": 4
-    },
-    {
-      "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::delivered_in_e2",
-      "not_taken": [],
-      "symbol": "_ZN7pm_core8validate15delivered_in_e217hdd1b3fdddac3cf5fE",
-      "taken": 0
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_atr_duration",
-      "not_taken": [
-        "261:5 true",
-        "261:17 false"
-      ],
-      "symbol": "_ZN7pm_core8validate15is_atr_duration17hdf39a12404a68bdcE",
-      "taken": 2
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_rate_smoothing",
-      "not_taken": [
-        "269:5 false",
-        "269:21 true",
-        "269:21 false"
-      ],
-      "symbol": "_ZN7pm_core8validate17is_rate_smoothing17h838be7be0271ed13E",
-      "taken": 1
-    },
-    {
-      "branch_outcomes": 0,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::activity_threshold",
-      "not_taken": [],
-      "symbol": "_ZN7pm_core8validate18activity_threshold17hc36e235bc6a72c0fE",
-      "taken": 0
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_lrl",
-      "not_taken": [
-        "229:5 true",
-        "229:32 false"
-      ],
-      "symbol": "_ZN7pm_core8validate6is_lrl17he9173ccd2757dc16E",
-      "taken": 2
-    },
-    {
-      "branch_outcomes": 4,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::stepped",
-      "not_taken": [
-        "221:5 false"
-      ],
-      "symbol": "_ZN7pm_core8validate7stepped17h06da7e67133b7283E",
-      "taken": 3
-    },
-    {
-      "branch_outcomes": 2,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::is_width",
-      "not_taken": [
-        "245:5 true"
-      ],
-      "symbol": "_ZN7pm_core8validate8is_width17h5d94f4a283fedd4fE",
-      "taken": 1
-    },
-    {
-      "branch_outcomes": 72,
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/pm-core/src/validate.rs",
-      "function": "pm_core::validate::validate",
-      "not_taken": [
-        "356:8 true",
-        "360:18 false",
-        "361:12 false",
-        "362:12 false",
-        "363:12 false",
-        "364:12 false",
-        "365:12 false",
-        "366:13 false",
-        "366:47 true",
-        "366:47 false",
-        "367:12 false",
-        "368:12 false",
-        "369:12 false",
-        "370:12 false",
-        "371:12 false",
-        "372:12 false",
-        "373:12 false",
-        "374:12 false",
-        "375:12 false",
-        "376:13 false",
-        "376:46 true",
-        "376:46 false",
-        "377:13 false",
-        "377:34 true",
-        "377:34 false",
-        "378:12 false",
-        "379:12 false",
-        "380:12 false",
-        "381:12 false",
-        "382:12 false",
-        "383:12 false",
-        "384:12 false",
-        "386:8 true",
-        "392:8 true",
-        "399:8 true",
-        "399:34 true",
-        "399:55 true",
-        "399:88 true",
-        "399:105 true",
-        "399:105 false"
-      ],
-      "symbol": "_ZN7pm_core8validate8validate17h409b522c05c86a72E",
-      "taken": 32
     },
     {
       "branch_outcomes": 0,
@@ -983,6 +2115,14 @@
       "function": "pacemaker_therapy::rsk_target::ms",
       "not_taken": [],
       "symbol": "_ZN17pacemaker_therapy10rsk_target2ms17hf2174c4b5ad7f62dE",
+      "taken": 0
+    },
+    {
+      "branch_outcomes": 0,
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
+      "function": "pacemaker_therapy::validate_status",
+      "not_taken": [],
+      "symbol": "_ZN17pacemaker_therapy15validate_status17he4384f2b2c54c677E",
       "taken": 0
     },
     {
@@ -998,7 +2138,7 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "pacemaker_therapy::Timing::new",
       "not_taken": [],
-      "symbol": "_ZN17pacemaker_therapy6Timing3new17h4625616988638e90E",
+      "symbol": "_ZN17pacemaker_therapy6Timing3new17hbc299732bda63264E",
       "taken": 0
     },
     {
@@ -1014,26 +2154,30 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/lib.rs",
       "function": "_<pacemaker_therapy::Timing$u20$as$u20$core::default::Default>::default",
       "not_taken": [],
-      "symbol": "_ZN68_$LT$pacemaker_therapy..Timing$u20$as$u20$core..default..Default$GT$7default17he9923e8fca557452E",
+      "symbol": "_ZN68_$LT$pacemaker_therapy..Timing$u20$as$u20$core..default..Default$GT$7default17hdbef034ab0750facE",
       "taken": 0
     }
   ],
   "jobs": [
     {
-      "jobs": 372,
+      "jobs": 374,
       "task": "therapy.pace"
     },
     {
-      "jobs": 373,
+      "jobs": 366,
       "task": "therapy.sense_v"
     },
     {
-      "jobs": 372,
+      "jobs": 375,
       "task": "therapy.sense_a"
     },
     {
-      "jobs": 14907,
+      "jobs": 14980,
       "task": "therapy.control"
+    },
+    {
+      "jobs": 5997,
+      "task": "comms.link"
     }
   ],
   "scenario": "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)",

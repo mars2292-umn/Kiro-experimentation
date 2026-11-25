@@ -126,7 +126,7 @@ pub fn p2_rel(p: Params, old: State, new: State, t: Micros) -> bool {
     pearlite! {
         (p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && old.chamber@[1].pending.armed
             ==> new.chamber@[1].pending.armed
-                && (new.chamber@[1].pending.at.0@ <= old.chamber@[1].pending.at.0@ || new.chamber@[1].pending.at.0@ <= crate::time::sum(t, p.lrl))
+                && (new.chamber@[1].pending.at.0@ <= old.chamber@[1].pending.at.0@ || new.chamber@[1].pending.at.0@ <= crate::time::sum_i(t, longest(p)))
     }
 }
 
@@ -139,12 +139,24 @@ pub fn p2_rel_a(p: Params, old: State, new: State, t: Micros) -> bool {
     pearlite! {
         p.mode.paces == Chambers::A && old.chamber@[0].pending.armed
             ==> new.chamber@[0].pending.armed
-                && (new.chamber@[0].pending.at.0@ <= old.chamber@[0].pending.at.0@ || new.chamber@[0].pending.at.0@ <= crate::time::sum(t, p.lrl))
+                && (new.chamber@[0].pending.at.0@ <= old.chamber@[0].pending.at.0@ || new.chamber@[0].pending.at.0@ <= crate::time::sum_i(t, longest(p)))
     }
 }
 
+/// For the App_Prover: no escape interval the set allows is shorter than
+/// its URL interval: the URL interval is not longer than the LRL interval
+/// and, in a rate-adaptive Mode, not longer than the MSR interval (a
+/// sensor rate above the URL is not within Property P1 as it is stated).
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn url_floor(p: Params) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! { p.url@ <= shortest(p) }
+}
+
 /// What Property P1 supposes of the parameters: the URL interval is not
-/// longer than the LRL interval (Table 19-5, for the Modes the URL limits),
+/// longer than any escape interval the set allows ([`url_floor`]; Table
+/// 19-5 has URL against LRL for the Modes the URL limits),
 /// the Mode paces the ventricle, its Paces are not triggered ones (P1's
 /// exception), and a Mode with no response senses nothing (true of every
 /// Mode a parameter set can name).
@@ -153,7 +165,7 @@ pub fn p2_rel_a(p: Params, old: State, new: State, t: Micros) -> bool {
 pub fn p1_params(p: Params) -> bool {
     use creusot_std::macros::pearlite;
     pearlite! {
-        p.url@ <= p.lrl@
+        url_floor(p)
             && (p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both)
             && p.mode.response != Response::Triggered
             && (p.mode.response == Response::None ==> p.mode.senses == Chambers::None)
@@ -173,16 +185,41 @@ pub fn instant_of(e: Event) -> Micros {
 }
 
 
+/// For the App_Prover: the longest escape interval a parameter set allows:
+/// the LRL interval, or the HRL interval where hysteresis makes it longer.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn longest(p: Params) -> creusot_std::prelude::Int {
+    use creusot_std::macros::pearlite;
+    pearlite! { if p.hrl@ > p.lrl@ { p.hrl@ } else { p.lrl@ } }
+}
+
+/// For the App_Prover: the shortest escape interval a parameter set
+/// allows: the URL interval, or in a rate-adaptive Mode the MSR interval;
+/// the LRL interval where that is shorter still (a set whose URL is below
+/// its LRL, which the Modes that do not use the URL may have).
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn shortest(p: Params) -> creusot_std::prelude::Int {
+    use creusot_std::macros::pearlite;
+    pearlite! {
+        if p.mode.adaptive {
+            if p.msr@ < p.lrl@ { p.msr@ } else { p.lrl@ }
+        } else {
+            if p.url@ < p.lrl@ { p.url@ } else { p.lrl@ }
+        }
+    }
+}
+
 /// For the App_Prover: a parameter set with none of the rate behaviour of
 /// stage E4 (no rate adaptation, no hysteresis, no Rate Smoothing, no
-/// ATR). For such a set the escape interval is the LRL interval and no
-/// Mode switch comes from the step itself; the contracts of Properties P1
-/// and P2 are stated for these sets until task 19.5 restates them.
+/// ATR). For such a set the escape interval is exactly the LRL interval,
+/// which the contracts state beside the bounds that hold for every set.
 #[cfg(creusot)]
 #[creusot_std::macros::logic(open)]
 pub fn plain(p: Params) -> bool {
     use creusot_std::macros::pearlite;
-    pearlite! { !p.mode.adaptive && p.hrl@ == 0 && p.rate_smoothing@ == 0 && !p.atr }
+    pearlite! { !p.mode.adaptive && p.hrl@ == 0 && p.rate_smoothing_up@ == 0 && p.rate_smoothing_down@ == 0 && !p.atr }
 }
 
 /// The escape interval in force at `at` (PM9.1; stage E4: PM15, PM16,
@@ -194,6 +231,8 @@ pub fn plain(p: Params) -> bool {
 /// interval in a rate-adaptive Mode) and not longer than the LRL or HRL
 /// interval it started from.
 #[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) ==> result == p.lrl))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(shortest(*p) <= result@ && result@ <= longest(*p)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(!st.hysteresis_active ==> result@ <= p.lrl@))]
 #[inline(always)]
 fn escape(p: &Params, st: &State, at: Micros) -> u32 {
     let longest = if st.hysteresis_active && p.hrl > p.lrl { p.hrl } else { p.lrl };
@@ -207,8 +246,8 @@ fn escape(p: &Params, st: &State, at: Micros) -> u32 {
             e = f;
         }
     }
-    if p.rate_smoothing != 0 && st.cycle_known {
-        e = smoothed(e, st.last_cycle, p.rate_smoothing);
+    if (p.rate_smoothing_up != 0 || p.rate_smoothing_down != 0) && st.cycle_known {
+        e = smoothed(e, st.last_cycle, p.rate_smoothing_up, p.rate_smoothing_down);
     }
     let shortest = if p.mode.adaptive { p.msr } else { p.url };
     if e < shortest {
@@ -293,10 +332,11 @@ const fn is_pvc(p: &Params, st: &State) -> bool {
 /// the atrial Pace of the next cycle.
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(!((*st).pvarp_extended && (*st).pvarp_extended_last_cycle) ==> !((^st).pvarp_extended && (^st).pvarp_extended_last_cycle)))]
-#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed && (^st).chamber@[1].pending.at.0@ == crate::time::sum(v, p.lrl) && (^st).chamber@[1].last == v))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed && crate::time::sum_i(v, shortest(*p)) <= (^st).chamber@[1].pending.at.0@ && (^st).chamber@[1].pending.at.0@ <= crate::time::sum_i(v, longest(*p)) && (^st).chamber@[1].last == v))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) && (p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.at.0@ == crate::time::sum(v, p.lrl)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(!(p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[0] == (*st).chamber@[0]))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
-#[cfg_attr(creusot, creusot_std::macros::ensures(p.url@ <= p.lrl@ ==> p1_inv(*p, ^st)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(url_floor(*p) ==> p1_inv(*p, ^st)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel(*p, *st, ^st, v)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(forall<t: Micros> p2_rel_a(*p, *st, ^st, t)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[1].seen && (^st).chamber@[1].last == v))]
@@ -344,12 +384,14 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
 /// programmed set has ATR on and a Mode that tracks. ATR Duration counts
 /// the event; when the count is out with the tachycardia still there,
 /// Fallback begins. Fallback ends when the tachycardia has. A change of
-/// phase that changes the Mode in force (to VVIR and back) is marked as a
-/// change waiting, and the Mode changes at the next ventricular event, as
-/// every change of the State machine does.
+/// phase that changes the Mode in force (to VVIR and back) is found by
+/// the next tick as a change waiting (`waiting`), and the Mode changes at
+/// the ventricular event after it, as every change of the State machine
+/// does: this function changes the phase and nothing else.
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber == (*st).chamber))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting && (^st).hysteresis_active == (*st).hysteresis_active && (^st).cycle_known == (*st).cycle_known && (^st).last_cycle == (*st).last_cycle))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) ==> ^st == *st))]
 #[inline(always)]
 fn atr_ventricular(p: &Params, st: &mut State, v: Micros) {
@@ -369,13 +411,11 @@ fn atr_ventricular(p: &Params, st: &mut State, v: Micros) {
                 st.atr.phase = AtrPhase::Fallback;
                 st.atr.fallback_start = v;
                 st.atr.fallback_from = if st.cycle_known { st.last_cycle } else { p.url };
-                st.change_waiting = true;
             }
         }
         AtrPhase::Fallback => {
             if st.atr.counter == 0 {
                 st.atr.phase = AtrPhase::Idle;
-                st.change_waiting = true;
             }
         }
         AtrPhase::Idle => {}
@@ -431,7 +471,8 @@ fn atr_atrial(st: &mut State, a: Micros) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
-#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed && (^st).chamber@[0].pending.at.0@ == crate::time::sum(a, p.lrl) && (^st).chamber@[0].last == a))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed && crate::time::sum_i(a, shortest(*p)) <= (^st).chamber@[0].pending.at.0@ && (^st).chamber@[0].pending.at.0@ <= crate::time::sum_i(a, longest(*p)) && (^st).chamber@[0].last == a))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) && (p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.at.0@ == crate::time::sum(a, p.lrl)))]
 // Property P1 on the path it concerns: the ventricular Pace an atrial event
 // leaves pending is the one that was pending, or is not before the last
 // ventricular event plus the URL interval.
@@ -495,7 +536,7 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
-#[cfg_attr(creusot, creusot_std::macros::ensures(p.url@ <= p.lrl@ && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(url_floor(*p) && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel(*p, *st, ^st, at)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel_a(*p, *st, ^st, at)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(((^st).chamber@[1].seen == (*st).chamber@[1].seen && (^st).chamber@[1].last == (*st).chamber@[1].last) || ((^st).chamber@[1].seen && (^st).chamber@[1].last == at)))]
@@ -515,7 +556,7 @@ fn apply_pace(p: &Params, st: &mut State, c: Chamber, at: Micros) {
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*st).chamber@[1].pending.armed ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*st).chamber@[0].pending.armed ==> (^st).chamber@[0].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
-#[cfg_attr(creusot, creusot_std::macros::ensures(p.url@ <= p.lrl@ && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(url_floor(*p) && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel(*p, *st, ^st, instant)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel_a(*p, *st, ^st, instant)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(((^st).chamber@[1].seen == (*st).chamber@[1].seen && (^st).chamber@[1].last == (*st).chamber@[1].last) || ((^st).chamber@[1].seen && (^st).chamber@[1].last.0@ <= instant.0@)))]
@@ -538,7 +579,7 @@ fn account(p: &Params, st: &mut State, c: Chamber, instant: Micros) {
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) && (*s).chamber@[1].pending.armed ==> result.chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) && (*s).chamber@[0].pending.armed ==> result.chamber@[0].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(result.change_waiting == s.change_waiting))]
-#[cfg_attr(creusot, creusot_std::macros::ensures(p.url@ <= p.lrl@ && p1_inv(*p, *s) ==> p1_inv(*p, result)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(url_floor(*p) && p1_inv(*p, *s) ==> p1_inv(*p, result)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel(*p, *s, result, instant)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel_a(*p, *s, result, instant)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(((result).chamber@[1].seen == (*s).chamber@[1].seen && (result).chamber@[1].last == (*s).chamber@[1].last) || ((result).chamber@[1].seen && (result).chamber@[1].last.0@ <= instant.0@)))]
@@ -634,7 +675,7 @@ fn arm_difference(p: &Params, before: &State, after: &State, out: &mut Arming) {
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[1].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((p.mode.paces == Chambers::A) ==> (^st).chamber@[0].pending.armed))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).change_waiting == (*st).change_waiting))]
-#[cfg_attr(creusot, creusot_std::macros::ensures(p.url@ <= p.lrl@ && ((*st).chamber@[1].seen ==> now.0@ >= (*st).chamber@[1].last.0@) && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(url_floor(*p) && ((*st).chamber@[1].seen ==> now.0@ >= (*st).chamber@[1].last.0@) && p1_inv(*p, *st) ==> p1_inv(*p, ^st)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(forall<t: Micros> p2_rel(*p, *st, ^st, t)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(forall<t: Micros> p2_rel_a(*p, *st, ^st, t)))]
 #[inline(always)]
@@ -723,8 +764,10 @@ const fn asynchronous(m: Mode) -> Mode {
 #[inline(always)]
 fn in_force(st: &State) -> Params {
     let mut p = *st.own();
+    // PM5.8: the Atrial Tachycardia Response is the tracking Modes'.
+    p.atr = p.atr && p.mode.tracks();
     // PM14.6: in ATR Fallback the Mode is VVIR.
-    if p.atr && p.mode.tracks() && matches!(st.atr.phase, AtrPhase::Fallback) {
+    if p.atr && matches!(st.atr.phase, AtrPhase::Fallback) {
         p.mode = Mode::VVI.rate_adaptive();
     }
     let low = matches!(st.battery_in_force, Battery::Ert | Battery::Erp | Battery::Tripped);
@@ -738,6 +781,16 @@ fn in_force(st: &State) -> Params {
             Battery::Ern => interval_of_ppm(90),
             _ => interval_of_ppm(85),
         };
+    }
+    // PM5.8: a parameter the Mode in force does not use changes nothing
+    // (Table 19-3): hysteresis and Rate Smoothing are off outside their
+    // Modes, among them the asynchronous Modes of the Magnet State.
+    if !p.mode.uses_hysteresis() {
+        p.hrl = 0;
+    }
+    if !p.mode.uses_rate_smoothing() {
+        p.rate_smoothing_up = 0;
+        p.rate_smoothing_down = 0;
     }
     p
 }

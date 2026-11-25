@@ -3023,8 +3023,8 @@ harness = "ppi_write_sets_exactly_the_declared_channels"
 id = "pm-step-p4-therapy-state-changed"
 kills = "the step's Property P4 (the therapy State is the one given), carried by ventricular_event's contract: an event that changes the State is rejected"
 file = "crates/pm-core/src/step.rs"
-find = "    ch.blanked = false;\n    ch.pending = if p.mode.paces(Chamber::V)"
-replace = "    ch.blanked = false;\n    st.therapy = crate::state::Therapy::Magnet;\n    let ch = &mut st.chamber[Chamber::V.index()];\n    ch.pending = if p.mode.paces(Chamber::V)"
+find = "    ch.blanked = false;\n    // A new cycle: noisy until"
+replace = "    ch.blanked = false;\n    st.therapy = crate::state::Therapy::Magnet;\n    let ch = &mut st.chamber[Chamber::V.index()];\n    // A new cycle: noisy until"
 expect = ["proof failed", "vc_ventricular_event"]
 package = "pm-core-proof"
 prover = "creusot"
@@ -3053,8 +3053,8 @@ prover = "creusot"
 id = "pm-step-p2-ventricular-pace-not-pending"
 kills = "Property P2's invariant on the ventricle (after a ventricular event a Pace is pending at the event plus the escape interval): with no Pace left pending the contract of ventricular_event fails"
 file = "crates/pm-core/src/step.rs"
-find = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };\n"
-replace = "    ch.pending = Pending::NONE;\n"
+find = "    st.chamber[Chamber::V.index()].pending = if paces_v { Pending::at(v.plus(e)) } else { Pending::NONE };\n"
+replace = "    let _ = e;\n    st.chamber[Chamber::V.index()].pending = Pending::NONE;\n"
 expect = ["proof failed", "vc_ventricular_event"]
 package = "pm-core-proof"
 prover = "creusot"
@@ -3063,8 +3063,8 @@ prover = "creusot"
 id = "pm-step-p2-tick-moves-a-pending-pace"
 kills = "Property P2's \"no later\" on the step (64-bit instants, 2026-11-24): a ventricular Pace that is pending is no later after a tick than it was; a tick that puts it one escape interval and a microsecond from now breaks tick's contract"
 file = "crates/pm-core/src/step.rs"
-find = "        if !st.chamber[Chamber::V.index()].pending.armed {\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)));\n"
-replace = "        if true {\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)).plus(1));\n"
+find = "        if !st.chamber[Chamber::V.index()].pending.armed {\n            let e = escape(p, st, now);\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(e));\n"
+replace = "        if true {\n            let e = escape(p, st, now);\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(e).plus(1));\n"
 expect = ["proof failed", "vc_tick"]
 package = "pm-core-proof"
 prover = "creusot"
@@ -3073,8 +3073,8 @@ prover = "creusot"
 id = "pm-step-p2-ventricular-pace-a-microsecond-late"
 kills = "Property P2's \"no later\" on the step (64-bit instants, 2026-11-24): after a ventricular event the Pace pending is no later than the event plus the escape interval; one microsecond later breaks ventricular_event's contract"
 file = "crates/pm-core/src/step.rs"
-find = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };\n"
-replace = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p)).plus(1)) } else { Pending::NONE };\n"
+find = "    st.chamber[Chamber::V.index()].pending = if paces_v { Pending::at(v.plus(e)) } else { Pending::NONE };\n"
+replace = "    st.chamber[Chamber::V.index()].pending = if paces_v { Pending::at(v.plus(e).plus(1)) } else { Pending::NONE };\n"
 expect = ["proof failed", "vc_ventricular_event"]
 package = "pm-core-proof"
 prover = "creusot"
@@ -3086,6 +3086,26 @@ file = "crates/pm-core/src/step.rs"
 find = "                if end.is_before(earliest) {\n                    end = earliest;\n                }\n"
 replace = "                let _ = earliest;\n"
 expect = ["proof failed", "vc_atrial_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-e4-escape-floor-dropped"
+kills = "the lower bound of the escape interval in force (stage E4, 2026-11-24: no shorter than the URL interval, or the MSR interval in a rate-adaptive Mode), which Property P1 rests on: without the clamp the contract of escape fails"
+file = "crates/pm-core/src/step.rs"
+find = "    if e < shortest {\n        e = shortest;\n    }\n"
+replace = ""
+expect = ["proof failed", "vc_escape"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-e4-escape-ceiling-dropped"
+kills = "the upper bound of the escape interval in force (stage E4, 2026-11-24: no longer than the LRL interval, or the HRL interval under hysteresis), which Property P2's \"no later\" rests on: without the clamp the contract of escape fails"
+file = "crates/pm-core/src/step.rs"
+find = "    if e > longest {\n        e = longest;\n    }\n"
+replace = ""
+expect = ["proof failed", "vc_escape"]
 package = "pm-core-proof"
 prover = "creusot"
 
@@ -3105,6 +3125,26 @@ kills = "Property P5 on `validate`, through `limits_hold`'s contract: with LRL �
 file = "crates/pm-core/src/validate.rs"
 find = "        w[word::LRL] <= w[word::URL]\n            && w[word::VRP] * 1_000 < url_interval\n"
 replace = "        w[word::VRP] * 1_000 < url_interval\n"
+expect = ["proof failed", "vc_limits_hold"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-validate-p5-sensor-limit-dropped"
+kills = "Property P5 on `validate`, through `limits_hold`'s contract (task 19.5): with LRL ≤ MSR no longer required in the rate-adaptive Modes, the program admits a set Table 19-5 refuses"
+file = "crates/pm-core/src/validate.rs"
+find = "    let sensor = !m.adaptive || w[word::LRL] <= w[word::MSR];\n"
+replace = "    let sensor = true;\n"
+expect = ["proof failed", "vc_limits_hold"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-validate-p5-hysteresis-limit-in-every-mode"
+kills = "Property P5 on `validate`, through `limits_hold`'s contract (task 19.5): with HRL ≤ LRL required in every Mode, and not only where the Mode uses hysteresis, the program refuses a set Table 19-5 admits"
+file = "crates/pm-core/src/validate.rs"
+find = "    let hysteresis = !m.uses_hysteresis() || w[word::HRL] == 0 || w[word::HRL] <= w[word::LRL];\n"
+replace = "    let hysteresis = w[word::HRL] == 0 || w[word::HRL] <= w[word::LRL];\n"
 expect = ["proof failed", "vc_limits_hold"]
 package = "pm-core-proof"
 prover = "creusot"

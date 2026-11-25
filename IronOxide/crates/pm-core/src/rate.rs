@@ -162,23 +162,20 @@ pub const fn fallback_interval(p: &Params, from_us: u32, elapsed_us: u32) -> u32
     }
 }
 
-/// An interval kept within the Rate Smoothing percentage of the cycle
-/// before it (PM16.3): not shorter than the cycle less the percentage of
-/// it, not longer than the cycle plus the percentage of it. A percentage
-/// of 0 is Rate Smoothing off.
+/// An interval kept within the Rate Smoothing percentages of the cycle
+/// before it (PM16.3): not shorter than the cycle less the Up percentage
+/// of it, not longer than the cycle plus the Down percentage of it. A
+/// percentage of 0 is Rate Smoothing off in its direction.
 #[inline(always)]
 #[must_use]
-pub const fn smoothed(interval_us: u32, last_cycle_us: u32, percent: u8) -> u32 {
-    if percent == 0 {
-        return interval_us;
-    }
-    let pc = if percent > 100 { 100 } else { percent as u64 };
-    let band = last_cycle_us as u64 * pc / 100;
-    let lo = last_cycle_us as u64 - band;
-    let hi = last_cycle_us as u64 + band;
-    if (interval_us as u64) < lo {
+pub const fn smoothed(interval_us: u32, last_cycle_us: u32, up: u8, down: u8) -> u32 {
+    let up_pc = if up > 100 { 100 } else { up as u64 };
+    let down_pc = if down > 100 { 100 } else { down as u64 };
+    let lo = last_cycle_us as u64 - last_cycle_us as u64 * up_pc / 100;
+    let hi = last_cycle_us as u64 + last_cycle_us as u64 * down_pc / 100;
+    if up != 0 && (interval_us as u64) < lo {
         lo as u32
-    } else if interval_us as u64 > hi {
+    } else if down != 0 && interval_us as u64 > hi {
         if hi > u32::MAX as u64 {
             u32::MAX
         } else {

@@ -93,6 +93,13 @@ pub struct LinkSide {
     /// Reset trip level.
     pub battery: u32,
     pub tripped: u32,
+    /// The activity value the link last brought, 0 to 255 (PM29.3); 0 at
+    /// start. It is used only while the link is up: without the link
+    /// there is no sensor, and the sensor rate returns to the LRL.
+    pub activity: u32,
+    /// Always zero: the words of the link are an even number, so that the
+    /// Resource, whose alignment is 8, ends without a padding byte.
+    pub reserved: u32,
 }
 
 /// The Jobs of `control` without a message after which the link is lost
@@ -183,7 +190,7 @@ impl Timing {
             ring: [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING],
             written: 0,
             counts: Counts { too_late: 0, moved: 0, late: 0, dropped: 0 },
-            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0 },
+            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0, activity: 0, reserved: 0 },
         }
     }
 }
@@ -470,6 +477,9 @@ impl Timing {
             if c == code::BATTERY {
                 link.battery = pm_core::wire::value_of(&inbox.command);
                 answered = true;
+            } else if c == code::ACTIVITY {
+                link.activity = pm_core::wire::value_of(&inbox.command);
+                answered = true;
             } else if c == code::PROGRAM {
                 command = pm_core::validate(&set).map(pm_core::Command::Program);
             } else if c == code::TEMPORARY {
@@ -483,6 +493,7 @@ impl Timing {
             }
         }
         let battery = pm_core::wire::battery_of(link.battery);
+        let activity = if link.up != 0 && link.activity <= 255 { link.activity as u8 } else { 0 };
         let tripped = matches!(battery, Battery::Tripped);
         let mut v = verdict::ACCEPTED;
         if !*hw_fault {
@@ -522,7 +533,7 @@ impl Timing {
                 }
                 let now = hw.now();
                 let magnet = hw.magnet();
-                event(state, ring, written, counts, &mut hw, Event::Tick { now, activity: 0, magnet, battery, link_up: link.up != 0 });
+                event(state, ring, written, counts, &mut hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
             }
             hw.refresh(Chamber::A);
             hw.refresh(Chamber::V);

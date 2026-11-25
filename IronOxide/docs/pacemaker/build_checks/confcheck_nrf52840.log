@@ -1,6 +1,6 @@
 note: binary: RSK_CONFIG_IMAGE 303 bytes at 0x000213b4, RSK_CONFIG_CHECKSUM 0xa4cd50df
-note: binary: RSK_LAYOUT_IMAGE 157 bytes at 0x00021533, RSK_LAYOUT_CHECKSUM 0xcf61a543
-note: binary: RSK_ENDPOINT_IMAGE 80 bytes at 0x000214e3, RSK_ENDPOINT_CHECKSUM 0x09194187
-note: binary: rsk_system::ENDPOINT_STORAGE 1984 bytes at 0x20000b5c
+note: binary: RSK_LAYOUT_IMAGE 157 bytes at 0x00021533, RSK_LAYOUT_CHECKSUM 0x182a0db9
+note: binary: RSK_ENDPOINT_IMAGE 80 bytes at 0x000214e3, RSK_ENDPOINT_CHECKSUM 0xd7c6d079
+note: binary: rsk_system::ENDPOINT_STORAGE 2048 bytes at 0x20000b5c
 note: 472 values compared
 rsk-confcheck: 472 values checked, every recomputed value matches

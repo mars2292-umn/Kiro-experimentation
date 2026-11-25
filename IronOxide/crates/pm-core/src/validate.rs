@@ -5,15 +5,13 @@
 //! ms, a width in µs). [`validate`] returns a [`Params`] exactly when every
 //! word is a value the table lists and the set is one this stage delivers.
 //!
-//! Stage E1 (task 6.2) delivers the Modes Off, AOO, VOO, AAI and VVI with
-//! hysteresis and rate smoothing Off. A set that names another Mode, or
-//! turns either feature on, is refused whole: the step function does not
-//! yet deliver it, and a set is never accepted to be delivered differently.
-//! Tasks 11.6 and 19.5 widen this.
+//! Since stage E4 (task 19.5) every Mode of Table 19-1 is delivered, with
+//! hysteresis, Rate Smoothing and the Atrial Tachycardia Response: no set
+//! is refused for its stage any more. Rate Smoothing is two words, Up and
+//! Down (PM16.3); Down is the last word, after the table's rows.
 //!
-//! No interactive limit of Table 19-5 applies in stage E1: each limit holds
-//! "for the parameters its Mode uses", and by Table 19-4 the single-chamber
-//! Modes use neither the URL, the MSR nor an AV delay, and hysteresis is Off.
+//! Each interactive limit of Table 19-5 holds "for the parameters its Mode
+//! uses" (Table 19-3 as amended by Table 19-4).
 
 use crate::mode::{Chambers, Mode, Response};
 use crate::params::{interval_of_ppm, ActivityThreshold, Params};
@@ -26,11 +24,12 @@ use creusot_std::model::View;
 /// Property P5 for the App_Prover (task 12.3): the word sequences that are
 /// admitted, written as a predicate over the sequence. It is Table 19-1 row
 /// by row (`member`), Table 19-5 for the parameters the Mode uses
-/// (`limits`), and what this stage delivers (`stage`). `validate`'s
+/// (`limits`). Until task 19.5 a third predicate, `stage`, refused what
+/// the step did not deliver yet; every Mode and feature is delivered now. `validate`'s
 /// contract is that it returns a parameter set exactly for these.
 #[cfg(creusot)]
 pub mod spec {
-    use crate::mode::{tracks_spec, Chambers, Mode};
+    use crate::mode::{hysteresis_spec, tracks_spec, Chambers, Mode};
     use creusot_std::logic::Seq;
     use creusot_std::macros::{logic, pearlite};
     use creusot_std::model::View;
@@ -70,7 +69,8 @@ pub mod spec {
         pearlite! { v@ == 0 || stepped(v, 3u32, 21u32, 3u32) || v@ == 25 }
     }
 
-    /// Table 19-1, a row a line, for the 27 words after the Mode.
+    /// Table 19-1, a row a line, for the 27 words after the Mode, and
+    /// Rate Smoothing Down, which has Rate Smoothing's row.
     #[logic(open)]
     pub fn member(w: Seq<u32>) -> bool {
         pearlite! {
@@ -101,13 +101,16 @@ pub mod spec {
                 && stepped(w[25], 10u32, 50u32, 10u32)
                 && stepped(w[26], 1u32, 16u32, 1u32)
                 && stepped(w[27], 2u32, 16u32, 1u32)
+                && rate_smoothing(w[28])
         }
     }
 
     /// Table 19-5 for the Mode `m`: in the Modes that track, LRL ≤ URL,
     /// VRP < URL interval, PVARP + Fixed AV Delay ≤ URL interval and, with
     /// the Dynamic AV Delay On, the minimum ≤ the fixed delay; in the Mode
-    /// that uses the offset, the fixed delay ≥ the offset + 30 ms.
+    /// that uses the offset, the fixed delay ≥ the offset + 30 ms; in a
+    /// rate-adaptive Mode, LRL ≤ MSR; in a Mode that uses hysteresis, with
+    /// hysteresis on, HRL ≤ LRL.
     #[logic(open)]
     pub fn limits(m: Mode, w: Seq<u32>) -> bool {
         pearlite! {
@@ -117,32 +120,25 @@ pub mod spec {
                 && (w[16]@ + w[4]@) * 1_000 <= 60_000_000 / w[2]@
                 && (w[5]@ != 1 || w[6] <= w[4]))
             && (tracks_spec(m) && m.paces == Chambers::Both ==> w[4]@ >= w[7]@ + 30)
+            && (m.adaptive ==> w[1] <= w[3])
+            && (hysteresis_spec(m) && w[18]@ != 0 ==> w[18] <= w[1])
         }
-    }
-
-    /// What stage E2 delivers: a fixed-rate Mode, hysteresis and rate
-    /// smoothing Off, and the Atrial Tachycardia Response Off where the
-    /// Mode would use it.
-    #[logic(open)]
-    pub fn stage(m: Mode, w: Seq<u32>) -> bool {
-        pearlite! { !m.adaptive && w[18]@ == 0 && w[19]@ == 0 && !(tracks_spec(m) && w[20]@ != 0) }
     }
 
     /// The admitted sequences.
     #[logic(open)]
     pub fn admitted(w: Seq<u32>) -> bool {
         pearlite! {
-            w.len() == 28
+            w.len() == 29
                 && w[0]@ < 19
                 && member(w)
                 && limits(Mode::PROGRAMMABLE@[w[0]@], w)
-                && stage(Mode::PROGRAMMABLE@[w[0]@], w)
         }
     }
 }
 
 /// The number of words of a parameter set.
-pub const WORDS: usize = 28;
+pub const WORDS: usize = 29;
 
 /// The index of each parameter's word: the rows of Table 19-1 in order, the
 /// atrial value before the ventricular one.
@@ -185,8 +181,8 @@ pub mod word {
     pub const PVARP_EXTENSION: usize = 17;
     /// Hysteresis Rate Limit, ppm; 0 Off.
     pub const HRL: usize = 18;
-    /// Rate Smoothing, percent; 0 Off.
-    pub const RATE_SMOOTHING: usize = 19;
+    /// Rate Smoothing Up, percent; 0 Off.
+    pub const RATE_SMOOTHING_UP: usize = 19;
     /// ATR Mode: 0 Off, 1 On.
     pub const ATR: usize = 20;
     /// ATR Duration, cardiac cycles.
@@ -203,12 +199,15 @@ pub mod word {
     pub const RESPONSE_FACTOR: usize = 26;
     /// Recovery Time, minutes.
     pub const RECOVERY_TIME: usize = 27;
+    /// Rate Smoothing Down, percent; 0 Off. The source's table has one
+    /// row for Rate Smoothing; the text has two parameters (PM16.3).
+    pub const RATE_SMOOTHING_DOWN: usize = 28;
 }
 
 /// The nominal set of Table 19-1 as words (the Mode is DDD);
 /// `Params::NOMINAL` is the same set as a value.
 pub const NOMINAL_WORDS: [u32; WORDS] = [
-    1, 60, 120, 120, 150, 0, 50, 0, 35, 35, 400, 400, 75, 250, 320, 250, 250, 0, 0, 0, 0, 20, 1, 40, 3, 30, 8, 5,
+    1, 60, 120, 120, 150, 0, 50, 0, 35, 35, 400, 400, 75, 250, 320, 250, 250, 0, 0, 0, 0, 20, 1, 40, 3, 30, 8, 5, 0,
 ];
 
 /// `lo`, `lo + step`, ..., `hi`.
@@ -317,8 +316,12 @@ pub const fn delivered_in_e2(m: Mode) -> bool {
 /// - Fixed AV Delay less the Sensed AV Delay Offset ≥ 30 ms: in DDD, the
 ///   only fixed-rate Mode that uses the offset.
 ///
-/// LRL ≤ MSR and HRL ≤ LRL belong to features of stage E4, which this
-/// stage refuses whole. ARP < URL interval binds nowhere: no Mode uses both
+/// - LRL ≤ MSR: in the rate-adaptive Modes, the only ones that use the
+///   Maximum Sensor Rate;
+/// - HRL ≤ LRL, where hysteresis is on: in the Modes that use hysteresis
+///   (AAI, VVI, DDD and their rate-adaptive forms).
+///
+/// ARP < URL interval binds nowhere: no Mode uses both
 /// the ARP (AAT, AAI) and the Upper Rate Limit (the tracking Modes).
 #[inline(always)]
 #[cfg_attr(creusot, creusot_std::macros::requires(50 <= w[word::URL]@ && w[word::URL]@ <= 175))]
@@ -335,13 +338,15 @@ const fn limits_hold(m: Mode, w: &[u32; WORDS]) -> bool {
         true
     };
     let offset = !m.uses_sensed_av_offset() || w[word::FIXED_AV] >= w[word::SENSED_AV_OFFSET] + 30;
-    tracking && offset
+    let sensor = !m.adaptive || w[word::LRL] <= w[word::MSR];
+    let hysteresis = !m.uses_hysteresis() || w[word::HRL] == 0 || w[word::HRL] <= w[word::LRL];
+    tracking && offset && sensor && hysteresis
 }
 
 /// The parameter set `words` describe, or `None` if the sequence is not
 /// exactly [`WORDS`] long, a word is not a value of Table 19-1, the set
-/// breaks an interactive limit of Table 19-5 ([`limits_hold`]), or the set
-/// is not one this stage delivers. A rate becomes its interval, rounded
+/// or the set breaks an interactive limit of Table 19-5 ([`limits_hold`]).
+/// A rate becomes its interval, rounded
 /// down, so that the rate delivered is not below the programmed one.
 ///
 /// Contract (task 12.3), Property P5: a parameter set is returned exactly
@@ -375,14 +380,15 @@ pub fn validate(words: &[u32]) -> Option<Params> {
         && stepped(w[word::PVARP], 150, 500, 10)
         && (w[word::PVARP_EXTENSION] == 0 || stepped(w[word::PVARP_EXTENSION], 50, 400, 50))
         && (w[word::HRL] == 0 || is_lrl(w[word::HRL]))
-        && is_rate_smoothing(w[word::RATE_SMOOTHING])
+        && is_rate_smoothing(w[word::RATE_SMOOTHING_UP])
         && w[word::ATR] <= 1
         && is_atr_duration(w[word::ATR_DURATION])
         && stepped(w[word::ATR_FALLBACK_TIME], 1, 5, 1)
         && stepped(w[word::V_BLANKING], 30, 60, 10)
         && stepped(w[word::REACTION_TIME], 10, 50, 10)
         && stepped(w[word::RESPONSE_FACTOR], 1, 16, 1)
-        && stepped(w[word::RECOVERY_TIME], 2, 16, 1);
+        && stepped(w[word::RECOVERY_TIME], 2, 16, 1)
+        && is_rate_smoothing(w[word::RATE_SMOOTHING_DOWN]);
     if !member {
         return None;
     }
@@ -393,16 +399,10 @@ pub fn validate(words: &[u32]) -> Option<Params> {
         return None;
     }
 
-    // What this stage delivers: the fixed-rate Modes, without hysteresis,
-    // rate smoothing or, in the Modes that would use it, the Atrial
-    // Tachycardia Response (stage E4).
-    if !delivered_in_e2(mode) || w[word::HRL] != 0 || w[word::RATE_SMOOTHING] != 0 || (mode.tracks() && w[word::ATR] != 0) {
-        return None;
-    }
-
     // Every word is now bounded by its table row, so the narrowing below
     // loses nothing: an amplitude is at most 70, a sensitivity 1,000, a
-    // smoothing 25, a duration 2,000, a factor 16.
+    // smoothing 25, a duration 2,000, a factor 16. An HRL that is on is a
+    // rate of at least 30 ppm.
     Some(Params {
         mode,
         lrl: interval_of_ppm(w[word::LRL]),
@@ -419,8 +419,9 @@ pub fn validate(words: &[u32]) -> Option<Params> {
         arp: w[word::ARP] * 1_000,
         pvarp: w[word::PVARP] * 1_000,
         pvarp_extension: w[word::PVARP_EXTENSION] * 1_000,
-        hrl: 0,
-        rate_smoothing: w[word::RATE_SMOOTHING] as u8,
+        hrl: if w[word::HRL] == 0 { 0 } else { interval_of_ppm(w[word::HRL]) },
+        rate_smoothing_up: w[word::RATE_SMOOTHING_UP] as u8,
+        rate_smoothing_down: w[word::RATE_SMOOTHING_DOWN] as u8,
         atr: w[word::ATR] == 1,
         atr_duration: w[word::ATR_DURATION] as u16,
         atr_fallback_time: w[word::ATR_FALLBACK_TIME] * 60_000_000,
@@ -429,6 +430,6 @@ pub fn validate(words: &[u32]) -> Option<Params> {
         reaction_time: w[word::REACTION_TIME] * 1_000_000,
         response_factor: w[word::RESPONSE_FACTOR] as u8,
         recovery_time: w[word::RECOVERY_TIME] * 60_000_000,
-        reserved: [0; 3],
+        reserved: [0; 2],
     })
 }

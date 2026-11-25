@@ -13,7 +13,7 @@
 //! - `kind`: what the frame is ([`kind`]). A frame of a kind this module
 //!   does not know is not a frame.
 //! - `part`: for a parameter set, which travels as [`PARTS`] frames of six
-//!   words (the last of four), the number of this part, from 0; otherwise 0.
+//!   words (the last of five), the number of this part, from 0; otherwise 0.
 //! - `len`: the bytes of payload in use, at most [`PAYLOAD`]; the rest of
 //!   the payload is zero, and a frame where it is not is not a frame.
 //! - bytes 28 and 29 are zero.
@@ -189,8 +189,8 @@ pub fn decode(b: &[u8; FRAME]) -> Option<Frame> {
     Some(Frame { seq: b[0], kind: b[1], part: b[2], len: b[3], payload })
 }
 
-/// The words part `part` of a set carries: six, or four in the last.
-#[cfg_attr(creusot, creusot_std::macros::ensures((part@ < 4 ==> result@ == 6) && (part@ == 4 ==> result@ == 4) && (part@ > 4 ==> result@ == 0)))]
+/// The words part `part` of a set carries: six, or five in the last.
+#[cfg_attr(creusot, creusot_std::macros::ensures((part@ < 4 ==> result@ == 6) && (part@ == 4 ==> result@ == 5) && (part@ > 4 ==> result@ == 0)))]
 #[inline(always)]
 #[must_use]
 pub const fn words_in_part(part: usize) -> usize {
@@ -217,7 +217,7 @@ pub fn set_part(seq: u8, kind: u8, words: &[u32; WORDS], part: u8) -> Option<Fra
     let mut payload = [0u8; PAYLOAD];
     let mut k = 0;
     #[cfg_attr(creusot, creusot_std::macros::variant(PART_WORDS@ - k@))]
-    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 6 && payload@.len() == 24 && n@ <= 6 && p@ < 5 && (p@ == 4 ==> n@ == 4)))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 6 && payload@.len() == 24 && n@ <= 6 && p@ < 5 && (p@ == 4 ==> n@ == 5)))]
     while k < PART_WORDS {
         if k < n {
             let w = words[PART_WORDS * p + k];
@@ -263,7 +263,7 @@ impl Assembly {
         let n = words_in_part(p);
         let mut k = 0;
         #[cfg_attr(creusot, creusot_std::macros::variant(PART_WORDS@ - k@))]
-        #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 6 && (self.words)@.len() == 28 && n@ <= 6 && p@ < 5 && (p@ == 4 ==> n@ == 4)))]
+        #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 6 && (self.words)@.len() == 29 && n@ <= 6 && p@ < 5 && (p@ == 4 ==> n@ == 5)))]
         while k < PART_WORDS {
             if k < n {
                 let b = &f.payload;

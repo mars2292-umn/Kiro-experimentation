@@ -163,7 +163,7 @@ fn a_set() -> [u32; WORDS] {
 /// back the same, through the frames' bytes.
 #[test]
 fn a_parameter_set_round_trips_through_its_parts() {
-    assert_eq!((0..PARTS).map(words_in_part).collect::<Vec<_>>(), [6, 6, 6, 6, 4]);
+    assert_eq!((0..PARTS).map(words_in_part).collect::<Vec<_>>(), [6, 6, 6, 6, 5]);
     assert_eq!((0..PARTS).map(words_in_part).sum::<usize>(), WORDS);
     assert_eq!(words_in_part(PARTS), 0);
     for words in [NOMINAL_WORDS, a_set(), [0; WORDS], [u32::MAX; WORDS]] {

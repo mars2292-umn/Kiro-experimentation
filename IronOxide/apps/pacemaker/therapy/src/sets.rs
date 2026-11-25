@@ -48,7 +48,7 @@ pub const fn from_text(b: &[u8]) -> [u32; WORDS] {
     let mut in_value = false;
     // The App_Prover keeps nothing about a variable a loop changes unless an
     // invariant says it: the set keeps its length.
-    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(w@.len() == 28))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(w@.len() == 29))]
     'text: while i < b.len() && i < 256 {
         let c = b[i];
         if c >= b'0' && c <= b'9' {

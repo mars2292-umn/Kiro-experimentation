@@ -35,7 +35,7 @@ use crate::diag::{Report, Rule};
 use crate::workspace::Workspace;
 
 pub const BIN: &str = "pacemaker";
-pub const SETS: &[&str] = &["vvi-90", "aai-90", "ddd-90", "doo-mit"];
+pub const SETS: &[&str] = &["vvi-90", "aai-90", "ddd-90", "doo-mit", "dddr-e4"];
 
 /// The sets that are not cargo features of the Application: the text of
 /// the parameter set, given to the build in `PM_SET` (feature `set-env`).
@@ -43,10 +43,15 @@ pub const SETS: &[&str] = &["vvi-90", "aai-90", "ddd-90", "doo-mit"];
 /// step. `doo-mit` (task 13.3): DOO at 175 ppm with the shortest AV delay
 /// (70 ms), the longest atrial and the shortest ventricular pulse: the
 /// closest two pulse ends a programmable set gives, for `MIT_PACE`.
+/// `dddr-e4` (task 20.1): DDDR at 60 ppm with hysteresis (HRL 50 ppm), Rate
+/// Smoothing Up and Down at 6 % and the Atrial Tachycardia Response on
+/// (Duration 10 cycles), for the paths of stage E4; the activity value
+/// comes from the DCM_Stub during the run.
 pub fn env_text(set: &str) -> Option<&'static str> {
     match set {
         "ddd-90" => Some("0=1,1=90"),
         "doo-mit" => Some("0=4,1=175,4=70,10=1900,11=50"),
+        "dddr-e4" => Some("0=11,1=60,18=50,19=6,28=6,20=1,21=10"),
         _ => None,
     }
 }

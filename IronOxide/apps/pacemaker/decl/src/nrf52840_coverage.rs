@@ -8,7 +8,7 @@ rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 300.s(),
     safe_state = crate::safe_state, log_capacity = 32;
 
-    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 12.KiB(),
+    partition therapy (level = A, crate = pacemaker_therapy, code = 256.KiB(), ram = 32.KiB(), stack = 12.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
                        mit_threshold = 10) {
         peripherals = [GPIOTE, P0, TIMER1, TIMER2, TIMER3];
@@ -33,7 +33,7 @@ rsk::app! {
 
     // The DCM link (design PD-11, Table 2; task 15.3). SPIM1's window is
     // read-only to the Partition: its registers go through the Kernel.
-    partition comms (level = C, crate = pacemaker_comms, code = 16.KiB(), ram = 8.KiB(), stack = 2.KiB(),
+    partition comms (level = C, crate = pacemaker_comms, code = 32.KiB(), ram = 8.KiB(), stack = 2.KiB(),
                      fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
         peripherals = [SPIM1];
@@ -57,7 +57,7 @@ rsk::app! {
     // to level A). `status`: what `control` tells `link`. The channel of
     // `status` toward `control` exists and is never read; its validation
     // function accepts nothing.
-    endpoint program: [u32; 29] { dcm => comms.link ops = 2, pg => therapy.control validate = crate::validate_program ops = 4 } capacity = 4, payload = 116;
+    endpoint program: [u32; 30] { dcm => comms.link ops = 2, pg => therapy.control validate = crate::validate_program ops = 4 } capacity = 4, payload = 120;
     endpoint status: [u32; 4] { pg => therapy.control validate = crate::validate_status, dcm => comms.link ops = 2 } capacity = 2, payload = 16;
 
     // A sense edge: its instant captured by TIMER3, and counted (the fork).

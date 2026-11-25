@@ -3,8 +3,8 @@
     {
       "config_checksum": "0xa4cd50df",
       "file": "pacemaker",
-      "hash": "sha256:aeef435f86a627b37f9d94f30ad1ce08a93a18dc8c97281088eff10b5d2633fb",
-      "loadable_bytes": 98992,
+      "hash": "sha256:2ecb0792e16806e54d7ab73ba5397381de2c4de0520857ecd31b103e4dda9c5b",
+      "loadable_bytes": 121540,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet)"
     }
@@ -20,40 +20,48 @@
     {
       "config_checksum": "0x6db2ad66",
       "file": "pacemaker",
-      "hash": "sha256:4fcc624f6d20663a37f43225c35bf2dfd45892909a46e18f5880db8e69caf941",
-      "loadable_bytes": 112344,
+      "hash": "sha256:de2b22620d0164afa4d69fa2a21ae35840e28abdd359935c071705833efec079",
+      "loadable_bytes": 135124,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-vvi-90)"
     },
     {
       "config_checksum": "0x6db2ad66",
       "file": "pacemaker",
-      "hash": "sha256:5ae450cce9085352b5d0921858e41ee9c5104a5d66983e6e22e202751215a78d",
-      "loadable_bytes": 112492,
+      "hash": "sha256:81d2235f2a930e43c2d56178994712a6813617916fe58ea23ba08eaaa8f0a0d9",
+      "loadable_bytes": 135324,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,inject,set-vvi-90)"
     },
     {
       "config_checksum": "0x6db2ad66",
       "file": "pacemaker",
-      "hash": "sha256:6ac223f6c6f808b996230d9944ed71e563bfa97b3c2efd927d1597ea24d1d986",
-      "loadable_bytes": 112344,
+      "hash": "sha256:1bec2176fb04a6c6d824d21a34f9edc57640f67f04a1022f0b05288a6041877b",
+      "loadable_bytes": 135124,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-aai-90)"
     },
     {
       "config_checksum": "0x6db2ad66",
       "file": "pacemaker",
-      "hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
-      "loadable_bytes": 112344,
+      "hash": "sha256:49fd89a6d9e7de2bebda032cbf43d3a63f8d78b9bc106d8684e00771f8a7de5b",
+      "loadable_bytes": 135124,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-env)"
     },
     {
       "config_checksum": "0x6db2ad66",
       "file": "pacemaker",
-      "hash": "sha256:fda44dc976c216a54f74ae94a72e04136f8e943f754f4b3ae4107f190eec400c",
-      "loadable_bytes": 112332,
+      "hash": "sha256:45e8cc5059db08f6da274c6241dc7a5fc7ef3920942edf70528692496ab77176",
+      "loadable_bytes": 135128,
+      "package": "pacemaker",
+      "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-env)"
+    },
+    {
+      "config_checksum": "0x6db2ad66",
+      "file": "pacemaker",
+      "hash": "sha256:60ead83ddf86dae0e1b7e9bb8e410c57411cbe03895812a163f36ebf4e599174",
+      "loadable_bytes": 135152,
       "package": "pacemaker",
       "target": "pacemaker (nrf52840, nrf52840,debug-port,quiet,trace-ram,measure,set-env)"
     }

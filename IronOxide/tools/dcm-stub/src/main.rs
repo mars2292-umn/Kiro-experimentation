@@ -35,7 +35,7 @@
 //! - `set:<i>=<v>,...` and `temp:<i>=<v>,...`: the nominal set with the
 //!   words named replaced, sent as permanent or temporary parameters; the
 //!   prediction and `control`'s verdict;
-//! - `end-temp`, `pace-now`, `battery:<level>`, `magnet-response:<0|1>`:
+//! - `end-temp`, `pace-now`, `battery:<level>`, `activity:<0..255>`, `magnet-response:<0|1>`:
 //!   the command and `control`'s verdict;
 //! - `status`: what `control` reports now (a command the stage does not
 //!   serve is sent, and its answer carries the status);
@@ -423,6 +423,10 @@ fn run_ops(device: &str, ops: &[String]) -> std::io::Result<(bool, Value)> {
             }
             "battery" => {
                 let f = s.dcm.byte(kind::SET_BATTERY, arg.parse().unwrap_or(255));
+                commanded(&mut s, f, &mut sent)?
+            }
+            "activity" => {
+                let f = s.dcm.byte(kind::SET_ACTIVITY, arg.parse().unwrap_or(0));
                 commanded(&mut s, f, &mut sent)?
             }
             "magnet-response" => {

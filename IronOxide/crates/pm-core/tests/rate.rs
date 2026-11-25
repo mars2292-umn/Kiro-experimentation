@@ -267,12 +267,19 @@ fn hysteresis_waits_the_hrl_interval_after_a_sense_and_ends_at_a_pace() {
 
 #[test]
 fn smoothing_keeps_an_interval_within_its_percentage_of_the_cycle_before() {
-    assert_eq!(smoothed(1_000_000, 500_000, 0), 1_000_000, "off");
-    assert_eq!(smoothed(1_000_000, 500_000, 6), 530_000);
-    assert_eq!(smoothed(400_000, 500_000, 6), 470_000);
-    assert_eq!(smoothed(510_000, 500_000, 6), 510_000);
-    assert_eq!(smoothed(1_000_000, 500_000, 25), 625_000);
-    assert_eq!(smoothed(u32::MAX, u32::MAX, 25), u32::MAX);
+    assert_eq!(smoothed(1_000_000, 500_000, 0, 0), 1_000_000, "off");
+    assert_eq!(smoothed(1_000_000, 500_000, 6, 6), 530_000);
+    assert_eq!(smoothed(400_000, 500_000, 6, 6), 470_000);
+    assert_eq!(smoothed(510_000, 500_000, 6, 6), 510_000);
+    assert_eq!(smoothed(1_000_000, 500_000, 25, 25), 625_000);
+    assert_eq!(smoothed(u32::MAX, u32::MAX, 25, 25), u32::MAX);
+    // Up and Down are two parameters (PM16.3): each holds its own side.
+    assert_eq!(smoothed(1_000_000, 500_000, 6, 0), 1_000_000, "Down off: as long as asked");
+    assert_eq!(smoothed(400_000, 500_000, 6, 0), 470_000);
+    assert_eq!(smoothed(400_000, 500_000, 0, 6), 400_000, "Up off: as short as asked");
+    assert_eq!(smoothed(1_000_000, 500_000, 0, 6), 530_000);
+    assert_eq!(smoothed(1_000_000, 500_000, 3, 21), 605_000);
+    assert_eq!(smoothed(400_000, 500_000, 3, 21), 485_000);
 }
 
 /// PM16.3 as a property on the step: after an intrinsic rhythm stops, the
@@ -282,7 +289,7 @@ fn smoothing_keeps_an_interval_within_its_percentage_of_the_cycle_before() {
 fn rate_smoothing_limits_the_change_from_one_cycle_to_the_next() {
     for percent in [3u8, 6, 9, 12, 15, 18, 21, 25] {
         for beat in [520_000u64, 600_000, 750_000] {
-            let p = Params { rate_smoothing: percent, url: interval_of_ppm(120), ..set(Mode::VVI, 60) };
+            let p = Params { rate_smoothing_up: percent, rate_smoothing_down: percent, url: interval_of_ppm(120), ..set(Mode::VVI, 60) };
             // Six intrinsic beats, then silence.
             let senses: Vec<(Chamber, u64)> = (1..=6).map(|k| (V, k * beat)).collect();
             let r = run(p, 30, |_| 0, &senses);
@@ -299,7 +306,7 @@ fn rate_smoothing_limits_the_change_from_one_cycle_to_the_next() {
             assert!(cycles[from] > beat, "the first paced cycle is longer than the rhythm's");
             assert_eq!(*cycles.last().unwrap(), 1_000_000, "{percent} % after {beat}: back at the LRL");
             // Without Rate Smoothing the first paced cycle is the LRL's.
-            let r = run(Params { rate_smoothing: 0, ..p }, 12, |_| 0, &senses);
+            let r = run(Params { rate_smoothing_up: 0, rate_smoothing_down: 0, ..p }, 12, |_| 0, &senses);
             assert_eq!(r.paces[0].1, 6 * beat + 1_000_000);
         }
     }
@@ -520,3 +527,119 @@ fn a_chamber_that_is_not_sensed_is_never_noisy() {
     }
 }
 
+
+// ------------------------------------------------------------ task 19.5
+
+/// A set as the link brings it: words through `validate`.
+fn programmed_words(edit: impl Fn(&mut [u32; WORDS])) -> Params {
+    let mut w = NOMINAL_WORDS;
+    edit(&mut w);
+    validate(&w).expect("an admitted set")
+}
+
+fn code_of_mode(m: Mode) -> u32 {
+    Mode::PROGRAMMABLE.iter().position(|x| *x == m).unwrap() as u32
+}
+
+/// A pulse generator that paces the ventricle alone, from the state `s`,
+/// for `seconds` from `from`: a tick every 20 ms with the magnet as given,
+/// each pending ventricular Pace delivered at its instant. Returns the
+/// state and the instants of the Paces.
+fn drive(mut s: State, from: u64, seconds: u64, magnet: bool) -> (State, Vec<u64>) {
+    let mut paces = Vec::new();
+    let mut t = from;
+    while t < from + seconds * 1_000_000 {
+        let pending = s.chamber[1].pending;
+        if pending.armed && pending.at.0 <= t {
+            paces.push(pending.at.0);
+            s = step(&{ *s.params() }, &s, Event::Paced { chamber: V, at: pending.at }).0;
+            continue;
+        }
+        let e = Event::Tick { now: Micros(t), activity: 0, magnet, battery: Battery::Bol, link_up: true };
+        s = step(&{ *s.params() }, &s, e).0;
+        t += u64::from(CONTROL_PERIOD_US);
+    }
+    (s, paces)
+}
+
+/// A rate-adaptive Mode with hysteresis, Rate Smoothing and ATR is a set
+/// `validate` admits since task 19.5, and it paces at the sensor's rate.
+#[test]
+fn a_rate_adaptive_set_from_its_words_paces_at_the_sensor_rate() {
+    let p = programmed_words(|w| {
+        w[word::MODE] = code_of_mode(Mode::VVI.rate_adaptive());
+        w[word::LRL] = 60;
+        w[word::MSR] = 120;
+        w[word::REACTION_TIME] = 10;
+        w[word::RESPONSE_FACTOR] = 16;
+        w[word::ACTIVITY_THRESHOLD] = 0;
+    });
+    assert!(p.mode.adaptive);
+    let r = run(p, 30, |_| 255, &[]);
+    let i = intervals(&r, V);
+    assert_eq!(*i.last().unwrap(), 500_000, "the MSR interval");
+    assert!(i[0] > 500_000 && i[0] <= 1_000_000, "rising from the LRL interval: {}", i[0]);
+    assert!(i.windows(2).all(|w| w[1] <= w[0]), "never slower while the activity lasts");
+    let p = programmed_words(|w| {
+        w[word::MODE] = code_of_mode(Mode::DDD.rate_adaptive());
+        w[word::HRL] = 50;
+        w[word::RATE_SMOOTHING_UP] = 9;
+        w[word::RATE_SMOOTHING_DOWN] = 12;
+        w[word::ATR] = 1;
+    });
+    assert_eq!((p.hrl, p.rate_smoothing_up, p.rate_smoothing_down, p.atr), (1_200_000, 9, 12, true));
+}
+
+/// PM5.8: the Magnet State paces asynchronously at the magnet's rate at
+/// once: the hysteresis and the Rate Smoothing of the programmed set are
+/// not its Mode's (Table 19-3) and change nothing there.
+#[test]
+fn the_magnet_state_uses_neither_hysteresis_nor_rate_smoothing() {
+    let p = programmed_words(|w| {
+        w[word::MODE] = code_of_mode(Mode::VVI);
+        w[word::LRL] = 60;
+        w[word::HRL] = 50;
+        w[word::RATE_SMOOTHING_UP] = 3;
+        w[word::RATE_SMOOTHING_DOWN] = 3;
+    });
+    let s = step(&Params::POWER_ON_RESET, &State::POWER_ON_RESET, Event::Command(Command::Program(p))).0;
+    let (s, _) = drive(s, 0, 4, false);
+    let q = *s.params();
+    assert_eq!((q.mode, q.hrl, q.rate_smoothing_up, q.rate_smoothing_down), (Mode::VVI, 1_200_000, 3, 3), "VVI uses all three");
+    let (s, paces) = drive(s, 4_000_000, 6, true);
+    let q = *s.params();
+    assert_eq!((q.mode, q.lrl, q.hrl, q.rate_smoothing_up, q.rate_smoothing_down), (Mode::VOO, 600_000, 0, 0, 0));
+    let i: Vec<u64> = paces.windows(2).map(|w| w[1] - w[0]).collect();
+    // Without smoothing the first interval after the switch is the
+    // magnet's; with 3 % it would take sixteen cycles to come down.
+    let first_magnet = i.iter().position(|x| *x == 600_000).expect("the magnet's rate");
+    assert!(first_magnet <= 2, "{i:?}");
+    assert!(i[first_magnet..].iter().all(|x| *x == 600_000), "{i:?}");
+}
+
+/// PM5.8: hysteresis and Rate Smoothing programmed in a Mode that does not
+/// use them (Table 19-3) are kept in the permanent set and are not in
+/// force.
+#[test]
+fn a_parameter_the_mode_does_not_use_is_not_in_force() {
+    for m in [Mode::VOO, Mode::DOO, Mode::DDI, Mode::VVT, Mode::VDD] {
+        let p = programmed_words(|w| {
+            w[word::MODE] = code_of_mode(m);
+            w[word::LRL] = 60;
+            w[word::HRL] = 40;
+            w[word::RATE_SMOOTHING_UP] = 6;
+            w[word::RATE_SMOOTHING_DOWN] = 6;
+            w[word::ATR] = 1;
+        });
+        let s = step(&Params::POWER_ON_RESET, &State::POWER_ON_RESET, Event::Command(Command::Program(p))).0;
+        let (s, _) = drive(s, 0, 4, false);
+        let q = *s.params();
+        assert_eq!(q.mode, m);
+        assert_eq!(q.hrl, 0, "{m:?}");
+        // Rate Smoothing is VDD's too; hysteresis is not. ATR is the tracking Modes'.
+        let smoothing = if m == Mode::VDD { 6 } else { 0 };
+        assert_eq!((q.rate_smoothing_up, q.rate_smoothing_down), (smoothing, smoothing), "{m:?}");
+        assert_eq!(q.atr, m == Mode::VDD, "{m:?}");
+        assert_eq!((s.permanent.hrl, s.permanent.rate_smoothing_up, s.permanent.atr), (1_500_000, 6, true), "kept as programmed");
+    }
+}

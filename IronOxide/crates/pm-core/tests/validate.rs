@@ -10,7 +10,7 @@ use pm_core::*;
 /// The code of VVI in `Mode::PROGRAMMABLE`.
 const VVI: u32 = 8;
 
-/// The nominal set in a Mode stage E1 delivers.
+/// The nominal set in VVI.
 fn base() -> [u32; WORDS] {
     let mut w = NOMINAL_WORDS;
     w[word::MODE] = VVI;
@@ -28,8 +28,9 @@ fn table() -> Vec<(usize, Vec<u32>)> {
     let amplitude: Vec<u32> = [std::vec![0], range(5, 32, 1), range(35, 70, 5)].concat();
     let width: Vec<u32> = [std::vec![50], range(100, 1_900, 100)].concat();
     let sensitivity: Vec<u32> = [std::vec![25, 50, 75], range(100, 1_000, 50)].concat();
+    let smoothing: Vec<u32> = [std::vec![0], range(3, 21, 3), std::vec![25]].concat();
     std::vec![
-        (word::LRL, lrl),
+        (word::LRL, lrl.clone()),
         (word::URL, range(50, 175, 5)),
         (word::MSR, range(50, 175, 5)),
         (word::FIXED_AV, range(70, 300, 10)),
@@ -46,9 +47,8 @@ fn table() -> Vec<(usize, Vec<u32>)> {
         (word::ARP, range(150, 500, 10)),
         (word::PVARP, range(150, 500, 10)),
         (word::PVARP_EXTENSION, [std::vec![0], range(50, 400, 50)].concat()),
-        // Hysteresis and rate smoothing: only Off in stage E1.
-        (word::HRL, std::vec![0]),
-        (word::RATE_SMOOTHING, std::vec![0]),
+        (word::HRL, [std::vec![0], lrl.clone()].concat()),
+        (word::RATE_SMOOTHING_UP, smoothing.clone()),
         (word::ATR, std::vec![0, 1]),
         (word::ATR_DURATION, [std::vec![10], range(20, 80, 20), range(100, 2_000, 100)].concat()),
         (word::ATR_FALLBACK_TIME, range(1, 5, 1)),
@@ -57,13 +57,16 @@ fn table() -> Vec<(usize, Vec<u32>)> {
         (word::REACTION_TIME, range(10, 50, 10)),
         (word::RESPONSE_FACTOR, range(1, 16, 1)),
         (word::RECOVERY_TIME, range(2, 16, 1)),
+        (word::RATE_SMOOTHING_DOWN, smoothing),
     ]
 }
 
-/// Property P5 for the rows of stage E1, exhaustively per parameter:
-/// with every other word nominal, each word is accepted exactly at the
-/// values its row lists, over 0 to 2,200 (above every row's largest
-/// value) and at the extremes of the word.
+/// Property P5 row by row, exhaustively per parameter: with every other
+/// word nominal, in VVI, each word is accepted exactly at the values its
+/// row lists, over 0 to 2,200 (above every row's largest value) and at the
+/// extremes of the word. Since task 19.5 the rows of hysteresis and Rate
+/// Smoothing have their values (they had Off alone), and VVI's one limit
+/// is applied: an HRL that is on is not above the LRL, which is 60.
 #[test]
 fn each_word_is_accepted_exactly_at_its_table_values() {
     let table = table();
@@ -73,7 +76,8 @@ fn each_word_is_accepted_exactly_at_its_table_values() {
         for v in (0..=2_200).chain([u32::MAX - 1, u32::MAX, 1 << 31, 65_536 + values[0], 256 + values[0]]) {
             let mut w = base();
             w[*i] = v;
-            assert_eq!(validate(&w).is_some(), values.contains(&v), "word {i} value {v}");
+            let limit = *i != word::HRL || v == 0 || v <= w[word::LRL];
+            assert_eq!(validate(&w).is_some(), values.contains(&v) && limit, "word {i} value {v}");
             tried += 1;
         }
         assert_eq!(tried, 2_206);
@@ -93,18 +97,15 @@ fn the_rows_have_the_source_s_counts() {
     assert_eq!(count(word::ATR_DURATION), 1 + 4 + 20);
 }
 
-/// Stage E2 (task 11.6): the eleven fixed-rate Modes and no other. Until
-/// then this test named the five Modes of stage E1.
+/// Stage E4 (task 19.5): the nineteen Modes of Table 19-1 and no other.
+/// Until then this test named the eleven fixed-rate Modes of stage E2.
 #[test]
-fn the_modes_of_stage_e2_and_no_other() {
-    let fixed_rate = [Mode::OFF, Mode::DDD, Mode::VDD, Mode::DDI, Mode::DOO, Mode::AOO, Mode::AAI, Mode::VOO, Mode::VVI, Mode::AAT, Mode::VVT];
+fn the_modes_of_table_19_1_and_no_other() {
+    assert_eq!(Mode::PROGRAMMABLE.len(), 19);
     for code in 0..40 {
         let mut w = base();
         w[word::MODE] = code;
-        let expected = match Mode::PROGRAMMABLE.get(code as usize) {
-            Some(m) => fixed_rate.contains(m),
-            None => false,
-        };
+        let expected = Mode::PROGRAMMABLE.get(code as usize).is_some();
         assert_eq!(validate(&w).is_some(), expected, "mode code {code}");
         if let Some(p) = validate(&w) {
             assert_eq!(p.mode, Mode::PROGRAMMABLE[code as usize]);
@@ -115,14 +116,19 @@ fn the_modes_of_stage_e2_and_no_other() {
     assert_eq!(validate(&w), None);
 }
 
+/// Since task 19.5 hysteresis and Rate Smoothing are accepted (until then
+/// this test had them refused): the HRL as its interval, Up and Down each
+/// in its own field.
 #[test]
-fn hysteresis_and_rate_smoothing_are_refused_until_their_stage() {
-    // Values Table 19-1 lists, refused because stage E1 does not deliver them.
-    for (i, v) in [(word::HRL, 50), (word::HRL, 60), (word::RATE_SMOOTHING, 3), (word::RATE_SMOOTHING, 25)] {
-        let mut w = base();
-        w[i] = v;
-        assert_eq!(validate(&w), None, "word {i} value {v}");
-    }
+fn hysteresis_and_rate_smoothing_reach_their_fields() {
+    let mut w = base();
+    w[word::HRL] = 50;
+    w[word::RATE_SMOOTHING_UP] = 3;
+    w[word::RATE_SMOOTHING_DOWN] = 25;
+    let p = validate(&w).unwrap();
+    assert_eq!((p.hrl, p.rate_smoothing_up, p.rate_smoothing_down), (1_200_000, 3, 25));
+    w[word::HRL] = 0;
+    assert_eq!(validate(&w).unwrap().hrl, 0, "Off stays Off");
 }
 
 #[test]
@@ -186,6 +192,9 @@ fn each_word_reaches_its_field() {
     w[word::ARP] = 150;
     w[word::PVARP] = 160;
     w[word::PVARP_EXTENSION] = 400;
+    w[word::HRL] = 40;
+    w[word::RATE_SMOOTHING_UP] = 9;
+    w[word::RATE_SMOOTHING_DOWN] = 21;
     w[word::ATR] = 1;
     w[word::ATR_DURATION] = 2_000;
     w[word::ATR_FALLBACK_TIME] = 5;
@@ -211,8 +220,9 @@ fn each_word_reaches_its_field() {
         arp: 150_000,
         pvarp: 160_000,
         pvarp_extension: 400_000,
-        hrl: 0,
-        rate_smoothing: 0,
+        hrl: 1_500_000,
+        rate_smoothing_up: 9,
+        rate_smoothing_down: 21,
         atr: true,
         atr_duration: 2_000,
         atr_fallback_time: 300_000_000,
@@ -221,25 +231,39 @@ fn each_word_reaches_its_field() {
         reaction_time: 50_000_000,
         response_factor: 16,
         recovery_time: 960_000_000,
-        reserved: [0; 3],
+        reserved: [0; 2],
     };
     assert_eq!(p, expected);
 }
 
-// Stage E2 (task 11.6): the interactive limits of Table 19-5, each
-// exhaustively over the values of the parameters it names and over every
-// fixed-rate Mode, against the limit written out here from the table and
+// The interactive limits of Table 19-5 (stage E2, task 11.6; over every
+// Mode and with the limits of the sensor and of hysteresis since task
+// 19.5), each exhaustively over the values of the parameters it names and
+// over every Mode, against the limit written out here from the table and
 // from Table 19-3 as amended by Table 19-4, independently of `validate`.
 
-/// The fixed-rate Modes by code, with the two properties the limits turn
-/// on: whether the Mode tracks (VDD, DDD) and whether it is DDD.
+/// The Modes by code, with the two properties the limits of stage E2 turn
+/// on: whether the Mode tracks (VDD, DDD and their rate-adaptive forms)
+/// and whether it is DDD or DDDR. Until task 19.5 the eleven fixed-rate
+/// Modes; the loose set keeps the sensor's limit (its LRL is the lowest).
 fn fixed_rate_modes() -> Vec<(u32, bool, bool)> {
-    (0..11u32)
+    (0..19u32)
         .map(|code| {
-            let m = Mode::PROGRAMMABLE[code as usize];
+            let m = Mode { adaptive: false, ..Mode::PROGRAMMABLE[code as usize] };
             (code, m == Mode::VDD || m == Mode::DDD, m == Mode::DDD)
         })
         .collect()
+}
+
+/// Whether the Mode of `code` is rate-adaptive, and whether it uses
+/// hysteresis: from Table 19-3, written out here.
+fn adaptive(code: u32) -> bool {
+    code >= 11
+}
+
+fn has_hysteresis(code: u32) -> bool {
+    let m = Mode { adaptive: false, ..Mode::PROGRAMMABLE[code as usize] };
+    m == Mode::AAI || m == Mode::VVI || m == Mode::DDD
 }
 
 fn values(i: usize) -> Vec<u32> {
@@ -262,7 +286,7 @@ fn loose(code: u32) -> [u32; WORDS] {
 }
 
 #[test]
-fn every_loose_set_is_accepted_in_every_fixed_rate_mode() {
+fn every_loose_set_is_accepted_in_every_mode() {
     for (code, _, _) in fixed_rate_modes() {
         assert!(validate(&loose(code)).is_some(), "mode code {code}");
     }
@@ -278,12 +302,14 @@ fn limit_lrl_not_above_url() {
                 let mut w = loose(code);
                 w[word::LRL] = lrl;
                 w[word::URL] = url;
-                assert_eq!(validate(&w).is_some(), !tracks || lrl <= url, "mode {code} LRL {lrl} URL {url}");
+                // The MSR of the loose set is 120: the sensor's limit.
+                let sensor = !adaptive(code) || lrl <= 120;
+                assert_eq!(validate(&w).is_some(), (!tracks || lrl <= url) && sensor, "mode {code} LRL {lrl} URL {url}");
                 cases += 1;
             }
         }
     }
-    assert_eq!(cases, 11 * 62 * 26);
+    assert_eq!(cases, 19 * 62 * 26);
 }
 
 /// VRP < URL interval, in the Modes that track.
@@ -361,21 +387,61 @@ fn limit_shortened_av_delay_not_below_30_ms() {
     }
 }
 
-/// The Atrial Tachycardia Response is refused in the Modes that would use
-/// it (stage E4) and is not looked at elsewhere, as in stage E1; hysteresis
-/// and rate smoothing are refused in every Mode until their stage.
+/// Since task 19.5 the Atrial Tachycardia Response, hysteresis and Rate
+/// Smoothing are accepted in every Mode (until then this test had the
+/// first refused in the tracking Modes and the other two everywhere).
 #[test]
-fn atr_hysteresis_and_smoothing_until_their_stage() {
-    for (code, tracks, _) in fixed_rate_modes() {
-        let mut w = loose(code);
-        w[word::ATR] = 1;
-        assert_eq!(validate(&w).is_some(), !tracks, "mode {code}");
-        for (i, v) in [(word::HRL, 30), (word::RATE_SMOOTHING, 12)] {
+fn atr_hysteresis_and_smoothing_are_accepted_in_every_mode() {
+    for (code, _, _) in fixed_rate_modes() {
+        for (i, v) in [(word::ATR, 1), (word::HRL, 30), (word::RATE_SMOOTHING_UP, 12), (word::RATE_SMOOTHING_DOWN, 25)] {
             let mut w = loose(code);
             w[i] = v;
-            assert_eq!(validate(&w), None, "mode {code} word {i}");
+            assert!(validate(&w).is_some(), "mode {code} word {i}");
         }
     }
+}
+
+/// LRL ≤ MSR, in the rate-adaptive Modes.
+#[test]
+fn limit_lrl_not_above_msr() {
+    let mut cases = 0;
+    for (code, _, _) in fixed_rate_modes() {
+        for lrl in values(word::LRL) {
+            for msr in values(word::MSR) {
+                let mut w = loose(code);
+                w[word::LRL] = lrl;
+                w[word::MSR] = msr;
+                // No other limit: the URL at its highest keeps LRL ≤ URL,
+                // and the loose refractory periods fit its interval.
+                w[word::URL] = 175;
+                assert_eq!(validate(&w).is_some(), !adaptive(code) || lrl <= msr, "mode {code} LRL {lrl} MSR {msr}");
+                cases += 1;
+            }
+        }
+    }
+    assert_eq!(cases, 19 * 62 * 26);
+}
+
+/// HRL ≤ LRL where hysteresis is on, in the Modes that use hysteresis.
+#[test]
+fn limit_hrl_not_above_lrl() {
+    let (mut refused, mut accepted) = (0, 0);
+    for (code, _, _) in fixed_rate_modes() {
+        for lrl in values(word::LRL) {
+            for hrl in values(word::HRL) {
+                let mut w = loose(code);
+                w[word::LRL] = lrl;
+                w[word::HRL] = hrl;
+                w[word::URL] = 175;
+                w[word::MSR] = 175;
+                let expected = !has_hysteresis(code) || hrl == 0 || hrl <= lrl;
+                assert_eq!(validate(&w).is_some(), expected, "mode {code} LRL {lrl} HRL {hrl}");
+                if expected { accepted += 1 } else { refused += 1 }
+            }
+        }
+    }
+    assert_eq!(accepted + refused, 19 * 62 * 63);
+    assert!(refused > 1_000);
 }
 
 /// Property P5 per parameter in DDD, where every limit binds: with every
@@ -394,8 +460,10 @@ fn each_word_in_ddd_is_accepted_exactly_at_its_table_values_within_the_limits() 
                 && (w[word::PVARP].saturating_add(w[word::FIXED_AV])).saturating_mul(1_000) <= 60_000_000 / w[word::URL].max(1)
                 && (w[word::DYNAMIC_AV] != 1 || w[word::MIN_DYNAMIC_AV] <= w[word::FIXED_AV])
                 && w[word::FIXED_AV] >= w[word::SENSED_AV_OFFSET].saturating_add(30);
-            let stage = w[word::HRL] == 0 && w[word::RATE_SMOOTHING] == 0 && w[word::ATR] == 0;
-            assert_eq!(validate(&w).is_some(), in_row && limits && stage, "word {i} value {v}");
+            // Since task 19.5 no stage rule (it had hysteresis, Rate
+            // Smoothing and ATR refused here); hysteresis has its limit.
+            let hysteresis = w[word::HRL] == 0 || w[word::HRL] <= w[word::LRL];
+            assert_eq!(validate(&w).is_some(), in_row && limits && hysteresis, "word {i} value {v}");
         }
     }
 }

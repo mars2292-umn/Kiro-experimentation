@@ -15,13 +15,13 @@ fn a_message_carries_its_code_its_number_and_its_set() {
 }
 
 #[test]
-fn the_validation_admits_exactly_the_seven_codes() {
+fn the_validation_admits_exactly_the_eight_codes() {
     for c in 0..=255u8 {
         let plain = admitted(&message(c, 9));
         let with_set = admitted(&message_with_set(c, 9, &NOMINAL_WORDS));
         match c {
-            // (Five codes until tasks 16.4 and 16.5 added the two that carry a value; 0 is a value of both.)
-            code::HEARD | code::END_TEMPORARY | code::PACE_NOW | code::BATTERY | code::MAGNET_RESPONSE => assert!(plain && !with_set, "code {c:#x}"),
+            // (Five codes until tasks 16.4 and 16.5 added the two that carry a value, seven until task 19.5 added the activity value; 0 is a value of all three.)
+            code::HEARD | code::END_TEMPORARY | code::PACE_NOW | code::BATTERY | code::ACTIVITY | code::MAGNET_RESPONSE => assert!(plain && !with_set, "code {c:#x}"),
             // A set of zeros is no set (the Mode's word alone would pass; the LRL's does not).
             code::PROGRAM | code::TEMPORARY => assert!(!plain && with_set, "code {c:#x}"),
             _ => assert!(!plain && !with_set, "code {c:#x}"),
@@ -85,11 +85,12 @@ fn a_value_is_admitted_exactly_in_its_range() {
     for v in (0..=300u32).chain([0xFFFF_FFFF]) {
         assert_eq!(admitted(&message_with_value(code::BATTERY, 2, v)), v <= 4, "battery {v}");
         assert_eq!(admitted(&message_with_value(code::MAGNET_RESPONSE, 2, v)), v <= 1, "magnet response {v}");
+        assert_eq!(admitted(&message_with_value(code::ACTIVITY, 2, v)), v <= 255, "activity {v}");
         // The codes without a value take none.
         assert_eq!(admitted(&message_with_value(code::PACE_NOW, 2, v)), v == 0);
     }
     for k in 2..PROGRAM_WORDS {
-        for c in [code::BATTERY, code::MAGNET_RESPONSE] {
+        for c in [code::BATTERY, code::ACTIVITY, code::MAGNET_RESPONSE] {
             let mut m = message_with_value(c, 1, 1);
             m[k] = 1;
             assert!(!admitted(&m), "code {c:#x}, word {k}");

@@ -19,8 +19,8 @@ pub mod rsk_validate {
     /// The validation function of role `pg` of Endpoint `program` (R42.4): `crate::validate_program`.
     #[allow(non_camel_case_types)]
     pub struct program_pg;
-    impl ::rsk::Validate<[u32;29]> for program_pg {
-        fn accept(m: &[u32;29]) -> bool { crate::validate_program(m) }
+    impl ::rsk::Validate<[u32;30]> for program_pg {
+        fn accept(m: &[u32;30]) -> bool { crate::validate_program(m) }
     }
     /// The validation function of role `pg` of Endpoint `status` (R42.4): `crate::validate_status`.
     #[allow(non_camel_case_types)]
@@ -52,7 +52,7 @@ pub mod rsk_target {
         pub const KERNEL_WINDOWS: [(u32, u32); 5] = [(0xe0000000, 0x100000), (0x40000000, 0x1000), (0x40008000, 0x1000), (0x40010000, 0x1000), (0x4001f000, 0x1000)];
         /// Each Partition's code and RAM region, and its stack size (the stack
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
-        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00030000, 0x10000), (0x00040000, 0x4000)];
+        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00040000, 0x40000), (0x00080000, 0x8000)];
         pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000), (0x20010000, 0x2000)];
         pub const STACK: [u32; PARTITIONS] = [12288, 2048];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the
@@ -73,7 +73,7 @@ pub mod rsk_target {
     /// what `rsk::DmaBuf::lend` takes.
     pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
-const _: () = assert!(::core::mem::size_of::<[u32;29]>() <= 116, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;30]>() <= 120, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
 const _: () = assert!(::core::mem::size_of::<[u32;4]>() <= 16, "the payload of Endpoint `status` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `therapy.pace` (Priority 7).
@@ -91,8 +91,8 @@ pub mod rsk_ctx {
     /// The Context of Task `therapy.control` (Priority 4).
     pub struct Control {
         pub timing: ::rsk::Shared<'static, crate :: Timing>,
-        /// Role `pg` of Endpoint `program` (task 21.2; R38.1, R40.1): 4 messages of `[u32;29]` each way, received through the role's validation function (R42.4).
-        pub program: ::rsk::Endpoint<[u32;29], 29, super::rsk_validate::program_pg>,
+        /// Role `pg` of Endpoint `program` (task 21.2; R38.1, R40.1): 4 messages of `[u32;30]` each way, received through the role's validation function (R42.4).
+        pub program: ::rsk::Endpoint<[u32;30], 30, super::rsk_validate::program_pg>,
         /// Role `pg` of Endpoint `status` (task 21.2; R38.1, R40.1): 2 messages of `[u32;4]` each way, received through the role's validation function (R42.4).
         pub status: ::rsk::Endpoint<[u32;4], 4, super::rsk_validate::status_pg>,
         /// Per-Task state `sweep` (PR-25).

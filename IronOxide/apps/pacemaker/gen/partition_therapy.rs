@@ -34,7 +34,7 @@ pub mod rsk_target {
         pub const KERNEL_WINDOWS: [(u32, u32); 3] = [(0xe0000000, 0x100000), (0x40000000, 0x1000), (0x40001000, 0x1000)];
         /// Each Partition's code and RAM region, and its stack size (the stack
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
-        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00020000, 0x8000)];
+        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00020000, 0x10000)];
         pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000)];
         pub const STACK: [u32; PARTITIONS] = [12288];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the

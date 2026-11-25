@@ -138,7 +138,8 @@ fn a_dcm_numbers_its_frames_and_a_set_is_five_parts() {
     for (p, f) in parts.iter().enumerate() {
         assert_eq!((f.seq, f.kind, f.part as usize), (1 + p as u8, kind::PROGRAM_PART, p));
     }
-    assert_eq!(parts[4].len, 16);
+    // Five words in the last part since Rate Smoothing Down (task 19.5); four before.
+    assert_eq!(parts[4].len, 20);
     assert_eq!(d.set(&NOMINAL_WORDS, true)[0].kind, kind::TEMPORARY_PART);
     let b = d.byte(kind::SET_BATTERY, 2);
     assert_eq!((b.seq, b.len, b.payload[0]), (11, 1, 2));

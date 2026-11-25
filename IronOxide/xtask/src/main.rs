@@ -54,7 +54,7 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
-  pm-measure --set <vvi-90|aai-90> [--scenario <name>] [--inject | --coverage] | --coverage-report | --analyze
+  pm-measure --set <vvi-90|aai-90|ddd-90|doo-mit|dddr-e4> [--scenario <name>] [--inject | --coverage] | --coverage-report | --analyze
       The PACEMAKER experiment's measurement (docs/pacemaker, task 9.2): the
       pulse generator's measurement build run for 300 s on the rig's target
       board against the Heart_Simulator on the stimulus board (named by
