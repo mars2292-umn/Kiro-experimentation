@@ -13,11 +13,11 @@
       "state": 0,
       "verdicts": 0
      },
-     "done": 1795579402.002455,
+     "done": 1795595580.690991,
      "ok": true,
      "op": "up",
-     "sent": 1795579401.750524,
-     "started": 1795579401.750524
+     "sent": 1795595580.439998,
+     "started": 1795595580.439998
     },
     {
      "detail": {
@@ -34,11 +34,11 @@
        "verdicts": 1
       }
      },
-     "done": 1795579402.802437,
+     "done": 1795595581.490921,
      "ok": true,
      "op": "set:0=8,1=90",
-     "sent": 1795579402.002541,
-     "started": 1795579402.002529
+     "sent": 1795595580.691121,
+     "started": 1795595580.691105
     },
     {
      "detail": {
@@ -54,11 +54,11 @@
       },
       "transfers": 14
      },
-     "done": 1795579403.652493,
+     "done": 1795595582.340954,
      "ok": true,
      "op": "wait:state=1",
-     "sent": 1795579402.802568,
-     "started": 1795579402.802568
+     "sent": 1795595581.491041,
+     "started": 1795595581.491041
     },
     {
      "detail": {
@@ -74,11 +74,11 @@
        "verdicts": 2
       }
      },
-     "done": 1795579413.002454,
+     "done": 1795595591.691004,
      "ok": true,
      "op": "pace-now",
-     "sent": 1795579412.800524,
-     "started": 1795579412.800521
+     "sent": 1795595591.488993,
+     "started": 1795595591.488991
     },
     {
      "detail": {
@@ -91,22 +91,22 @@
       "state": 3,
       "verdicts": 2
      },
-     "done": 1795579413.15261,
+     "done": 1795595591.840981,
      "ok": true,
      "op": "status",
-     "sent": 1795579413.002511,
-     "started": 1795579413.002511
+     "sent": 1795595591.691109,
+     "started": 1795595591.691109
     }
    ],
    "cycle_in_force_us": 666663,
    "bound_ms": 1833.326,
-   "from_the_stubs_send_to_the_first_pace_now_pulse_ms": 1090.468168258667,
+   "from_the_stubs_send_to_the_first_pace_now_pulse_ms": 1090.419054031372,
    "the_pulse_generators_share_ms": {
     "stated": "one link period to the transfer, one to link's Job, one control period, one Pace-Now LRL interval: 50 + 50 + 20 + 923"
    },
    "pulses_between_the_send_and_the_first_pace_now_pulse": [
     {
-     "after_send_ms": 153.1240940093994,
+     "after_send_ms": 151.80706977844238,
      "width_us": 400
     }
    ],
@@ -117,8 +117,8 @@
    },
    "pace_now_intervals_us": {
     "count": 18,
-    "min": 923072,
-    "max": 923073
+    "min": 923071,
+    "max": 923072
    },
    "widths_before_us": {
     "count": 9,
@@ -151,11 +151,11 @@
       "state": 0,
       "verdicts": 0
      },
-     "done": 1795579434.370638,
+     "done": 1795595613.049155,
      "ok": true,
      "op": "up",
-     "sent": 1795579434.119638,
-     "started": 1795579434.119638
+     "sent": 1795595612.796175,
+     "started": 1795595612.796175
     },
     {
      "detail": {
@@ -171,11 +171,11 @@
        "verdicts": 1
       }
      },
-     "done": 1795579434.570656,
+     "done": 1795595613.249147,
      "ok": true,
      "op": "magnet-response:1",
-     "sent": 1795579434.370727,
-     "started": 1795579434.370724
+     "sent": 1795595613.049264,
+     "started": 1795595613.049262
     },
     {
      "detail": {
@@ -191,11 +191,11 @@
        "verdicts": 2
       }
      },
-     "done": 1795579434.770723,
+     "done": 1795595613.449224,
      "ok": true,
      "op": "battery:0",
-     "sent": 1795579434.570767,
-     "started": 1795579434.570764
+     "sent": 1795595613.249257,
+     "started": 1795595613.249255
     },
     {
      "detail": {
@@ -212,11 +212,11 @@
        "verdicts": 3
       }
      },
-     "done": 1795579435.570675,
+     "done": 1795595614.24916,
      "ok": true,
      "op": "set:0=8,1=60",
-     "sent": 1795579434.770844,
-     "started": 1795579434.770828
+     "sent": 1795595613.449346,
+     "started": 1795595613.44933
     },
     {
      "detail": {
@@ -232,11 +232,11 @@
       },
       "transfers": 2
      },
-     "done": 1795579435.821674,
+     "done": 1795595614.499174,
      "ok": true,
      "op": "wait:state=1",
-     "sent": 1795579435.570787,
-     "started": 1795579435.570787
+     "sent": 1795595614.249273,
+     "started": 1795595614.249273
     },
     {
      "detail": {
@@ -252,11 +252,11 @@
        "verdicts": 4
       }
      },
-     "done": 1795579451.770792,
+     "done": 1795595630.449303,
      "ok": true,
      "op": "battery:1",
-     "sent": 1795579451.568806,
-     "started": 1795579451.568802
+     "sent": 1795595630.247366,
+     "started": 1795595630.247363
     },
     {
      "detail": {
@@ -272,11 +272,11 @@
        "verdicts": 5
       }
      },
-     "done": 1795579460.021828,
+     "done": 1795595638.749372,
      "ok": true,
      "op": "battery:2",
-     "sent": 1795579459.81978,
-     "started": 1795579459.819777
+     "sent": 1795595638.546412,
+     "started": 1795595638.546408
     },
     {
      "detail": {
@@ -292,11 +292,11 @@
        "verdicts": 6
       }
      },
-     "done": 1795579476.821784,
+     "done": 1795595655.649482,
      "ok": true,
      "op": "battery:0",
-     "sent": 1795579476.618888,
-     "started": 1795579476.618887
+     "sent": 1795595655.448457,
+     "started": 1795595655.448454
     },
     {
      "detail": {
@@ -312,11 +312,11 @@
        "verdicts": 7
       }
      },
-     "done": 1795579477.021812,
+     "done": 1795595655.849475,
      "ok": true,
      "op": "magnet-response:0",
-     "sent": 1795579476.821811,
-     "started": 1795579476.82181
+     "sent": 1795595655.649604,
+     "started": 1795595655.649602
     },
     {
      "detail": {
@@ -332,11 +332,11 @@
        "verdicts": 8
       }
      },
-     "done": 1795579508.12105,
+     "done": 1795595686.797341,
      "ok": true,
      "op": "magnet-response:1",
-     "sent": 1795579507.918981,
-     "started": 1795579507.918979
+     "sent": 1795595686.595364,
+     "started": 1795595686.595362
     }
    ],
    "phases": [
@@ -345,7 +345,7 @@
      "expected_us": 1000000,
      "intervals_us": {
       "count": 3,
-      "min": 999996,
+      "min": 999995,
       "max": 999996
      },
      "ok": true
@@ -366,7 +366,7 @@
      "intervals_us": {
       "count": 7,
       "min": 666663,
-      "max": 666664
+      "max": 666663
      },
      "ok": true
     },
@@ -375,8 +375,8 @@
      "expected_us": 705882,
      "intervals_us": {
       "count": 7,
-      "min": 705879,
-      "max": 705880
+      "min": 705878,
+      "max": 705879
      },
      "ok": true
     },
@@ -384,9 +384,9 @@
      "phase": "magnet released: VVI at 60 ppm",
      "expected_us": 1000000,
      "intervals_us": {
-      "count": 5,
-      "min": 999996,
-      "max": 999997
+      "count": 6,
+      "min": 999995,
+      "max": 999996
      },
      "ok": true
     },
@@ -394,9 +394,9 @@
      "phase": "magnet response Off, magnet applied: VVI at 60 ppm",
      "expected_us": 1000000,
      "intervals_us": {
-      "count": 6,
-      "min": 999996,
-      "max": 999997
+      "count": 5,
+      "min": 999995,
+      "max": 999996
      },
      "ok": true
     }
@@ -427,11 +427,11 @@
       "state": 0,
       "verdicts": 0
      },
-     "done": 1795579512.114987,
+     "done": 1795595690.777045,
      "ok": true,
      "op": "up",
-     "sent": 1795579511.862991,
-     "started": 1795579511.862991
+     "sent": 1795595690.525069,
+     "started": 1795595690.525069
     },
     {
      "detail": {
@@ -447,11 +447,11 @@
        "verdicts": 1
       }
      },
-     "done": 1795579512.315,
+     "done": 1795595690.97702,
      "ok": true,
      "op": "battery:0",
-     "sent": 1795579512.11501,
-     "started": 1795579512.11501
+     "sent": 1795595690.777071,
+     "started": 1795595690.77707
     },
     {
      "detail": {
@@ -468,11 +468,11 @@
        "verdicts": 2
       }
      },
-     "done": 1795579513.114996,
+     "done": 1795595691.776975,
      "ok": true,
      "op": "set:0=1,1=60",
-     "sent": 1795579512.315026,
-     "started": 1795579512.315023
+     "sent": 1795595690.977063,
+     "started": 1795595690.977058
     },
     {
      "detail": {
@@ -488,11 +488,11 @@
       },
       "transfers": 14
      },
-     "done": 1795579513.965989,
+     "done": 1795595692.626931,
      "ok": true,
      "op": "wait:state=1",
-     "sent": 1795579513.11502,
-     "started": 1795579513.11502
+     "sent": 1795595691.777002,
+     "started": 1795595691.777002
     },
     {
      "detail": {
@@ -508,11 +508,11 @@
        "verdicts": 3
       }
      },
-     "done": 1795579523.265141,
+     "done": 1795595701.926582,
      "ok": true,
      "op": "battery:2",
-     "sent": 1795579523.062124,
-     "started": 1795579523.062122
+     "sent": 1795595701.723614,
+     "started": 1795595701.723613
     },
     {
      "detail": {
@@ -528,11 +528,11 @@
        "verdicts": 5
       }
      },
-     "done": 1795579533.665164,
+     "done": 1795595712.326365,
      "ok": true,
      "op": "battery:3",
-     "sent": 1795579533.463101,
-     "started": 1795579533.4631
+     "sent": 1795595712.124359,
+     "started": 1795595712.124358
     },
     {
      "detail": {
@@ -548,11 +548,11 @@
        "verdicts": 6
       }
      },
-     "done": 1795579542.115127,
+     "done": 1795595720.776285,
      "ok": true,
      "op": "battery:4",
-     "sent": 1795579541.913356,
-     "started": 1795579541.913354
+     "sent": 1795595720.574293,
+     "started": 1795595720.574292
     },
     {
      "detail": {
@@ -568,11 +568,11 @@
        "verdicts": 8
       }
      },
-     "done": 1795579551.365184,
+     "done": 1795595730.026355,
      "ok": true,
      "op": "battery:0",
-     "sent": 1795579551.163186,
-     "started": 1795579551.163184
+     "sent": 1795595729.824264,
+     "started": 1795595729.824263
     }
    ],
    "phases": [
@@ -589,8 +589,8 @@
      "detail": {
       "ventricular_intervals_us": {
        "count": 6,
-       "min": 999996,
-       "max": 999997
+       "min": 999995,
+       "max": 999996
       },
       "atrial_pulses": 7
      }
@@ -601,8 +601,8 @@
      "detail": {
       "ventricular_intervals_us": {
        "count": 7,
-       "min": 999996,
-       "max": 999997
+       "min": 999995,
+       "max": 999996
       },
       "atrial_pulses": 0
      }
@@ -613,8 +613,8 @@
      "detail": {
       "ventricular_intervals_us": {
        "count": 4,
-       "min": 999996,
-       "max": 999997
+       "min": 999995,
+       "max": 999996
       },
       "atrial_pulses": 0
      }
@@ -679,7 +679,7 @@
      "detail": {
       "atrial": 0,
       "ventricular": 0,
-      "seconds": 7.950004291534424
+      "seconds": 7.950078916549683
      }
     },
     {
@@ -714,15 +714,15 @@
      "detail": {
       "intervals_us": {
        "count": 8,
-       "min": 923072,
-       "max": 923073
+       "min": 923071,
+       "max": 923072
       },
       "widths_us": {
        "count": 9,
        "min": 500,
        "max": 500
       },
-      "first_pulse_ms_after_the_level_was_sent": 877.0179748535156,
+      "first_pulse_ms_after_the_level_was_sent": 877.032995223999,
       "status": {
        "battery": 0,
        "code": 4,
@@ -743,26 +743,26 @@
    "part_1": {
     "reset": "the core's system reset (one write to its reset register through board A's probe)",
     "resets_seen_on_the_pin": 1,
-    "pins_undriven_after_the_reset_us": 1766,
-    "first_pace_ms_after_the_reset_with_the_probe_detaching": 973.44
+    "pins_undriven_after_the_reset_us": 1769,
+    "first_pace_ms_after_the_reset_with_the_probe_detaching": 974.015
    },
    "part_2": {
     "start": "under an attached probe-rs run",
     "undriven_stretches_seen": 1,
     "first_pace_ms_after_the_pins_were_driven": 923.114,
     "widths_us": {
-     "count": 12,
+     "count": 10,
      "min": 500,
      "max": 500
     },
     "intervals_us": {
-     "count": 11,
-     "min": 923072,
-     "max": 923073
+     "count": 9,
+     "min": 923071,
+     "max": 923072
     },
-    "paces": 12
+    "paces": 10
    },
-   "first_pace_ms_after_a_reset": 924.88,
+   "first_pace_ms_after_a_reset": 924.883,
    "bound_ms": 951.077,
    "verdict": "PASS",
    "task": "16.6"
@@ -774,7 +774,7 @@
   "C": "1366:1061:001050211852"
  },
  "binaries": {
-  "pacemaker": "sha256:6792e72cefeaf01efbe8a0db5997043a0f10d32ec034115335946072c4bec291",
+  "pacemaker": "sha256:085c9f96566fd63f8248c608469e9a38410e84a9e237ac46c63004607d7db101",
   "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48",
   "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d"
  },

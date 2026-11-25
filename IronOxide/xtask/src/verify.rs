@@ -1445,7 +1445,15 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
                 // the files in about a minute, so a second bound reached is the verdict.
                 report.warn(format!("App_Prover: `cargo creusot` for {label} ({set}) reached its bound once (why3find hung); the session was cleared and the run repeated"));
                 let _ = Command::new("pkill").args(["-f", "why3find"]).status();
-                creusot_session_clear_keeping_translation(&dir, keep_translation);
+                // A run that translates is repeated from nothing: the translated
+                // files are emitted by the compilation, so with `verif` cleared
+                // and the build directory kept the repeat had "No files to
+                // prove" (2026-11-25, the PACEMAKER `therapy` members).
+                if keep_translation {
+                    creusot_session_clear_keeping_translation(&dir, true);
+                } else {
+                    creusot_session_clear(&dir);
+                }
                 let (ok2, text2, _) = run_once(cmd);
                 run_ok = ok2;
                 text = format!("{text}\n--- second run after the bound ---\n{text2}");

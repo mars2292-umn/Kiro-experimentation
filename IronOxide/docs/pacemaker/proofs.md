@@ -23,8 +23,8 @@ A mutant, from the workspace root: `cargo xtask mutations --only <id>` applies i
 |---|---|---|
 | `pm-core-proof` | `crates/pm-core/src/` | 168 |
 | `pm-hw-proof` | `crates/pm-hw/src/` | 63 |
-| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 67 |
-| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 67 |
+| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 71 |
+| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 71 |
 | `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 27 |
 
 ## The therapy logic: `pm-core`
@@ -65,7 +65,7 @@ In `apps/pacemaker/therapy/src/`, members `pacemaker-therapy-proof` and `pacemak
 
 | Property | What is proven | Where |
 |---|---|---|
-| **P10** No Task of `therapy` panics, overflows or indexes out of bounds | The four Task bodies (`pace`, `sense_v`, `sense_a`, `control`, `lib.rs` lines 495 to 601; on the board `control` with its loop over the Endpoint `program`, bounded by `MESSAGES`, and the validation function `validate_program`, line 134) under the preconditions rsk generates for each (`rsk_spec::<task>_pre`), with everything they call: the event ring, the board layers, the driver and the step as instantiated in the Partition | both members; the board's address arithmetic has its own bounds (`board_nrf.rs` 91, 104, 113) |
+| **P10** No Task of `therapy` panics, overflows or indexes out of bounds | The four Task bodies (`pace`, `sense_v`, `sense_a`, `control`, `lib.rs` lines 594 to 733, with the parts of `control`'s body, lines 452 to 590; on the board `control` with its loop over the Endpoint `program`, bounded by `MESSAGES`, and the validation function `validate_program`, line 141) under the preconditions rsk generates for each (`rsk_spec::<task>_pre`), with everything they call: the event ring, the board layers, the driver and the step as instantiated in the Partition | both members; the board's address arithmetic has its own bounds (`board_nrf.rs` 91, 104, 113) |
 | The parameter text of a rig build is read within bounds | `sets::from_text` (`sets.rs` 43), with the set's length as its loop invariant (line 51) | both members |
 
 The board trait's methods have no contract, so these proofs hold whatever values the registers return.

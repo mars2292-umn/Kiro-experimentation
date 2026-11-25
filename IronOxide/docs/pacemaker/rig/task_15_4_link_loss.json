@@ -6,7 +6,7 @@
  },
  "binaries": {
   "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d",
-  "pacemaker": "sha256:6792e72cefeaf01efbe8a0db5997043a0f10d32ec034115335946072c4bec291"
+  "pacemaker": "sha256:085c9f96566fd63f8248c608469e9a38410e84a9e237ac46c63004607d7db101"
  },
  "loss": {
   "bound_ms": 250,

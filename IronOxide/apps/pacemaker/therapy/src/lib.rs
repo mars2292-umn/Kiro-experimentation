@@ -444,54 +444,21 @@ impl Timing {
     /// before the tick, so that what it arms is armed in this Job; the
     /// step is told of the link by the tick, so a command of the Job that
     /// first hears the link finds it down.
+    ///
+    /// The function is the sequence of its parts (`heard`, `taken`,
+    /// `trip`, `status_of` below), each a function of its own: as one
+    /// body its verification condition was at the solvers' limit after
+    /// stage E4 (findings B40).
     fn on_control(&mut self, inbox: &Inbox) -> [u32; pm_core::wire::STATUS_WORDS] {
-        use pm_core::wire::{code, code_of, seq_of, set_of, verdict};
+        use pm_core::wire::{code, code_of, seq_of, verdict};
         if !self.started {
             self.init();
         }
         let Timing { state, driver, board, ring, written, counts, hw_fault, link, .. } = self;
-        if inbox.peer_changed {
-            link.up = 0;
-            link.quiet = LINK_LOST_JOBS;
-        } else if inbox.heard {
-            link.up = 1;
-            link.quiet = 0;
-        } else {
-            link.quiet = link.quiet.saturating_add(1);
-            if link.quiet >= LINK_LOST_JOBS {
-                link.up = 0;
-            }
-        }
-        if inbox.refused != 0 {
-            link.refused = link.refused.saturating_add(inbox.refused);
-            link.serial = link.serial.wrapping_add(1);
-            link.last = verdict::REFUSED as u32;
-        }
+        heard(link, inbox);
         // The battery level is taken first: it decides whether anything
         // else is done.
-        let mut command = None;
-        let mut answered = false;
-        if inbox.has_command {
-            let c = code_of(&inbox.command);
-            let set = set_of(&inbox.command);
-            if c == code::BATTERY {
-                link.battery = pm_core::wire::value_of(&inbox.command);
-                answered = true;
-            } else if c == code::ACTIVITY {
-                link.activity = pm_core::wire::value_of(&inbox.command);
-                answered = true;
-            } else if c == code::PROGRAM {
-                command = pm_core::validate(&set).map(pm_core::Command::Program);
-            } else if c == code::TEMPORARY {
-                command = pm_core::validate(&set).map(pm_core::Command::StartTemporary);
-            } else if c == code::END_TEMPORARY {
-                command = Some(pm_core::Command::EndTemporary);
-            } else if c == code::PACE_NOW {
-                command = Some(pm_core::Command::PaceNow);
-            } else if c == code::MAGNET_RESPONSE {
-                command = Some(pm_core::Command::MagnetResponse(pm_core::wire::value_of(&inbox.command) == 1));
-            }
-        }
+        let (command, mut answered) = taken(link, inbox);
         let battery = pm_core::wire::battery_of(link.battery);
         let activity = if link.up != 0 && link.activity <= 255 { link.activity as u8 } else { 0 };
         let tripped = matches!(battery, Battery::Tripped);
@@ -499,25 +466,7 @@ impl Timing {
         if !*hw_fault {
             let mut hw = Driver::resume(board::Board { words: board }, *driver);
             if tripped {
-                // PM7.2, PM30.3: below the trip level every function is
-                // off, as a device without power is. What was armed is
-                // withdrawn (a pulse already begun ends at its own end
-                // compare), and the state is the Power-On Reset State with
-                // empty histories, which is the State entered when the
-                // level is back. Commands are declined.
-                if link.tripped == 0 {
-                    let mut k = 0;
-                    while k < 2 {
-                        if matches!(hw.disarm(CHAMBERS[k]), Disarmed::TooLate) {
-                            counts.too_late = counts.too_late.saturating_add(1);
-                        }
-                        k += 1;
-                    }
-                    *state = State::POWER_ON_RESET;
-                    *ring = [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING];
-                    *written = 0;
-                    link.tripped = 1;
-                }
+                trip(state, ring, written, counts, link, &mut hw);
                 if command.is_some() {
                     v = verdict::DECLINED;
                     answered = true;
@@ -543,18 +492,100 @@ impl Timing {
             link.serial = link.serial.wrapping_add(1);
             link.last = v as u32 + seq_of(&inbox.command) as u32 * 0x100;
         }
-        pm_core::wire::Status {
-            therapy: pm_core::wire::therapy_byte(state.therapy),
-            mode: pm_core::wire::mode_byte(state.params().mode),
-            battery: pm_core::wire::battery_byte(battery),
-            link_up: link.up != 0,
-            serial: link.serial,
-            verdict: (link.last & 0xFF) as u8,
-            of: ((link.last / 0x100) & 0xFF) as u8,
-            refused: link.refused,
-        }
-        .words()
+        status_of(state, link, battery)
     }
+}
+
+/// The link's side after what a Job of `control` took from the Endpoint:
+/// up from a Job that had a message until `LINK_LOST_JOBS` Jobs have had
+/// none or the Endpoint reports its peer changed; a refused message is
+/// counted and answered.
+fn heard(link: &mut LinkSide, inbox: &Inbox) {
+    if inbox.peer_changed {
+        link.up = 0;
+        link.quiet = LINK_LOST_JOBS;
+    } else if inbox.heard {
+        link.up = 1;
+        link.quiet = 0;
+    } else {
+        link.quiet = link.quiet.saturating_add(1);
+        if link.quiet >= LINK_LOST_JOBS {
+            link.up = 0;
+        }
+    }
+    if inbox.refused != 0 {
+        link.refused = link.refused.saturating_add(inbox.refused);
+        link.serial = link.serial.wrapping_add(1);
+        link.last = pm_core::wire::verdict::REFUSED as u32;
+    }
+}
+
+/// The command of the Job's message, if it has one for the step, and
+/// whether the message is answered already: the battery level and the
+/// activity value are kept by the link's side and answered here.
+fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool) {
+    use pm_core::wire::{code, code_of, set_of};
+    let mut command = None;
+    let mut answered = false;
+    if inbox.has_command {
+        let c = code_of(&inbox.command);
+        let set = set_of(&inbox.command);
+        if c == code::BATTERY {
+            link.battery = pm_core::wire::value_of(&inbox.command);
+            answered = true;
+        } else if c == code::ACTIVITY {
+            link.activity = pm_core::wire::value_of(&inbox.command);
+            answered = true;
+        } else if c == code::PROGRAM {
+            command = pm_core::validate(&set).map(pm_core::Command::Program);
+        } else if c == code::TEMPORARY {
+            command = pm_core::validate(&set).map(pm_core::Command::StartTemporary);
+        } else if c == code::END_TEMPORARY {
+            command = Some(pm_core::Command::EndTemporary);
+        } else if c == code::PACE_NOW {
+            command = Some(pm_core::Command::PaceNow);
+        } else if c == code::MAGNET_RESPONSE {
+            command = Some(pm_core::Command::MagnetResponse(pm_core::wire::value_of(&inbox.command) == 1));
+        }
+    }
+    (command, answered)
+}
+
+/// PM7.2, PM30.3: below the trip level every function is off, as a
+/// device without power is. What was armed is withdrawn (a pulse already
+/// begun ends at its own end compare), and the state is the Power-On
+/// Reset State with empty histories, which is the State entered when the
+/// level is back. Done once, in the first Job below the level.
+fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
+    if link.tripped == 0 {
+        let mut k = 0;
+        while k < 2 {
+            if matches!(hw.disarm(CHAMBERS[k]), Disarmed::TooLate) {
+                counts.too_late = counts.too_late.saturating_add(1);
+            }
+            k += 1;
+        }
+        *state = State::POWER_ON_RESET;
+        *ring = [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING];
+        *written = 0;
+        link.tripped = 1;
+    }
+}
+
+/// The status for `link`: the State, the Mode in force, the battery
+/// level, the link, and the last verdict.
+fn status_of(state: &State, link: &LinkSide, battery: Battery) -> [u32; pm_core::wire::STATUS_WORDS] {
+    pm_core::wire::Status {
+        therapy: pm_core::wire::therapy_byte(state.therapy),
+        mode: pm_core::wire::mode_byte(state.params().mode),
+        battery: pm_core::wire::battery_byte(battery),
+        link_up: link.up != 0,
+        serial: link.serial,
+        verdict: (link.last & 0xFF) as u8,
+        of: ((link.last / 0x100) & 0xFF) as u8,
+        refused: link.refused,
+    }
+    .words()
 }
 
 /// Task `pace` (sporadic; released by the end of a pulse).
@@ -656,9 +687,13 @@ pub fn control(mut cx: rsk_ctx::Control) {
     // - a fault: a write outside the Partition;
     // - an Overrun: this Job runs 7 ms on a Budget of 5 ms;
     // - a deadline miss: every Job of the window holds the Resource
-    //   `timing` for 3.5 ms, inside its Budget (4.5 ms was not: the Job's
+    //   `timing` for 4 ms, inside its Budget (4.5 ms was not: the Job's
     //   own work with it passed 5 ms), until a pulse ends inside
     //   such a hold: `pace` is then blocked past its deadline of 2 ms.
+    //   (3.5 ms until 2026-11-25: a pulse must end in the hold's first
+    //   part, which was 1.5 ms long, and at 65 ppm the pulses fall on
+    //   thirteen phases of the 20 ms period, 1.538 ms apart: a run could
+    //   pass between them, and one on the stage E4 code did.)
     #[cfg(feature = "inject-once")]
     if inject_once::due() {
         if inject_once::KIND == b'f' {
@@ -669,7 +704,7 @@ pub fn control(mut cx: rsk_ctx::Control) {
             let _ = inject_once::spin_half_ms(14);
         } else {
             cx.timing.lock(|_| {
-                let _ = inject_once::spin_half_ms(7);
+                let _ = inject_once::spin_half_ms(8);
             });
         }
     }

@@ -6,7 +6,7 @@
  },
  "binaries": {
   "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d",
-  "pacemaker": "sha256:ead3117b49d96130a5e59ed7b3014eb7ee51949efd2e736dcc5be8c79f45c8bc",
+  "pacemaker": "sha256:ce85d3d9b170825d7812ec1e47103373a9f600c82329a5caad1d7a18024940a3",
   "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48"
  },
  "program": {
@@ -56,7 +56,7 @@
       "mode": 42,
       "of": 10,
       "refused": 0,
-      "state": 1,
+      "state": 0,
       "verdicts": 1
      },
      "link_numbering_restarted": false,
@@ -67,7 +67,7 @@
    },
    {
     "detail": {
-     "transfers_to_the_state": 9,
+     "transfers_to_the_state": 11,
      "verdict": {
       "battery": 0,
       "code": 6,
@@ -139,11 +139,11 @@
    }
   ],
   "transfers": {
-   "bytes_skipped": 29,
+   "bytes_skipped": 16,
    "gaps_in_the_report_count": 0,
    "of_other_than_32_bytes": 0,
    "reports_with_a_wrong_sum": 0,
-   "transfers_reported": 107,
+   "transfers_reported": 109,
    "whose_bytes_were_no_frame": 0
   },
   "verdict": "PASS"
@@ -173,14 +173,14 @@
    },
    "pacemaker": {
     "path": "target/pacemaker-link-trace/thumbv7em-none-eabihf/release/pacemaker",
-    "sha256": "sha256:ead3117b49d96130a5e59ed7b3014eb7ee51949efd2e736dcc5be8c79f45c8bc"
+    "sha256": "sha256:ce85d3d9b170825d7812ec1e47103373a9f600c82329a5caad1d7a18024940a3"
    }
   },
   "capture": {
    "file": "capture.bin",
    "length_us": 30000000.0,
    "rate_hz": 1000000,
-   "sha256": "sha256:db16ffe356757ae1a969fe54b3893de95efbbf27bc42e49ad43c8547c37bcf97"
+   "sha256": "sha256:81079def0d5962150007dc0aa7b70e63442cd55aebeccb8e1b2df05efa7a1f97"
   },
   "escape_interval_us": 666666.0,
   "mode": "VVI",
@@ -212,7 +212,8 @@
    3,
    30,
    8,
-   5
+   5,
+   0
   ],
   "scenario": {
    "atrial_beats": 0,
@@ -236,8 +237,8 @@
    "fusions": 0,
    "pace_intervals": {
     "count": 44,
-    "max_us": 666664.0,
-    "min_us": 666663.0
+    "max_us": 666663.0,
+    "min_us": 666662.0
    },
    "paces": 45,
    "pulse_widths": {

@@ -150,7 +150,12 @@ def partitions():
 def run_restart():
     heart("silent")
     out, ok = {}, True
-    interval = 60_000_000 // 71
+    # 73 ppm (71 until 2026-11-25): its interval steps 1.9 ms through `control`'s
+    # period of 20 ms from one pulse to the next, so that within eleven pulses
+    # one ends in the part of the injected hold that makes `pace` miss its
+    # deadline. At 71 ppm the pulses fell on four phases 5 ms apart and a run
+    # could pass between them, as two runs on the stage E4 code did.
+    interval = 60_000_000 // 73
     # The stated bound on the pause: the interval that was running, then
     # the restart and `control`'s first Job within 20 ms, then one
     # Power-On Reset interval with its tolerance.
@@ -162,7 +167,7 @@ def run_restart():
         # nothing of VOO pacing). After a fault or an Overrun, whose instant
         # is known, the status is asked: `therapy` started again has the
         # level again, from `link` (decided 2026-11-24).
-        cap, _, ev = run_attached(pg, 58, stub_ops=("up", "battery:1", f"set:0={VOO},1=71", f"wait:state={st.STATES['permanent']}"),
+        cap, _, ev = run_attached(pg, 58, stub_ops=("up", "battery:1", f"set:0={VOO},1=73", f"wait:state={st.STATES['permanent']}"),
                                   late_ops=("up", "status") if kind != "deadline" else None)
         after_restart = cap.late[-1]["detail"] if cap.late else None
         level_kept = after_restart is None or (after_restart.get("battery") == 1 and after_restart.get("state") == st.STATES["por"])
