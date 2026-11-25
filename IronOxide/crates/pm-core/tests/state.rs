@@ -24,6 +24,11 @@ fn the_power_on_reset_state_is_all_zero() {
         temporary_wanted,
         magnet,
         link_up,
+        battery,
+        battery_in_force,
+        magnet_off,
+        in_force_valid,
+        in_force,
         chamber,
         cycle_known,
         last_cycle,
@@ -42,6 +47,9 @@ fn the_power_on_reset_state_is_all_zero() {
     assert!(!programmed && !change_waiting && !cycle_known && !hysteresis_active);
     assert!(!staged_valid && !temporary_wanted && !magnet && !link_up);
     assert_eq!(staged, Params::ZERO);
+    assert_eq!((battery as u8, battery_in_force as u8), (0, 0));
+    assert!(!magnet_off && !in_force_valid);
+    assert_eq!(in_force, Params::ZERO);
     assert!(!atrial_since_ventricular && !pvarp_extended && !pvarp_extended_last_cycle && !sensor_known);
     assert_eq!((last_cycle, sensor_interval), (0, 0));
     assert_eq!(atr.phase as u8, 0);

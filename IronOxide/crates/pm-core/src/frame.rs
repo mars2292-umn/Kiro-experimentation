@@ -59,6 +59,8 @@ pub mod kind {
     /// one byte.
     pub const SET_BATTERY: u8 = 0x20;
     pub const SET_ACTIVITY: u8 = 0x21;
+    /// The magnet response programmed on (1) or off (0): one byte (PM8.4).
+    pub const SET_MAGNET_RESPONSE: u8 = 0x22;
     /// The other commands of PM20.1, which stages E3 to E5 give meaning to.
     pub const SET_CLOCK: u8 = 0x30;
     pub const RESET_HISTOGRAMS: u8 = 0x31;
@@ -85,7 +87,7 @@ pub mod kind {
 #[inline(always)]
 #[must_use]
 pub const fn kind_known(k: u8) -> bool {
-    matches!(k, 0x01..=0x03 | 0x10..=0x13 | 0x20 | 0x21 | 0x30..=0x36 | 0x80..=0x84)
+    matches!(k, 0x01..=0x03 | 0x10..=0x13 | 0x20..=0x22 | 0x30..=0x36 | 0x80..=0x84)
 }
 
 /// A frame, decoded.

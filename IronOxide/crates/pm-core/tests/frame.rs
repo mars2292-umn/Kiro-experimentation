@@ -9,7 +9,7 @@ use pm_core::{NOMINAL_WORDS, WORDS};
 const KINDS: [u8; 22] = [
     kind::POLL, kind::INTERROGATE, kind::READ_PARAMETERS, kind::PROGRAM_PART, kind::TEMPORARY_PART, kind::END_TEMPORARY, kind::PACE_NOW,
     kind::SET_BATTERY, kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP,
-    kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE, kind::IDLE, kind::STATUS, kind::IDENTITY, kind::PARAM_PART, kind::RECORD, kind::POLL,
+    kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE, kind::IDLE, kind::STATUS, kind::IDENTITY, kind::PARAM_PART, kind::RECORD, kind::SET_MAGNET_RESPONSE,
 ];
 
 fn frame(seq: u8, k: u8, part: u8, len: u8) -> Frame {
@@ -70,8 +70,8 @@ fn every_kind_and_length_round_trips() {
         }
     }
     assert_eq!(n, 22 * 25 * 5);
-    // The kinds are exactly these 21.
-    assert_eq!((0..=255u8).filter(|k| kind_known(*k)).count(), 21);
+    // The kinds are exactly these 22 (21 until task 16.4 added the magnet response).
+    assert_eq!((0..=255u8).filter(|k| kind_known(*k)).count(), 22);
 }
 
 #[test]

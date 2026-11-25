@@ -11,7 +11,7 @@
 //! | POLL | the same |
 //! | INTERROGATE | IDENTITY: the answered `seq`, three zero bytes, the model, the serial number |
 //! | PROGRAM_PART, TEMPORARY_PART | STATUS with RECEIVED, SET_COMPLETE or BAD_PART; a complete set is forwarded to `therapy` |
-//! | END_TEMPORARY, PACE_NOW | STATUS with FORWARDED; the command is forwarded to `therapy` |
+//! | END_TEMPORARY, PACE_NOW, SET_BATTERY, SET_MAGNET_RESPONSE | STATUS with FORWARDED; the command is forwarded to `therapy` (the two with a byte: BAD_PART unless the length is 1) |
 //! | READ_PARAMETERS | part 0 of the last complete set as PARAM_PART, the other parts in the periods after; STATUS with NO_SET if there is none |
 //! | any other kind of the DCM's | STATUS with NOT_SERVED |
 //! | a kind of the PG's | as bytes that are no frame |
@@ -55,7 +55,8 @@ pub mod code {
     pub const NO_SET: u8 = 3;
     /// A command this stage does not serve.
     pub const NOT_SERVED: u8 = 4;
-    /// A part of a wrong length, or of another kind than the set begun.
+    /// A part of a wrong length, or of another kind than the set begun; a
+    /// command with a value whose length is not the value's.
     pub const BAD_PART: u8 = 5;
     /// `control`'s verdicts, which come with its status: 6 accepted, 7
     /// refused by the validation function, 8 declined by the State.
@@ -272,6 +273,15 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
     }
     if f.kind == kind::END_TEMPORARY || f.kind == kind::PACE_NOW {
         l.forward = wire::message(f.kind, f.seq);
+        return status(l, seq, f.seq, code::FORWARDED);
+    }
+    // The battery level and the magnet response: one byte, which `control`
+    // judges (the frame's kind is the message's code).
+    if f.kind == kind::SET_BATTERY || f.kind == kind::SET_MAGNET_RESPONSE {
+        if f.len != 1 {
+            return status(l, seq, f.seq, code::BAD_PART);
+        }
+        l.forward = wire::message_with_value(f.kind, f.seq, f.payload[0] as u32);
         return status(l, seq, f.seq, code::FORWARDED);
     }
     status(l, seq, f.seq, code::NOT_SERVED)

@@ -1,0 +1,782 @@
+{
+ "runs": {
+  "pace_now": {
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795555799.928532,
+     "ok": true,
+     "op": "up",
+     "sent": 1795555799.676587,
+     "started": 1795555799.676587
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795555800.728506,
+     "ok": true,
+     "op": "set:0=8,1=90",
+     "sent": 1795555799.928649,
+     "started": 1795555799.928634
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 15
+     },
+     "done": 1795555801.62851,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795555800.728625,
+     "started": 1795555800.728625
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 3,
+       "verdicts": 2
+      }
+     },
+     "done": 1795555811.17847,
+     "ok": true,
+     "op": "pace-now",
+     "sent": 1795555810.9755,
+     "started": 1795555810.975496
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 42,
+      "of": 2,
+      "refused": 0,
+      "state": 3,
+      "verdicts": 2
+     },
+     "done": 1795555811.328457,
+     "ok": true,
+     "op": "status",
+     "sent": 1795555811.178588,
+     "started": 1795555811.178588
+    }
+   ],
+   "cycle_in_force_us": 666664,
+   "bound_ms": 1833.328,
+   "from_the_stubs_send_to_the_first_pace_now_pulse_ms": 1091.3879871368408,
+   "the_pulse_generators_share_ms": {
+    "stated": "one link period to the transfer, one to link's Job, one control period, one Pace-Now LRL interval: 50 + 50 + 20 + 923"
+   },
+   "pulses_between_the_send_and_the_first_pace_now_pulse": [],
+   "pace_now_widths_us": {
+    "count": 19,
+    "min": 1000,
+    "max": 1000
+   },
+   "pace_now_intervals_us": {
+    "count": 18,
+    "min": 923073,
+    "max": 923074
+   },
+   "widths_before_us": {
+    "count": 10,
+    "min": 400,
+    "max": 400
+   },
+   "state_after": {
+    "battery": 0,
+    "code": 4,
+    "link_up": true,
+    "mode": 42,
+    "of": 2,
+    "refused": 0,
+    "state": 3,
+    "verdicts": 2
+   },
+   "verdict": "PASS",
+   "task": "16.3"
+  },
+  "magnet": {
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795555832.592427,
+     "ok": true,
+     "op": "up",
+     "sent": 1795555832.339502,
+     "started": 1795555832.339502
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795555832.79246,
+     "ok": true,
+     "op": "magnet-response:1",
+     "sent": 1795555832.592469,
+     "started": 1795555832.592468
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 2,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 2
+      }
+     },
+     "done": 1795555832.992469,
+     "ok": true,
+     "op": "battery:0",
+     "sent": 1795555832.792571,
+     "started": 1795555832.792569
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 7,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 3
+      }
+     },
+     "done": 1795555833.792463,
+     "ok": true,
+     "op": "set:0=8,1=60",
+     "sent": 1795555832.992589,
+     "started": 1795555832.992574
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 3
+      },
+      "transfers": 1
+     },
+     "done": 1795555833.992496,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795555833.792569,
+     "started": 1795555833.792569
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 1,
+       "code": 6,
+       "link_up": true,
+       "mode": 2,
+       "of": 1,
+       "refused": 0,
+       "state": 4,
+       "verdicts": 4
+      }
+     },
+     "done": 1795555849.9425,
+     "ok": true,
+     "op": "battery:1",
+     "sent": 1795555849.741464,
+     "started": 1795555849.74146
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 2,
+       "code": 6,
+       "link_up": true,
+       "mode": 2,
+       "of": 1,
+       "refused": 0,
+       "state": 4,
+       "verdicts": 5
+      }
+     },
+     "done": 1795555858.192496,
+     "ok": true,
+     "op": "battery:2",
+     "sent": 1795555857.990472,
+     "started": 1795555857.990468
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 6
+      }
+     },
+     "done": 1795555875.092526,
+     "ok": true,
+     "op": "battery:0",
+     "sent": 1795555874.891487,
+     "started": 1795555874.891483
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 2,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 7
+      }
+     },
+     "done": 1795555875.292495,
+     "ok": true,
+     "op": "magnet-response:0",
+     "sent": 1795555875.092625,
+     "started": 1795555875.092624
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 8
+      }
+     },
+     "done": 1795555906.342595,
+     "ok": true,
+     "op": "magnet-response:1",
+     "sent": 1795555906.140524,
+     "started": 1795555906.140522
+    }
+   ],
+   "phases": [
+    {
+     "phase": "permanent VVI at 60 ppm",
+     "expected_us": 1000000,
+     "intervals_us": {
+      "count": 3,
+      "min": 999997,
+      "max": 999997
+     },
+     "ok": true
+    },
+    {
+     "phase": "magnet at BOL: 100 ppm",
+     "expected_us": 600000,
+     "intervals_us": {
+      "count": 7,
+      "min": 599998,
+      "max": 599999
+     },
+     "ok": true
+    },
+    {
+     "phase": "magnet at ERN: 90 ppm",
+     "expected_us": 666666,
+     "intervals_us": {
+      "count": 7,
+      "min": 666664,
+      "max": 666664
+     },
+     "ok": true
+    },
+    {
+     "phase": "magnet at ERT: 85 ppm",
+     "expected_us": 705882,
+     "intervals_us": {
+      "count": 7,
+      "min": 705880,
+      "max": 705880
+     },
+     "ok": true
+    },
+    {
+     "phase": "magnet released: VVI at 60 ppm",
+     "expected_us": 1000000,
+     "intervals_us": {
+      "count": 5,
+      "min": 999997,
+      "max": 999997
+     },
+     "ok": true
+    },
+    {
+     "phase": "magnet response Off, magnet applied: VVI at 60 ppm",
+     "expected_us": 1000000,
+     "intervals_us": {
+      "count": 6,
+      "min": 999997,
+      "max": 999997
+     },
+     "ok": true
+    }
+   ],
+   "states_told_under_the_magnet_after_it_and_with_the_response_off": [
+    4,
+    1,
+    1
+   ],
+   "widths_us": {
+    "count": 82,
+    "min": 400,
+    "max": 400
+   },
+   "verdict": "PASS",
+   "task": "16.4"
+  },
+  "battery": {
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795555910.312585,
+     "ok": true,
+     "op": "up",
+     "sent": 1795555910.05959,
+     "started": 1795555910.05959
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795555910.512546,
+     "ok": true,
+     "op": "battery:0",
+     "sent": 1795555910.312695,
+     "started": 1795555910.312693
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 6,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 2
+      }
+     },
+     "done": 1795555911.312488,
+     "ok": true,
+     "op": "set:0=1,1=60",
+     "sent": 1795555910.512651,
+     "started": 1795555910.512636
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 63,
+       "of": 0,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "transfers": 13
+     },
+     "done": 1795555912.112508,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795555911.31254,
+     "started": 1795555911.31254
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 2,
+       "code": 6,
+       "link_up": true,
+       "mode": 63,
+       "of": 1,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 3
+      }
+     },
+     "done": 1795555921.461699,
+     "ok": true,
+     "op": "battery:2",
+     "sent": 1795555921.259597,
+     "started": 1795555921.259591
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 3,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 5
+      }
+     },
+     "done": 1795555931.91262,
+     "ok": true,
+     "op": "battery:3",
+     "sent": 1795555931.710644,
+     "started": 1795555931.710637
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 4,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 6
+      }
+     },
+     "done": 1795555940.361662,
+     "ok": true,
+     "op": "battery:4",
+     "sent": 1795555940.160632,
+     "started": 1795555940.160628
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 8
+      }
+     },
+     "done": 1795555949.612666,
+     "ok": true,
+     "op": "battery:0",
+     "sent": 1795555949.410653,
+     "started": 1795555949.410648
+    }
+   ],
+   "phases": [
+    "BOL: DDD at 60 ppm",
+    "ERT: VVI",
+    "ERP: VVI",
+    "below the trip level: nothing",
+    "BOL again: Power-On Reset, VVI at 65 ppm, 0.50 ms"
+   ],
+   "checks": [
+    {
+     "check": "BOL: both Chambers paced, the ventricle every 1000 ms, 150 ms after the atrium",
+     "ok": true,
+     "detail": {
+      "ventricular_intervals_us": {
+       "count": 6,
+       "min": 999997,
+       "max": 999998
+      },
+      "atrial_pulses": 7
+     }
+    },
+    {
+     "check": "ERT: the ventricle alone, every 1000 ms",
+     "ok": true,
+     "detail": {
+      "ventricular_intervals_us": {
+       "count": 7,
+       "min": 999997,
+       "max": 999998
+      },
+      "atrial_pulses": 0
+     }
+    },
+    {
+     "check": "ERP: the ventricle alone, every 1000 ms",
+     "ok": true,
+     "detail": {
+      "ventricular_intervals_us": {
+       "count": 4,
+       "min": 999997,
+       "max": 999998
+      },
+      "atrial_pulses": 0
+     }
+    },
+    {
+     "check": "ERT: the Mode in force is VVI, the State Permanent",
+     "ok": true,
+     "detail": {
+      "battery": 2,
+      "code": 4,
+      "link_up": true,
+      "mode": 42,
+      "of": 1,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 3
+     }
+    },
+    {
+     "check": "ERT: temporary pacing is declined and the State stays",
+     "ok": true,
+     "detail": {
+      "verdict": {
+       "battery": 2,
+       "code": 8,
+       "link_up": true,
+       "mode": 42,
+       "of": 6,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 4
+      },
+      "after": {
+       "battery": 2,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 4
+      }
+     }
+    },
+    {
+     "check": "ERP: the Mode in force is VVI",
+     "ok": true,
+     "detail": {
+      "battery": 3,
+      "code": 4,
+      "link_up": true,
+      "mode": 42,
+      "of": 1,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 5
+     }
+    },
+    {
+     "check": "below the trip level: no pulse on either pin",
+     "ok": true,
+     "detail": {
+      "atrial": 0,
+      "ventricular": 0,
+      "seconds": 7.951282930374146
+     }
+    },
+    {
+     "check": "below the trip level: the State is Power-On Reset and a command is declined",
+     "ok": true,
+     "detail": {
+      "status": {
+       "battery": 4,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 6
+      },
+      "verdict_on_a_set": {
+       "battery": 4,
+       "code": 8,
+       "link_up": true,
+       "mode": 42,
+       "of": 6,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 7
+      }
+     }
+    },
+    {
+     "check": "BOL again: Power-On Reset pacing, VVI at 65 ppm, 0.50 ms wide, the atrium not paced",
+     "ok": true,
+     "detail": {
+      "intervals_us": {
+       "count": 8,
+       "min": 923073,
+       "max": 923074
+      },
+      "widths_us": {
+       "count": 9,
+       "min": 500,
+       "max": 500
+      },
+      "first_pulse_ms_after_the_level_was_sent": 873.5592365264893,
+      "status": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 1,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 8
+      }
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "16.5"
+  },
+  "reset": {
+   "part_1": {
+    "reset": "the core's system reset (one write to its reset register through board A's probe)",
+    "resets_seen_on_the_pin": 1,
+    "pins_undriven_after_the_reset_us": 1764,
+    "first_pace_ms_after_the_reset_with_the_probe_detaching": 979.342
+   },
+   "part_2": {
+    "start": "under an attached probe-rs run",
+    "undriven_stretches_seen": 1,
+    "first_pace_ms_after_the_pins_were_driven": 923.091,
+    "widths_us": {
+     "count": 6,
+     "min": 500,
+     "max": 500
+    },
+    "intervals_us": {
+     "count": 5,
+     "min": 923073,
+     "max": 923074
+    },
+    "paces": 6
+   },
+   "first_pace_ms_after_a_reset": 924.855,
+   "bound_ms": 951.077,
+   "verdict": "PASS",
+   "task": "16.6"
+  }
+ },
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "B": "1366:1061:001050279833",
+  "C": "1366:1061:001050211852"
+ },
+ "binaries": {
+  "pacemaker": "sha256:91cf363a66de7425c26be8c8e57ae1fb2c0d5325db1fdb5e7aab37fe8e33747f",
+  "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48",
+  "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d"
+ },
+ "capture": {
+  "rate_hz": 1000000,
+  "pins": "D0 the atrial pace pin, D1 the ventricular",
+  "width_tolerance_us": 20,
+  "interval_tolerance_us": 8000
+ }
+}

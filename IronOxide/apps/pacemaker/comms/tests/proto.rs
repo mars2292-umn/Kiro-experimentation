@@ -124,7 +124,8 @@ fn a_read_sends_the_five_parts_in_order_and_a_command_ends_it() {
 #[test]
 fn the_commands_of_later_tasks_are_not_served() {
     // END_TEMPORARY and PACE_NOW were in this list until task 16.1; `link` forwards them now (the test below).
-    for k in [kind::SET_BATTERY, kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
+    // (SET_BATTERY too until task 16.5.)
+    for k in [ kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
         let mut l = Link::new();
         assert_eq!(status_of(&answer(&mut l, Some(&Frame::empty(3, k)))), (3, code::NOT_SERVED), "kind {k:#x}");
     }
@@ -138,7 +139,7 @@ fn every_frame_heard_gives_control_one_message() {
     assert_eq!(take_forward(&mut l), None, "nothing heard, nothing told");
     let _ = answer(&mut l, Some(&Frame::empty(0, kind::IDLE)));
     assert_eq!(take_forward(&mut l), None, "a frame of the pulse generator's kinds is not heard");
-    for k in [kind::POLL, kind::INTERROGATE, kind::READ_PARAMETERS, kind::SET_BATTERY] {
+    for k in [kind::POLL, kind::INTERROGATE, kind::READ_PARAMETERS, kind::SET_CLOCK] {
         let _ = answer(&mut l, Some(&Frame::empty(0x21, k)));
         assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x21)), "kind {k:#x}");
         assert_eq!(take_forward(&mut l), None, "once");
@@ -207,4 +208,24 @@ fn a_new_status_is_told_once_in_place_of_idle() {
     assert_eq!(&a.payload[2..5], &[UNKNOWN; 3]);
     status_in(&mut l, &Status { serial: 0, verdict: 0, of: 0, refused: 0, ..st }.words());
     assert_eq!(answer(&mut l, Some(&poll)).kind, kind::STATUS, "told again");
+}
+
+#[test]
+fn a_battery_level_and_a_magnet_response_are_forwarded_with_their_byte() {
+    for k in [kind::SET_BATTERY, kind::SET_MAGNET_RESPONSE] {
+        let mut l = Link::new();
+        let mut f = Frame::empty(0x51, k);
+        f.len = 1;
+        f.payload[0] = 3;
+        assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x51, code::FORWARDED));
+        // `link` does not judge the value: `control`'s validation function does.
+        assert_eq!(take_forward(&mut l), Some(wire::message_with_value(k, 0x51, 3)));
+        // Without its byte, or with more, it is no such command; the frame was heard.
+        for len in [0, 2] {
+            f.len = len;
+            f.payload[1] = if len == 2 { 1 } else { 0 };
+            assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x51, code::BAD_PART));
+            assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x51)));
+        }
+    }
 }

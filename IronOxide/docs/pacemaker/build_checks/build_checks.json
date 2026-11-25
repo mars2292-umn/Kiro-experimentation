@@ -1,6 +1,6 @@
 {
   "qemu": {
-    "binary_sha256": "e360e5208d5fc0f95923494d8e448a1bc6d4edf3353d20601be28999b5723982",
+    "binary_sha256": "a1c069760c9580076bae3d1f4d87108a75add0871614731303f78188ca03fd0a",
     "task_model": "apps/pacemaker/gen/task_model.json",
     "link_checker": {
       "passed": true,
@@ -16,7 +16,7 @@
     }
   },
   "nrf52840": {
-    "binary_sha256": "b159c6bfe7eefe429ba6a748852cd2d59d8513039da9fc4f8de01a09b52acdbc",
+    "binary_sha256": "763bd0c684e5e92f4bdf7a33c6b35d53b70a06a532a5e2219511a43326d39f6d",
     "task_model": "apps/pacemaker/gen-nrf52840/task_model.json",
     "link_checker": {
       "passed": true,
@@ -33,7 +33,7 @@
   },
   "profile_lint": {
     "passed": true,
-    "verdict": "note: R3.2: Profile_Lint over 19 crates: rsk-lint: 82 files, 160 loops bounded (8 annotated, 79 derived from constants, 68 by `decreases`, 5 non-terminating by design; 39 with an App_Prover variant equal to the bound, R35.2), no violation",
+    "verdict": "note: R3.2: Profile_Lint over 19 crates: rsk-lint: 82 files, 161 loops bounded (8 annotated, 80 derived from constants, 68 by `decreases`, 5 non-terminating by design; 39 with an App_Prover variant equal to the bound, R35.2), no violation",
     "static_checks": "     Running `target/debug/xtask check`"
   },
   "verdict": "PASS"

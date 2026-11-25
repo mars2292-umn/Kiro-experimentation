@@ -229,8 +229,13 @@ fn pace_now_is_entered_at_once_and_left_by_a_programmed_set() {
         } else {
             assert_eq!(t.therapy, Therapy::Permanent);
         }
-        assert_eq!(t.params().lrl, 750_000);
-        assert_eq!(a.ventricular, at(2_000_000 + POR_E + 750_000, 400));
+        // The programmed set is the State's own. Under the magnet it is
+        // paced asynchronously at the magnet's rate (task 16.4; until then
+        // this test expected the set's own rate here too).
+        assert_eq!(t.own().lrl, 750_000);
+        let escape = if s.magnet { 600_000 } else { 750_000 };
+        assert_eq!((t.params().lrl, t.params().mode), (escape, if s.magnet { Mode::VOO } else { Mode::VVI }));
+        assert_eq!(a.ventricular, at(2_000_000 + POR_E + escape, 400));
     }
     // A Pace-Now command given before the programmed set is in force
     // drops the set.
@@ -262,7 +267,10 @@ fn the_magnet_interrupts_and_returns() {
         let due = s.chamber[1].pending.at.0;
         let (s, _) = go(&s, paced(V, due));
         assert_eq!((s.therapy, s.before_magnet), (Therapy::Magnet, before));
-        assert_eq!(*s.params(), *from.params(), "the parameters of the State interrupted");
+        // The set of the State interrupted is kept (task 16.4: `own`; until
+        // then `params` was that set), and paced asynchronously at 100 ppm.
+        assert_eq!(*s.own(), *from.params(), "the parameters of the State interrupted");
+        assert_eq!(*s.params(), Params { mode: Mode::VOO, lrl: 600_000, ..*from.params() });
         // Held while the magnet is.
         let (h, _) = go(&s, tick(due + 20_000, true, link));
         assert!(!h.change_waiting);
@@ -280,7 +288,7 @@ fn the_magnet_interrupts_and_returns() {
     let (s, _) = go(&s, Event::Command(Command::Program(perm)));
     let (s, _) = go(&s, paced(V, 2 * POR_E));
     assert_eq!((s.therapy, s.before_magnet), (Therapy::Magnet, Therapy::Permanent));
-    assert_eq!(*s.params(), perm);
+    assert_eq!(*s.own(), perm);
     let (s, _) = go(&s, tick(2 * POR_E + 20_000, false, false));
     let (s, _) = go(&s, paced(V, 2 * POR_E + 1_000_000));
     assert_eq!(s.therapy, Therapy::Permanent);

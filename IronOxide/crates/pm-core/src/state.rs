@@ -6,6 +6,7 @@
 //! For that reason no field is an `Option`: a flag beside a value says
 //! whether the value means anything.
 
+use crate::event::Battery;
 use crate::params::Params;
 use crate::time::Micros;
 
@@ -159,6 +160,19 @@ pub struct State {
     /// The magnet input and the link, as the last tick had them.
     pub magnet: bool,
     pub link_up: bool,
+    /// The battery level the last tick brought, and the one in force: a
+    /// change of level changes the Mode at a timing event (PM17.7).
+    pub battery: Battery,
+    pub battery_in_force: Battery,
+    /// The magnet response is programmed Off (PM8.4). False, the zero
+    /// value, is the response enabled.
+    pub magnet_off: bool,
+    /// Whether `in_force` is the parameter set in force. It is from the
+    /// first time the State machine has decided the State; before that the
+    /// set is the State's own (`params`), which is the same thing while no
+    /// magnet and no battery level has changed it.
+    pub in_force_valid: bool,
+    pub in_force: Params,
     /// Per Chamber, indexed by `Chamber::index`.
     pub chamber: [ChamberState; 2],
     /// The length of the last cardiac cycle, valid when `cycle_known`.
@@ -212,6 +226,11 @@ impl State {
         temporary_wanted: false,
         magnet: false,
         link_up: false,
+        battery: Battery::Bol,
+        battery_in_force: Battery::Bol,
+        magnet_off: false,
+        in_force_valid: false,
+        in_force: Params::ZERO,
         chamber: [ZERO_CHAMBER, ZERO_CHAMBER],
         cycle_known: false,
         last_cycle: 0,
@@ -231,6 +250,18 @@ impl State {
     #[inline(always)]
     #[must_use]
     pub const fn params(&self) -> &Params {
+        if self.in_force_valid {
+            return &self.in_force;
+        }
+        self.own()
+    }
+
+    /// The parameter set of the State itself, before the battery level and
+    /// the magnet change it: the State under a Magnet State is the one it
+    /// interrupted.
+    #[inline(always)]
+    #[must_use]
+    pub const fn own(&self) -> &Params {
         let therapy = match self.therapy {
             Therapy::Magnet => self.before_magnet,
             t => t,

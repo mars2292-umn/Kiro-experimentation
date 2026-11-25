@@ -217,7 +217,8 @@ fn a_command_the_stage_does_not_serve_says_so() {
     let mut s = Session::new(Rig::new());
     s.start().unwrap();
     // Until task 16.1 this was PACE_NOW, which `link` now forwards.
-    let f = s.dcm.byte(kind::SET_BATTERY, 1);
+    // (Then SET_BATTERY until task 16.5.)
+    let f = s.dcm.plain(kind::SET_CLOCK);
     match s.command(&f, 10).unwrap().expect("an answer").reply {
         Reply::Status { code: c, state, .. } => assert_eq!((c, state), (code::NOT_SERVED, proto::UNKNOWN)),
         other => panic!("{other:?}"),

@@ -6,6 +6,7 @@
 //! dcm-stub soak     <device> <seconds> [--json <record>]
 //! dcm-stub program  <device> [--json <record>]
 //! dcm-stub loss     <device> <count> [--json <record>]
+//! dcm-stub do       <device> <op>... [--json <record>]
 //! ```
 //!
 //! `loopback`: `count` different frames to the bridge and straight back
@@ -25,6 +26,22 @@
 //! `control` has the link as up, then no more, and the transfers from the
 //! first unanswered poll to the pulse generator's report of the loss are
 //! counted.
+//!
+//! `do` (tasks 16.3 to 16.6): the operations in order, each reported with
+//! the host's clock at its start and end (seconds since the epoch), for a
+//! rig script that lines them up with a capture:
+//!
+//! - `up`: answer the polls and wait until `control` has the link as up;
+//! - `set:<i>=<v>,...` and `temp:<i>=<v>,...`: the nominal set with the
+//!   words named replaced, sent as permanent or temporary parameters; the
+//!   prediction and `control`'s verdict;
+//! - `end-temp`, `pace-now`, `battery:<level>`, `magnet-response:<0|1>`:
+//!   the command and `control`'s verdict;
+//! - `status`: what `control` reports now (a command the stage does not
+//!   serve is sent, and its answer carries the status);
+//! - `wait:<field>=<value>`: until a STATUS has the field (`state`, `mode`,
+//!   `battery`, `link_up`) at the value, for at most 200 transfers;
+//! - `stop`: answer no more.
 //!
 //! `session`: with the pulse generator running, polls, interrogates it,
 //! sends a parameter set in parts, reads it back, sends a command the
@@ -107,7 +124,7 @@ fn session(device: &str) -> std::io::Result<(bool, Value)> {
     let back = s.read_set(30)?;
     step("the set read back", back == Some(words), json!(back.map(|w| w.to_vec())));
 
-    let f = s.dcm.byte(kind::SET_BATTERY, 0);
+    let f = s.dcm.plain(kind::SET_CLOCK);
     let a = s.command(&f, 20)?;
     let good = matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 4, .. }));
     step("a command this stage does not serve", good, json!(a.as_ref().map(|a| format!("{:?}", a.reply))));
@@ -342,6 +359,118 @@ fn loss(device: &str, count: usize) -> std::io::Result<(bool, Value)> {
         "bytes_skipped": skipped, "reports_with_a_wrong_sum": bad_sums })))
 }
 
+fn epoch() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
+}
+
+fn words_of(text: &str) -> Option<[u32; pm_core::WORDS]> {
+    let mut w = NOMINAL_WORDS;
+    for pair in text.split(',').filter(|p| !p.is_empty()) {
+        let (i, v) = pair.split_once('=')?;
+        *w.get_mut(i.parse::<usize>().ok()?)? = v.parse().ok()?;
+    }
+    Some(w)
+}
+
+fn run_ops(device: &str, ops: &[String]) -> std::io::Result<(bool, Value)> {
+    let mut s = Session::new(Serial::open(device)?);
+    s.start()?;
+    let mut out = Vec::new();
+    let mut ok = true;
+    for op in ops {
+        let (name, arg) = op.split_once(':').unwrap_or((op.as_str(), ""));
+        let started = epoch();
+        let mut sent = started;
+        // A command, then `control`'s verdict.
+        let mut commanded = |s: &mut Session<Serial>, f: pm_core::frame::Frame, sent: &mut f64| -> std::io::Result<(bool, Value)> {
+            *sent = epoch();
+            let a = s.command(&f, 20)?;
+            let forwarded = matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 9, .. }));
+            let v = s.verdict(20)?;
+            Ok((forwarded && v.is_some(), json!({ "verdict": v.as_ref().map(|a| told(&a.reply)), "accepted": matches!(v.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 6, .. })) })))
+        };
+        let (good, detail) = match name {
+            "up" => {
+                let a = s.wait(60, |r| matches!(r, Reply::Status { link_up: true, .. }))?;
+                match a {
+                    Some(a) => (true, told(&a.reply)),
+                    // Told before this invocation: ask.
+                    None => {
+                        let f = s.dcm.plain(kind::SET_CLOCK);
+                        let a = s.command(&f, 20)?;
+                        (matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { link_up: true, .. })), json!(a.as_ref().map(|a| told(&a.reply))))
+                    }
+                }
+            }
+            "set" | "temp" => match words_of(arg) {
+                None => (false, json!("no parameter set")),
+                Some(words) => {
+                    let predicted = predict(&words);
+                    sent = epoch();
+                    let _ = s.send_set(&words, name == "temp", 20)?;
+                    let v = s.verdict(40)?;
+                    let accepted = matches!(v.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 6, .. }));
+                    (v.is_some(), json!({ "predicted_valid": predicted, "accepted": accepted, "verdict": v.as_ref().map(|a| told(&a.reply)) }))
+                }
+            },
+            "end-temp" => {
+                let f = s.dcm.plain(kind::END_TEMPORARY);
+                commanded(&mut s, f, &mut sent)?
+            }
+            "pace-now" => {
+                let f = s.dcm.plain(kind::PACE_NOW);
+                commanded(&mut s, f, &mut sent)?
+            }
+            "battery" => {
+                let f = s.dcm.byte(kind::SET_BATTERY, arg.parse().unwrap_or(255));
+                commanded(&mut s, f, &mut sent)?
+            }
+            "magnet-response" => {
+                let f = s.dcm.byte(kind::SET_MAGNET_RESPONSE, arg.parse().unwrap_or(255));
+                commanded(&mut s, f, &mut sent)?
+            }
+            "status" => {
+                let f = s.dcm.plain(kind::SET_CLOCK);
+                let a = s.command(&f, 20)?;
+                (a.is_some(), json!(a.as_ref().map(|a| told(&a.reply))))
+            }
+            "wait" => {
+                let (field, value) = arg.split_once('=').unwrap_or(("", ""));
+                let want: u32 = value.parse().unwrap_or(u32::MAX);
+                let field = field.to_string();
+                let has = |r: &Reply| match r {
+                    Reply::Status { state, mode, battery, link_up, .. } => match field.as_str() {
+                        "state" => *state as u32 == want,
+                        "mode" => *mode as u32 == want,
+                        "battery" => *battery as u32 == want,
+                        "link_up" => *link_up as u32 == want,
+                        _ => false,
+                    },
+                    _ => false,
+                };
+                // It may be so already (a status is told once): ask first.
+                let f = s.dcm.plain(kind::SET_CLOCK);
+                let now = s.command(&f, 20)?;
+                let a = match now {
+                    Some(a) if has(&a.reply) => Some(a),
+                    _ => s.wait(200, &has)?,
+                };
+                (a.is_some(), json!(a.as_ref().map(|a| json!({ "status": told(&a.reply), "transfers": a.transfers }))))
+            }
+            "stop" => {
+                s.stop()?;
+                (true, Value::Null)
+            }
+            _ => (false, json!("no such operation")),
+        };
+        ok &= good;
+        let line = json!({ "op": op, "ok": good, "started": started, "sent": sent, "done": epoch(), "detail": detail });
+        println!("{line}");
+        out.push(line);
+    }
+    Ok((ok, json!({ "ops": out })))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let json_path = args.iter().position(|a| a == "--json").and_then(|i| args.get(i + 1)).cloned();
@@ -349,10 +478,14 @@ fn main() {
         (Some("loopback"), Some(device)) => loopback(device, args.get(3).and_then(|n| n.parse().ok()).unwrap_or(100)),
         (Some("session"), Some(device)) => session(device),
         (Some("program"), Some(device)) => program(device),
+        (Some("do"), Some(device)) => {
+            let ops: Vec<String> = args[3..].iter().take_while(|a| *a != "--json").cloned().collect();
+            run_ops(device, &ops)
+        }
         (Some("loss"), Some(device)) => loss(device, args.get(3).and_then(|n| n.parse().ok()).unwrap_or(20)),
         (Some("soak"), Some(device)) => soak(device, args.get(3).and_then(|n| n.parse().ok()).unwrap_or(60)),
         _ => {
-            eprintln!("usage: dcm-stub loopback <device> <count> | session <device> | program <device> | loss <device> <count> | soak <device> <seconds>, each with [--json <record>]");
+            eprintln!("usage: dcm-stub loopback <device> <count> | session <device> | program <device> | loss <device> <count> | soak <device> <seconds> | do <device> <op>..., each with [--json <record>]");
             std::process::exit(2);
         }
     };
@@ -361,7 +494,7 @@ fn main() {
             record["command"] = json!(args[1]);
             record["verdict"] = json!(if ok { "PASS" } else { "FAIL" });
             println!("{}", if ok { "PASS" } else { "FAIL" });
-            if args[1] != "session" && args[1] != "program" {
+            if args[1] != "session" && args[1] != "program" && args[1] != "do" {
                 println!("{record}");
             }
             if let Some(p) = json_path {

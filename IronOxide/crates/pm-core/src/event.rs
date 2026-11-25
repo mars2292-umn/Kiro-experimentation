@@ -36,6 +36,8 @@ pub enum Command {
     EndTemporary,
     /// Pace-Now.
     PaceNow,
+    /// The magnet response programmed on or off (PM8.4).
+    MagnetResponse(bool),
 }
 
 /// One event.

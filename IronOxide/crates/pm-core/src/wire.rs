@@ -6,7 +6,8 @@
 //! [`PROGRAM_WORDS`] words. Word 0 is a code in its low byte and, in the
 //! byte above, the sequence number of the DCM's frame that caused the
 //! message; words 1 to 28 are a parameter set for the two codes that carry
-//! one and zero for the others. `link` sends one message for every frame
+//! one, a value in word 1 for the two that carry a value, and zero
+//! otherwise. `link` sends one message for every frame
 //! of the DCM's it hears: a command's, or [`code::HEARD`] for any other,
 //! so that `control` knows the link by its messages (PM20.2).
 //! [`admitted`] is the validation function `therapy` declares for the
@@ -36,6 +37,11 @@ pub mod code {
     pub const TEMPORARY: u8 = 0x11;
     pub const END_TEMPORARY: u8 = 0x12;
     pub const PACE_NOW: u8 = 0x13;
+    /// The battery level, in word 1: 0 BOL, 1 ERN, 2 ERT, 3 ERP, 4 below
+    /// the Power-On Reset trip level (PM29.2, PM30.3).
+    pub const BATTERY: u8 = 0x20;
+    /// The magnet response, in word 1: 1 on, 0 off (PM8.4).
+    pub const MAGNET_RESPONSE: u8 = 0x22;
 }
 
 /// What `control` answers a command with (a STATUS frame's code; the
@@ -77,6 +83,22 @@ pub fn message_with_set(code: u8, seq: u8, words: &[u32; WORDS]) -> [u32; PROGRA
     m
 }
 
+/// A `program` message of `code` with one value, in word 1.
+#[inline(always)]
+#[must_use]
+pub const fn message_with_value(code: u8, seq: u8, value: u32) -> [u32; PROGRAM_WORDS] {
+    let mut m = message(code, seq);
+    m[1] = value;
+    m
+}
+
+/// The value of a message that carries one.
+#[inline(always)]
+#[must_use]
+pub const fn value_of(m: &[u32; PROGRAM_WORDS]) -> u32 {
+    m[1]
+}
+
 /// The code and the sequence number of a message.
 #[inline(always)]
 #[must_use]
@@ -107,7 +129,8 @@ pub fn set_of(m: &[u32; PROGRAM_WORDS]) -> [u32; WORDS] {
 
 /// Whether `m` is a message of the Endpoint `program`: word 0 a code and a
 /// sequence number and nothing above them; with PROGRAM or TEMPORARY a set
-/// `validate` accepts; with the other codes zeros.
+/// `validate` accepts; with BATTERY a level and with MAGNET_RESPONSE 0 or 1
+/// in word 1 and zeros after it; with the other codes zeros.
 #[inline(always)]
 #[must_use]
 pub fn admitted(m: &[u32; PROGRAM_WORDS]) -> bool {
@@ -119,10 +142,23 @@ pub fn admitted(m: &[u32; PROGRAM_WORDS]) -> bool {
     if c == code::PROGRAM || c == code::TEMPORARY {
         return validate(&set).is_some();
     }
-    if !(c == code::HEARD || c == code::END_TEMPORARY || c == code::PACE_NOW) {
+    // A value in word 1: a battery level, or on and off.
+    let first = if c == code::BATTERY {
+        if set[0] > 4 {
+            return false;
+        }
+        1
+    } else if c == code::MAGNET_RESPONSE {
+        if set[0] > 1 {
+            return false;
+        }
+        1
+    } else if c == code::HEARD || c == code::END_TEMPORARY || c == code::PACE_NOW {
+        0
+    } else {
         return false;
-    }
-    let mut k = 0;
+    };
+    let mut k = first;
     #[cfg_attr(creusot, creusot_std::macros::variant(WORDS@ - k@))]
     #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 28))]
     while k < WORDS {
@@ -207,5 +243,19 @@ pub const fn battery_byte(b: Battery) -> u8 {
         Battery::Ert => 2,
         Battery::Erp => 3,
         Battery::Tripped => 4,
+    }
+}
+
+/// The battery level a BATTERY message's value names; a value that names
+/// none is the lowest level (the validation function admits none such).
+#[inline(always)]
+#[must_use]
+pub const fn battery_of(value: u32) -> Battery {
+    match value {
+        0 => Battery::Bol,
+        1 => Battery::Ern,
+        2 => Battery::Ert,
+        3 => Battery::Erp,
+        _ => Battery::Tripped,
     }
 }

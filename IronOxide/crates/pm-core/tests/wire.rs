@@ -1,7 +1,7 @@
 //! The messages of the Endpoints `program` and `status` (task 16.1).
 #![forbid(unsafe_code)]
 
-use pm_core::wire::{admitted, code, code_of, message, message_with_set, mode_byte, seq_of, set_of, Status, PROGRAM_WORDS};
+use pm_core::wire::{admitted, battery_of, code, code_of, message, message_with_set, message_with_value, mode_byte, seq_of, set_of, value_of, Status, PROGRAM_WORDS};
 use pm_core::{validate, word, Mode, NOMINAL_WORDS, WORDS};
 
 #[test]
@@ -15,12 +15,13 @@ fn a_message_carries_its_code_its_number_and_its_set() {
 }
 
 #[test]
-fn the_validation_admits_exactly_the_five_codes() {
+fn the_validation_admits_exactly_the_seven_codes() {
     for c in 0..=255u8 {
         let plain = admitted(&message(c, 9));
         let with_set = admitted(&message_with_set(c, 9, &NOMINAL_WORDS));
         match c {
-            code::HEARD | code::END_TEMPORARY | code::PACE_NOW => assert!(plain && !with_set, "code {c:#x}"),
+            // (Five codes until tasks 16.4 and 16.5 added the two that carry a value; 0 is a value of both.)
+            code::HEARD | code::END_TEMPORARY | code::PACE_NOW | code::BATTERY | code::MAGNET_RESPONSE => assert!(plain && !with_set, "code {c:#x}"),
             // A set of zeros is no set (the Mode's word alone would pass; the LRL's does not).
             code::PROGRAM | code::TEMPORARY => assert!(!plain && with_set, "code {c:#x}"),
             _ => assert!(!plain && !with_set, "code {c:#x}"),
@@ -77,4 +78,24 @@ fn the_mode_byte_tells_the_nineteen_modes_apart() {
         }
     }
     let _ = word::MODE;
+}
+
+#[test]
+fn a_value_is_admitted_exactly_in_its_range() {
+    for v in (0..=300u32).chain([0xFFFF_FFFF]) {
+        assert_eq!(admitted(&message_with_value(code::BATTERY, 2, v)), v <= 4, "battery {v}");
+        assert_eq!(admitted(&message_with_value(code::MAGNET_RESPONSE, 2, v)), v <= 1, "magnet response {v}");
+        // The codes without a value take none.
+        assert_eq!(admitted(&message_with_value(code::PACE_NOW, 2, v)), v == 0);
+    }
+    for k in 2..PROGRAM_WORDS {
+        for c in [code::BATTERY, code::MAGNET_RESPONSE] {
+            let mut m = message_with_value(c, 1, 1);
+            m[k] = 1;
+            assert!(!admitted(&m), "code {c:#x}, word {k}");
+        }
+    }
+    let m = message_with_value(code::BATTERY, 7, 3);
+    assert_eq!((code_of(&m), seq_of(&m), value_of(&m)), (code::BATTERY, 7, 3));
+    assert_eq!([0, 1, 2, 3, 4, 5].map(|v| battery_of(v) as u8), [0, 1, 2, 3, 4, 4]);
 }

@@ -1033,79 +1033,82 @@
     {
       "address": "0x00030000",
       "bounded": true,
-      "calls": [],
-      "frame": 148,
+      "calls": [
+        "__aeabi_memcpy4"
+      ],
+      "frame": 176,
       "name": "_ZN17pacemaker_therapy16validate_program17hc48134ce2870bc6bE",
       "reason": null,
-      "usage": 148
+      "usage": 276
     },
     {
-      "address": "0x00030654",
+      "address": "0x0003060c",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
-        "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE"
+        "_ZN17pacemaker_therapy5event17h9d9f8777f58517b7E"
       ],
-      "frame": 208,
+      "frame": 200,
       "name": "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E",
       "reason": null,
-      "usage": 2356
+      "usage": 664
     },
     {
-      "address": "0x000307e4",
+      "address": "0x000307ac",
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
         "__aeabi_memcpy",
         "__aeabi_uldivmod"
       ],
-      "frame": 1720,
-      "name": "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE",
+      "frame": 36,
+      "name": "_ZN17pacemaker_therapy5event17h9d9f8777f58517b7E",
       "reason": null,
-      "usage": 1820
+      "usage": 136
     },
     {
-      "address": "0x0003409c",
+      "address": "0x0003443c",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
         "memcmp",
         "__aeabi_memclr8",
+        "__aeabi_memclr4",
         "_ZN17pacemaker_therapy16validate_program17hc48134ce2870bc6bE",
-        "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE",
+        "_ZN17pacemaker_therapy5event17h9d9f8777f58517b7E",
         "_ZN68_$LT$pacemaker_therapy..board_nrf..Board$u20$as$u20$pm_hw..Board$GT$9configure17h0bbaf6b0ca4eadeeE"
       ],
-      "frame": 504,
+      "frame": 528,
       "name": "_ZN17pacemaker_therapy7control17ha3c3d90cffa7dbacE",
       "reason": null,
-      "usage": 2652
+      "usage": 1132
     },
     {
-      "address": "0x0003582e",
+      "address": "0x0003603e",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
-        "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE"
+        "_ZN17pacemaker_therapy5event17h9d9f8777f58517b7E"
       ],
       "frame": 176,
       "name": "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE",
       "reason": null,
-      "usage": 2324
+      "usage": 640
     },
     {
-      "address": "0x00035956",
+      "address": "0x00036170",
       "bounded": true,
       "calls": [
         "_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt",
-        "_ZN17pacemaker_therapy5event17hae6cef0b718adf9fE"
+        "_ZN17pacemaker_therapy5event17h9d9f8777f58517b7E"
       ],
       "frame": 176,
       "name": "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E",
       "reason": null,
-      "usage": 2324
+      "usage": 640
     },
     {
-      "address": "0x00035a7e",
+      "address": "0x000362a2",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy4pace17h21084ed2dbbb6416E"
@@ -1113,10 +1116,10 @@
       "frame": 8,
       "name": "_ZN17pacemaker_therapy8rsk_jobs4pace17h43ec70c8ef40232cE",
       "reason": null,
-      "usage": 2364
+      "usage": 672
     },
     {
-      "address": "0x00035a94",
+      "address": "0x000362b8",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7control17ha3c3d90cffa7dbacE"
@@ -1124,10 +1127,10 @@
       "frame": 32,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7control17hde32b552bb84202dE",
       "reason": null,
-      "usage": 2684
+      "usage": 1164
     },
     {
-      "address": "0x00035ad6",
+      "address": "0x000362fa",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_a17hee8dbeabbeb719beE"
@@ -1135,10 +1138,10 @@
       "frame": 8,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_a17h13e29997e7d78a8aE",
       "reason": null,
-      "usage": 2332
+      "usage": 648
     },
     {
-      "address": "0x00035aec",
+      "address": "0x00036310",
       "bounded": true,
       "calls": [
         "_ZN17pacemaker_therapy7sense_v17hd7c53859edc82625E"
@@ -1146,10 +1149,10 @@
       "frame": 8,
       "name": "_ZN17pacemaker_therapy8rsk_jobs7sense_v17h78a1e06f4512a025E",
       "reason": null,
-      "usage": 2332
+      "usage": 648
     },
     {
-      "address": "0x00035b02",
+      "address": "0x00036326",
       "bounded": true,
       "calls": [],
       "frame": 16,
@@ -1174,7 +1177,7 @@
       "usage": 200
     },
     {
-      "address": "0x00038d5a",
+      "address": "0x00038df6",
       "bounded": true,
       "calls": [],
       "frame": 24,
@@ -1183,7 +1186,7 @@
       "usage": 24
     },
     {
-      "address": "0x00038e98",
+      "address": "0x00038f34",
       "bounded": true,
       "calls": [
         "__aeabi_memcpy4",
@@ -1198,7 +1201,7 @@
       "usage": 164
     },
     {
-      "address": "0x000391b6",
+      "address": "0x000392a6",
       "bounded": true,
       "calls": [],
       "frame": 8,
@@ -1207,7 +1210,7 @@
       "usage": 8
     },
     {
-      "address": "0x00039220",
+      "address": "0x00039310",
       "bounded": true,
       "calls": [
         "_ZN15pacemaker_comms4link17h66c3aff5c0dfe293E"
@@ -1218,7 +1221,7 @@
       "usage": 248
     },
     {
-      "address": "0x0003926e",
+      "address": "0x0003935e",
       "bounded": true,
       "calls": [
         "_ZN3rsk7DmaHeld3put17h52d39e0d193828e9E"
@@ -1232,15 +1235,15 @@
   "regions": [
     {
       "available": 12288,
-      "bound": 9968,
+      "bound": 3388,
       "kind": "partition",
       "name": "therapy",
       "ok": true,
       "terms": [
-        "therapy.control: 2684 (wrapper) + 64 (initial and stacked frames)",
-        "therapy.sense_a: 2332 (wrapper) + 64 (initial and stacked frames)",
-        "therapy.sense_v: 2332 (wrapper) + 64 (initial and stacked frames)",
-        "therapy.pace: 2364 (wrapper) + 64 (initial and stacked frames)"
+        "therapy.control: 1164 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.sense_a: 648 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.sense_v: 648 (wrapper) + 64 (initial and stacked frames)",
+        "therapy.pace: 672 (wrapper) + 64 (initial and stacked frames)"
       ]
     },
     {
@@ -1274,28 +1277,28 @@
       "entry": "::pacemaker_therapy::rsk_jobs::pace",
       "frame_bytes": 64,
       "id": "therapy.pace",
-      "usage": 2364
+      "usage": 672
     },
     {
       "bounded": true,
       "entry": "::pacemaker_therapy::rsk_jobs::sense_v",
       "frame_bytes": 64,
       "id": "therapy.sense_v",
-      "usage": 2332
+      "usage": 648
     },
     {
       "bounded": true,
       "entry": "::pacemaker_therapy::rsk_jobs::sense_a",
       "frame_bytes": 64,
       "id": "therapy.sense_a",
-      "usage": 2332
+      "usage": 648
     },
     {
       "bounded": true,
       "entry": "::pacemaker_therapy::rsk_jobs::control",
       "frame_bytes": 64,
       "id": "therapy.control",
-      "usage": 2684
+      "usage": 1164
     },
     {
       "bounded": true,

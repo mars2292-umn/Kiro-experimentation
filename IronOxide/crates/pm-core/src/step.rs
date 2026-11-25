@@ -73,7 +73,7 @@
 //! Pace that had been accounted arms the atrial Pace the ventricular event
 //! made pending.
 
-use crate::event::{Arming, Command, Event, Marker, Pace};
+use crate::event::{Arming, Battery, Command, Event, Marker, Pace};
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use crate::mode::Chambers;
@@ -96,7 +96,8 @@ use creusot_std::model::View;
 //   ventricular event it is pending at exactly the event plus the escape
 //   interval; likewise the atrial Pace of a Mode that paces the atrium
 //   alone.
-use crate::params::Params;
+use crate::mode::Mode;
+use crate::params::{interval_of_ppm, Params};
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use crate::state::allowed;
@@ -451,6 +452,56 @@ fn blanked(st: &State, c: Chamber, at: Micros) -> bool {
     matches!(c, Chamber::V) && ch.blanked && at.is_before(ch.blanking_until)
 }
 
+/// The Mode a battery level of ERT or ERP leaves of `m` (PM17.7): no rate
+/// adaptation; DOO becomes VOO; every other Mode that paces or senses both
+/// Chambers (VDD among them) becomes VVI; a Mode of one Chamber stays.
+#[inline(always)]
+const fn depleted(m: Mode) -> Mode {
+    let both_paced = matches!(m.paces, crate::mode::Chambers::Both);
+    let both_sensed = matches!(m.senses, crate::mode::Chambers::Both);
+    if both_paced && matches!(m.senses, crate::mode::Chambers::None) {
+        Mode::VOO
+    } else if both_paced || both_sensed {
+        Mode::VVI
+    } else {
+        Mode { adaptive: false, ..m }
+    }
+}
+
+/// The Mode of the Magnet State over `m` (PM8.1): the Chambers `m` paces,
+/// paced asynchronously; nothing where `m` paces nothing.
+#[inline(always)]
+const fn asynchronous(m: Mode) -> Mode {
+    match m.paces {
+        crate::mode::Chambers::A => Mode::AOO,
+        crate::mode::Chambers::V => Mode::VOO,
+        crate::mode::Chambers::Both => Mode::DOO,
+        crate::mode::Chambers::None => Mode::OFF,
+    }
+}
+
+/// The parameter set in force in the state `st`: the State's own set
+/// (`State::own`), with the Mode a depleted battery leaves of it, and in
+/// the Magnet State paced asynchronously at the rate that shows the
+/// battery level: 100 ppm at BOL, 90 at ERN, 85 below (PM8.2).
+#[inline(always)]
+fn in_force(st: &State) -> Params {
+    let mut p = *st.own();
+    let low = matches!(st.battery_in_force, Battery::Ert | Battery::Erp | Battery::Tripped);
+    if low {
+        p.mode = depleted(p.mode);
+    }
+    if matches!(st.therapy, Therapy::Magnet) {
+        p.mode = asynchronous(p.mode);
+        p.lrl = match st.battery_in_force {
+            Battery::Bol => interval_of_ppm(100),
+            Battery::Ern => interval_of_ppm(90),
+            _ => interval_of_ppm(85),
+        };
+    }
+    p
+}
+
 /// One event applied to the state: the new state, and what to do with each
 /// Chamber's compares. `p` is the parameter set in force.
 ///
@@ -489,7 +540,11 @@ fn resolve(st: &mut State) {
             base = Therapy::Permanent;
         }
     }
-    let temporary = st.temporary_wanted && st.link_up;
+    // The battery level comes into force here (PM17.7). At ERT and below
+    // there is no temporary pacing.
+    st.battery_in_force = st.battery;
+    let low = matches!(st.battery_in_force, Battery::Ert | Battery::Erp | Battery::Tripped);
+    let temporary = st.temporary_wanted && st.link_up && !low;
     base = match base {
         Therapy::Permanent if temporary => Therapy::Temporary,
         Therapy::Temporary if !temporary => Therapy::Permanent,
@@ -498,7 +553,7 @@ fn resolve(st: &mut State) {
     if !matches!(base, Therapy::Temporary) {
         st.temporary_wanted = false;
     }
-    if st.magnet && !matches!(base, Therapy::PaceNow) {
+    if st.magnet && !st.magnet_off && !matches!(base, Therapy::PaceNow) {
         st.therapy = Therapy::Magnet;
         st.before_magnet = base;
     } else {
@@ -506,6 +561,8 @@ fn resolve(st: &mut State) {
         st.before_magnet = Therapy::PowerOnReset;
     }
     st.change_waiting = false;
+    st.in_force = in_force(st);
+    st.in_force_valid = true;
 }
 
 /// Whether [`resolve`] would change the State or the parameters: a change
@@ -514,7 +571,7 @@ fn resolve(st: &mut State) {
 fn waiting(st: &State) -> bool {
     let mut t = *st;
     resolve(&mut t);
-    st.staged_valid || t.therapy as u8 != st.therapy as u8 || t.before_magnet as u8 != st.before_magnet as u8
+    st.staged_valid || t.therapy as u8 != st.therapy as u8 || t.before_magnet as u8 != st.before_magnet as u8 || st.battery as u8 != st.battery_in_force as u8
 }
 
 /// A timing event of `chamber` at `at` at which a change was waiting: the
@@ -715,13 +772,14 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
             }
             sense(p, &before, chamber, at)
         }
-        Event::Tick { now, magnet, link_up, .. } => {
+        Event::Tick { now, magnet, link_up, battery, .. } => {
             let before = accounted(p, s, now);
             let mut st = before;
             // The inputs of the State machine, and whether they ask for a
             // change: it comes into force at the next timing event.
             st.magnet = magnet;
             st.link_up = link_up;
+            st.battery = battery;
             st.change_waiting = waiting(&st);
             if st.change_waiting && matches!(p.mode.paces, crate::mode::Chambers::None) {
                 // A Mode that paces nothing may have no timing event to
@@ -757,12 +815,15 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                         Therapy::Magnet => st.before_magnet,
                         t => t,
                     };
-                    if matches!(base, Therapy::Permanent) && st.link_up {
+                    let low = matches!(st.battery, Battery::Ert | Battery::Erp | Battery::Tripped);
+                    if matches!(base, Therapy::Permanent) && st.link_up && !low {
                         st.temporary = set;
                         st.temporary_wanted = true;
                     }
                 }
                 Command::EndTemporary => st.temporary_wanted = false,
+                // PM8.4: in force, with the State, at the next timing event.
+                Command::MagnetResponse(on) => st.magnet_off = !on,
                 Command::PaceNow => {
                     // PM6.5: at once. What was pending is withdrawn; the
                     // next tick arms the first Pace-Now pulse, one Pace-Now
@@ -775,6 +836,8 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                         st.chamber[Chamber::A.index()].pending = Pending::NONE;
                         st.chamber[Chamber::V.index()].pending = Pending::NONE;
                         st.atrial_since_ventricular = false;
+                        st.in_force = in_force(&st);
+                        st.in_force_valid = true;
                         arm_difference(p, s, &st, &mut out);
                     }
                 }

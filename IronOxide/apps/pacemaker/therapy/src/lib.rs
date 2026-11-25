@@ -88,6 +88,11 @@ pub struct LinkSide {
     pub last: u32,
     /// Messages the validation function refused.
     pub refused: u32,
+    /// The battery level the link last brought (`pm_core::wire::battery_of`;
+    /// 0, the value at start, is BOL), and 1 while it is below the Power-On
+    /// Reset trip level.
+    pub battery: u32,
+    pub tripped: u32,
 }
 
 /// The Jobs of `control` without a message after which the link is lost
@@ -170,7 +175,7 @@ impl Timing {
             ring: [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING],
             written: 0,
             counts: Counts { too_late: 0, moved: 0, late: 0, dropped: 0 },
-            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0 },
+            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0 },
         }
     }
 }
@@ -307,6 +312,11 @@ fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32,
 impl Timing {
     /// `pace`: the Paces whose pulses have ended, the earlier first.
     fn on_pace(&mut self) {
+        // Below the trip level nothing is accounted: the state is the
+        // Power-On Reset State with nothing pending (`on_control`).
+        if self.link.tripped != 0 {
+            return;
+        }
         let Timing { state, driver, board, ring, written, counts, .. } = self;
         let mut hw = Driver::resume(board::Board { words: board }, *driver);
         let fired = hw.fired();
@@ -326,7 +336,7 @@ impl Timing {
     /// `sense_a`, `sense_v`: one service of the Chamber's sense line.
     fn on_sense(&mut self, c: Chamber) {
         let Timing { state, driver, board, ring, written, counts, started, hw_fault, .. } = self;
-        if !*started || *hw_fault {
+        if !*started || *hw_fault || self.link.tripped != 0 {
             return;
         }
         let mut hw = Driver::resume(board::Board { words: board }, *driver);
@@ -347,7 +357,8 @@ impl Timing {
         } else {
             let _ = hw.sensed(Chamber::A);
             let _ = hw.sensed(Chamber::V);
-            if let Some(p) = pm_core::validate(&sets::SELECTED) {
+            let set = if sets::AT_INIT { pm_core::validate(&sets::SELECTED) } else { None };
+            if let Some(p) = set {
                 state.permanent = p;
                 state.programmed = true;
                 state.therapy = Therapy::Permanent;
@@ -363,7 +374,9 @@ impl Timing {
     ///
     /// The link is up from a Job that had a message until `LINK_LOST_JOBS`
     /// Jobs have had none, or the Endpoint reports that `comms` was
-    /// stopped or restarted (PM23.4). A command is given to the step
+    /// stopped or restarted (PM23.4). The battery level is the one the
+    /// link last brought (BOL from the start); below the trip level
+    /// nothing paces. A command is given to the step
     /// before the tick, so that what it arms is armed in this Job; the
     /// step is told of the link by the tick, so a command of the Job that
     /// first hears the link finds it down.
@@ -390,40 +403,82 @@ impl Timing {
             link.serial = link.serial.wrapping_add(1);
             link.last = verdict::REFUSED as u32;
         }
+        // The battery level is taken first: it decides whether anything
+        // else is done.
+        let mut command = None;
+        let mut answered = false;
+        if inbox.has_command {
+            let c = code_of(&inbox.command);
+            let set = set_of(&inbox.command);
+            if c == code::BATTERY {
+                link.battery = pm_core::wire::value_of(&inbox.command);
+                answered = true;
+            } else if c == code::PROGRAM {
+                command = pm_core::validate(&set).map(pm_core::Command::Program);
+            } else if c == code::TEMPORARY {
+                command = pm_core::validate(&set).map(pm_core::Command::StartTemporary);
+            } else if c == code::END_TEMPORARY {
+                command = Some(pm_core::Command::EndTemporary);
+            } else if c == code::PACE_NOW {
+                command = Some(pm_core::Command::PaceNow);
+            } else if c == code::MAGNET_RESPONSE {
+                command = Some(pm_core::Command::MagnetResponse(pm_core::wire::value_of(&inbox.command) == 1));
+            }
+        }
+        let battery = pm_core::wire::battery_of(link.battery);
+        let tripped = matches!(battery, Battery::Tripped);
+        let mut v = verdict::ACCEPTED;
         if !*hw_fault {
             let mut hw = Driver::resume(board::Board { words: board }, *driver);
-            if inbox.has_command {
-                let c = code_of(&inbox.command);
-                let set = set_of(&inbox.command);
-                let command = if c == code::PROGRAM {
-                    pm_core::validate(&set).map(pm_core::Command::Program)
-                } else if c == code::TEMPORARY {
-                    pm_core::validate(&set).map(pm_core::Command::StartTemporary)
-                } else if c == code::END_TEMPORARY {
-                    Some(pm_core::Command::EndTemporary)
-                } else if c == code::PACE_NOW {
-                    Some(pm_core::Command::PaceNow)
-                } else {
-                    None
-                };
+            if tripped {
+                // PM7.2, PM30.3: below the trip level every function is
+                // off, as a device without power is. What was armed is
+                // withdrawn (a pulse already begun ends at its own end
+                // compare), and the state is the Power-On Reset State with
+                // empty histories, which is the State entered when the
+                // level is back. Commands are declined.
+                if link.tripped == 0 {
+                    let mut k = 0;
+                    while k < 2 {
+                        if matches!(hw.disarm(CHAMBERS[k]), Disarmed::TooLate) {
+                            counts.too_late = counts.too_late.saturating_add(1);
+                        }
+                        k += 1;
+                    }
+                    *state = State::POWER_ON_RESET;
+                    *ring = [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING];
+                    *written = 0;
+                    link.tripped = 1;
+                }
+                if command.is_some() {
+                    v = verdict::DECLINED;
+                    answered = true;
+                }
+            } else {
+                link.tripped = 0;
                 if let Some(command) = command {
                     event(state, ring, written, counts, &mut hw, Event::Command(command));
-                    let v = if c == code::TEMPORARY && !state.temporary_wanted { verdict::DECLINED } else { verdict::ACCEPTED };
-                    link.serial = link.serial.wrapping_add(1);
-                    link.last = v as u32 + seq_of(&inbox.command) as u32 * 0x100;
+                    if code_of(&inbox.command) == code::TEMPORARY && !state.temporary_wanted {
+                        v = verdict::DECLINED;
+                    }
+                    answered = true;
                 }
+                let now = hw.now();
+                let magnet = hw.magnet();
+                event(state, ring, written, counts, &mut hw, Event::Tick { now, activity: 0, magnet, battery, link_up: link.up != 0 });
             }
-            let now = hw.now();
-            let magnet = hw.magnet();
-            event(state, ring, written, counts, &mut hw, Event::Tick { now, activity: 0, magnet, battery: Battery::Bol, link_up: link.up != 0 });
             hw.refresh(Chamber::A);
             hw.refresh(Chamber::V);
             *driver = hw.state;
         }
+        if answered {
+            link.serial = link.serial.wrapping_add(1);
+            link.last = v as u32 + seq_of(&inbox.command) as u32 * 0x100;
+        }
         pm_core::wire::Status {
             therapy: pm_core::wire::therapy_byte(state.therapy),
             mode: pm_core::wire::mode_byte(state.params().mode),
-            battery: pm_core::wire::battery_byte(Battery::Bol),
+            battery: pm_core::wire::battery_byte(battery),
             link_up: link.up != 0,
             serial: link.serial,
             verdict: (link.last & 0xFF) as u8,

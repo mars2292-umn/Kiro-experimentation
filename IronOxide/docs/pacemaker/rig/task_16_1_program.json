@@ -6,7 +6,7 @@
  },
  "binaries": {
   "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d",
-  "pacemaker": "sha256:fc49e8890ee3e898ef7575c18144f1c45b5f89bd1769dd5361f9058a4cb7fc89",
+  "pacemaker": "sha256:5c0a1ef010efc643495566405617dd24606c89c1aa1ea229be415bf1e4eb1fc1",
   "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48"
  },
  "program": {
@@ -21,7 +21,7 @@
       "mode": 42,
       "of": 0,
       "refused": 0,
-      "state": 1,
+      "state": 0,
       "verdicts": 0
      },
      "transfers": 4
@@ -40,7 +40,7 @@
       "mode": 42,
       "of": 5,
       "refused": 0,
-      "state": 1,
+      "state": 0,
       "verdicts": 1
      }
     },
@@ -72,7 +72,7 @@
    },
    {
     "detail": {
-     "transfers_to_the_state": 8,
+     "transfers_to_the_state": 7,
      "verdict": {
       "battery": 0,
       "code": 6,
@@ -144,11 +144,11 @@
    }
   ],
   "transfers": {
-   "bytes_skipped": 18,
+   "bytes_skipped": 19,
    "gaps_in_the_report_count": 0,
    "of_other_than_32_bytes": 0,
    "reports_with_a_wrong_sum": 0,
-   "transfers_reported": 110,
+   "transfers_reported": 109,
    "whose_bytes_were_no_frame": 0
   },
   "verdict": "PASS"
@@ -178,14 +178,14 @@
    },
    "pacemaker": {
     "path": "target/pacemaker-link-trace/thumbv7em-none-eabihf/release/pacemaker",
-    "sha256": "sha256:fc49e8890ee3e898ef7575c18144f1c45b5f89bd1769dd5361f9058a4cb7fc89"
+    "sha256": "sha256:5c0a1ef010efc643495566405617dd24606c89c1aa1ea229be415bf1e4eb1fc1"
    }
   },
   "capture": {
    "file": "capture.bin",
    "length_us": 30000000.0,
    "rate_hz": 1000000,
-   "sha256": "sha256:5d32883e4d7d337ce5e99d1c29f612da57d4631a8a08c96408586a18f77872af"
+   "sha256": "sha256:b4fc977a4d9ad0b7d39b299b337004ce01d1cf424a91585d2603d3aa8585f839"
   },
   "escape_interval_us": 666666.0,
   "mode": "VVI",
@@ -241,8 +241,8 @@
    "fusions": 0,
    "pace_intervals": {
     "count": 44,
-    "max_us": 666664.0,
-    "min_us": 666663.0
+    "max_us": 666665.0,
+    "min_us": 666664.0
    },
    "paces": 45,
    "pulse_widths": {
@@ -276,7 +276,7 @@
     "name": "message_rejected",
     "task": 4,
     "partition": 1,
-    "instant_ticks": 63360153,
+    "instant_ticks": 59520153,
     "detail": 0
    }
   ],
@@ -296,7 +296,7 @@
     "name": "message_rejected",
     "task": 4,
     "partition": 1,
-    "instant_ticks": 63360153,
+    "instant_ticks": 59520153,
     "detail": 0
    }
   ]

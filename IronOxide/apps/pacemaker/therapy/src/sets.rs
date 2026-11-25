@@ -104,3 +104,16 @@ pub const BY_FEATURE: [u32; WORDS] = AOO_120;
 pub const BY_FEATURE: [u32; WORDS] = AAI_120;
 #[cfg(not(any(feature = "qemu-voo", feature = "qemu-aoo", feature = "qemu-aai", feature = "nrf52840", feature = "set-vvi-90", feature = "set-voo-60", feature = "set-aai-90", feature = "set-aoo-90")))]
 pub const BY_FEATURE: [u32; WORDS] = VVI_120;
+
+/// Whether the build is programmed with `SELECTED` at Init. A build of the
+/// board without a set of its own is not: it starts in the Power-On Reset
+/// State and stays there until a set comes over the link (PM7.1, PM7.4,
+/// PM30.2; task 16.6). The QEMU Target has no link and always is.
+pub const AT_INIT: bool = cfg!(any(
+    not(feature = "nrf52840"),
+    feature = "set-env",
+    feature = "set-vvi-90",
+    feature = "set-voo-60",
+    feature = "set-aai-90",
+    feature = "set-aoo-90"
+));
