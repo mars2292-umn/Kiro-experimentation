@@ -44,6 +44,10 @@ pub mod code {
     pub const ACTIVITY: u8 = 0x21;
     /// The magnet response, in word 1: 1 on, 0 off (PM8.4).
     pub const MAGNET_RESPONSE: u8 = 0x22;
+    /// The pacing threshold test started, the value under test in word 1
+    /// (`threshold::what`, 0 to 3), and stopped (PM17.4; task 22.6).
+    pub const THRESHOLD_START: u8 = 0x34;
+    pub const THRESHOLD_STOP: u8 = 0x35;
 }
 
 /// What `control` answers a command with (a STATUS frame's code; the
@@ -132,7 +136,7 @@ pub fn set_of(m: &[u32; PROGRAM_WORDS]) -> [u32; WORDS] {
 /// Whether `m` is a message of the Endpoint `program`: word 0 a code and a
 /// sequence number and nothing above them; with PROGRAM or TEMPORARY a set
 /// `validate` accepts; with BATTERY a level, with ACTIVITY a value up to
-/// 255 and with MAGNET_RESPONSE 0 or 1
+/// 255, with MAGNET_RESPONSE 0 or 1 and with THRESHOLD_START 0 to 3
 /// in word 1 and zeros after it; with the other codes zeros.
 #[inline(always)]
 #[must_use]
@@ -161,7 +165,12 @@ pub fn admitted(m: &[u32; PROGRAM_WORDS]) -> bool {
             return false;
         }
         1
-    } else if c == code::HEARD || c == code::END_TEMPORARY || c == code::PACE_NOW {
+    } else if c == code::THRESHOLD_START {
+        if set[0] > 3 {
+            return false;
+        }
+        1
+    } else if c == code::HEARD || c == code::END_TEMPORARY || c == code::PACE_NOW || c == code::THRESHOLD_STOP {
         0
     } else {
         return false;

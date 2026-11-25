@@ -28,6 +28,7 @@ mod event;
 pub mod frame;
 pub mod wire;
 pub mod record;
+pub mod threshold;
 mod mode;
 mod params;
 pub mod rate;

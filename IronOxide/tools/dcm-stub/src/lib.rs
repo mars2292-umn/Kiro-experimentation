@@ -52,6 +52,14 @@ impl Dcm {
         f
     }
 
+    /// A frame of `kind` with these bytes (READ_RECORD, TREND_START, SET_DATA).
+    pub fn bytes(&mut self, kind: u8, bytes: &[u8]) -> Frame {
+        let mut f = Frame::empty(self.next(), kind);
+        f.len = bytes.len() as u8;
+        f.payload[..bytes.len()].copy_from_slice(bytes);
+        f
+    }
+
     /// The parts of a parameter set, permanent or temporary, in order.
     pub fn set(&mut self, words: &[u32; WORDS], temporary: bool) -> Vec<Frame> {
         let k = if temporary { kind::TEMPORARY_PART } else { kind::PROGRAM_PART };

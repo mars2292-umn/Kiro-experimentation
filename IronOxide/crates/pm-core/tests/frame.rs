@@ -6,10 +6,11 @@
 use pm_core::frame::*;
 use pm_core::{NOMINAL_WORDS, WORDS};
 
-const KINDS: [u8; 22] = [
+const KINDS: [u8; 27] = [
     kind::POLL, kind::INTERROGATE, kind::READ_PARAMETERS, kind::PROGRAM_PART, kind::TEMPORARY_PART, kind::END_TEMPORARY, kind::PACE_NOW,
     kind::SET_BATTERY, kind::SET_ACTIVITY, kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP,
     kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE, kind::IDLE, kind::STATUS, kind::IDENTITY, kind::PARAM_PART, kind::RECORD, kind::SET_MAGNET_RESPONSE,
+    kind::READ_RECORD, kind::MARKERS_START, kind::MARKERS_STOP, kind::TREND_START, kind::SET_DATA,
 ];
 
 fn frame(seq: u8, k: u8, part: u8, len: u8) -> Frame {
@@ -61,7 +62,7 @@ fn every_kind_and_length_round_trips() {
         assert!(kind_known(k));
         for len in 0..=PAYLOAD as u8 {
             for part in 0..PARTS as u8 {
-                let f = frame(s as u8 * 11, k, part, len);
+                let f = frame(s as u8 * 9, k, part, len);
                 let bytes = encode(&f);
                 assert_eq!(decode(&bytes), Some(f), "kind {k:#x} len {len} part {part}");
                 assert_eq!(&bytes[28..30], &[0, 0]);
@@ -69,9 +70,16 @@ fn every_kind_and_length_round_trips() {
             }
         }
     }
-    assert_eq!(n, 22 * 25 * 5);
-    // The kinds are exactly these 22 (21 until task 16.4 added the magnet response).
-    assert_eq!((0..=255u8).filter(|k| kind_known(*k)).count(), 22);
+    assert_eq!(n, 27 * 25 * 5);
+    // The kinds are exactly these 27 (21 until task 16.4 added the magnet response, 22 until task 22.4 added the five of the records).
+    assert_eq!((0..=255u8).filter(|k| kind_known(*k)).count(), 27);
+    // A RECORD names a part of a record, up to the trend's 65; no other frame a part beyond a set's.
+    for part in [5u8, 64] {
+        let f = frame(1, kind::RECORD, part, 24);
+        assert_eq!(decode(&encode(&f)), Some(f));
+        assert_eq!(decode(&encode(&frame(1, kind::PARAM_PART, part, 24))), None);
+    }
+    assert_eq!(decode(&encode(&frame(1, kind::RECORD, 65, 24))), None);
 }
 
 #[test]

@@ -17,7 +17,7 @@
 //! here (`dropped`); a batch that did not arrive is seen by its sequence
 //! number and counted here (`lost`).
 
-use pm_core::record::{self, aug, kind};
+use pm_core::record::{self, aug, data, kind, request};
 
 /// The bins of a rate histogram: below 30 ppm, fifteen of 10 ppm from 30
 /// to 179 ppm, and 180 ppm or above (the programmable rates are 30 to
@@ -94,6 +94,58 @@ pub struct History {
     pub pace_interval: u32,
     pub sensor_interval: u32,
     pub jobs: u32,
+    /// The Marker transmission (task 22.4): 1 while it runs, the number of
+    /// the next record to send, and the records it had to pass over
+    /// because the buffer had gone round before they were sent.
+    pub stream: u32,
+    pub stream_next: u32,
+    pub stream_skipped: u32,
+    /// Requests that named nothing this store has.
+    pub unknown_requests: u32,
+    /// PM18.7: the implant data, as the DCM supplied it (`implant` below).
+    pub implant: [u32; record::IMPLANT_WORDS],
+    /// PM17.1 to PM17.3, PM17.5: the measured data's stand-ins, as supplied
+    /// (`measured` below). They are never measured.
+    pub measured: [u32; record::MEASURED_WORDS],
+    /// Always zero: the words are an even number.
+    pub spare: u32,
+}
+
+/// The words of the implant data (PM18.7). The model and the serial
+/// number are `link`'s to tell (the IDENTITY frame) and are not kept twice.
+pub mod implant {
+    /// Dates as days since 2000-01-01.
+    pub const IMPLANT_DATE: usize = 0;
+    pub const LEAD_IMPLANT_DATE: usize = 1;
+    /// Bit 0 the atrial lead, bit 1 the ventricular: 1 bipolar, 0 unipolar.
+    pub const LEAD_POLARITY: usize = 2;
+    /// The pacing thresholds, in tenths of a volt at the pulse width of
+    /// the test.
+    pub const ATRIAL_THRESHOLD: usize = 3;
+    pub const VENTRICULAR_THRESHOLD: usize = 4;
+    /// The P and R wave amplitudes at implant, in tenths of a millivolt.
+    pub const P_WAVE: usize = 5;
+    pub const R_WAVE: usize = 6;
+    /// The lead impedances at implant, in ohms.
+    pub const ATRIAL_IMPEDANCE: usize = 7;
+    pub const VENTRICULAR_IMPEDANCE: usize = 8;
+    /// The patient's indications for pacing, as the DCM's code.
+    pub const INDICATIONS: usize = 9;
+}
+
+/// The values of the measured data (PM17.1 to PM17.3): stand-ins the test
+/// supplies, told with the mark `record::SIMULATED`.
+pub mod measured {
+    /// The battery voltage, in millivolts.
+    pub const BATTERY_VOLTAGE: usize = 0;
+    /// The P and R wave amplitudes, in tenths of a millivolt.
+    pub const P_WAVE: usize = 1;
+    pub const R_WAVE: usize = 2;
+    /// The lead impedance measured (PM17.2), in ohms: the atrial lead's in
+    /// the low half, the ventricular lead's in the high half.
+    pub const LEAD_IMPEDANCE: usize = 3;
+    /// The date of the last interrogation, as days since 2000-01-01.
+    pub const LAST_INTERROGATION: usize = 4;
 }
 
 /// The bin of an interval in microseconds: of its rate, rounded down to a
@@ -139,6 +191,13 @@ impl History {
             pace_interval: 0,
             sensor_interval: 0,
             jobs: 0,
+            stream: 0,
+            stream_next: 0,
+            stream_skipped: 0,
+            unknown_requests: 0,
+            implant: [0; record::IMPLANT_WORDS],
+            measured: [0; record::MEASURED_WORDS],
+            spare: 0,
         }
     }
 
@@ -243,6 +302,122 @@ impl History {
             self.trend_written = self.trend_written.wrapping_add(1);
             self.trend_stamp_ms = now_ms;
         }
+    }
+}
+
+impl History {
+    /// One request of the Endpoint `request` at `now_ms` (task 22.4):
+    /// what it changes, and the record that answers it, if it asks for one.
+    pub fn request(&mut self, r: &[u32; record::REQUEST_WORDS], now_ms: u32) -> Option<[u32; record::DATA_WORDS]> {
+        let (code, a, b) = (r[0], r[1], r[2]);
+        if code == request::RESET_HISTOGRAMS {
+            self.reset_histograms();
+        } else if code == request::TREND {
+            self.start_trend(a, b, now_ms);
+        } else if code == request::MARKERS {
+            self.stream = if a != 0 { 1 } else { 0 };
+            // From the next record on: what is in the buffer was before the start.
+            self.stream_next = self.markers_written;
+        } else if code == request::SET_IMPLANT && (a as usize) < record::IMPLANT_WORDS {
+            self.implant[a as usize] = b;
+        } else if code == request::SET_MEASURED && (a as usize) < record::MEASURED_WORDS {
+            self.measured[a as usize] = b;
+        } else if code == request::READ && a < 0x100 && b < record::parts(a as u8) {
+            return Some(self.read(a as u8, b as u8));
+        } else {
+            self.unknown_requests = self.unknown_requests.saturating_add(1);
+        }
+        None
+    }
+
+    /// Part `part` of the record of `kind` (both checked by the caller).
+    fn read(&self, kind: u8, part: u8) -> [u32; record::DATA_WORDS] {
+        let mut m = [0u32; record::DATA_WORDS];
+        m[0] = record::head(kind, part);
+        let p = part as usize;
+        if kind >= data::HISTOGRAM && kind < data::HISTOGRAM + 4 {
+            let h = &self.histogram[(kind - data::HISTOGRAM) as usize % HISTOGRAMS];
+            let mut k = 0;
+            while k < 5 {
+                if 5 * p + k < BINS {
+                    m[1 + k] = h[5 * p + k];
+                }
+                k += 1;
+            }
+        } else if kind == data::COUNTS {
+            if part == 0 {
+                m[1] = self.pvcs;
+                m[2] = self.atr_episodes;
+                m[3] = self.records;
+                m[4] = self.dropped;
+                m[5] = self.lost;
+            } else {
+                m[1] = self.resets;
+                m[2] = self.batches;
+                m[3] = self.peer_changes;
+                m[4] = self.markers_written;
+            }
+        } else if kind == data::TREND {
+            if part == 0 {
+                m[1] = self.trend_duration;
+                m[2] = self.trend_what;
+                m[3] = self.trend_written;
+                m[4] = self.trend_stamp_ms;
+                m[5] = TREND as u32;
+            } else {
+                // Two samples, oldest first: in Continuous the buffer has
+                // gone round once it is full.
+                let held = if self.trend_written as usize > TREND { TREND } else { self.trend_written as usize };
+                let first = if self.trend_duration == duration::FIXED || self.trend_written as usize <= TREND { 0 } else { self.trend_written as usize % TREND };
+                let mut k = 0;
+                while k < 2 {
+                    let n = 2 * (p - 1) + k;
+                    if n < held {
+                        let sample = self.trend[(first + n) % TREND];
+                        m[1 + 2 * k] = sample[0];
+                        m[2 + 2 * k] = sample[1];
+                    }
+                    k += 1;
+                }
+            }
+        } else if kind == data::IMPLANT {
+            let mut k = 0;
+            while k < 5 {
+                m[1 + k] = self.implant[(5 * p + k) % record::IMPLANT_WORDS];
+                k += 1;
+            }
+        } else if kind == data::MEASURED {
+            if part == 0 {
+                // PM17.5: marked as simulated.
+                m[1] = record::SIMULATED;
+                m[2] = self.measured[measured::BATTERY_VOLTAGE];
+                m[3] = self.measured[measured::P_WAVE];
+                m[4] = self.measured[measured::R_WAVE];
+                m[5] = self.measured[measured::LEAD_IMPEDANCE];
+            } else {
+                m[1] = self.measured[measured::LAST_INTERROGATION];
+            }
+        }
+        m
+    }
+
+    /// The next record of the Marker transmission, if it runs and one is
+    /// waiting: its number and its three words. Records the buffer lost
+    /// before they could be sent are passed over and counted.
+    pub fn next_marker(&mut self) -> Option<[u32; record::DATA_WORDS]> {
+        if self.stream == 0 || self.stream_next == self.markers_written {
+            return None;
+        }
+        let behind = self.markers_written.wrapping_sub(self.stream_next);
+        if behind as usize > MARKERS {
+            let over = behind - MARKERS as u32;
+            self.stream_skipped = self.stream_skipped.saturating_add(over);
+            self.stream_next = self.stream_next.wrapping_add(over);
+        }
+        let r = self.markers[self.stream_next as usize % MARKERS];
+        let m = [record::head(data::MARKER, 0), self.stream_next, r[0], r[1], r[2], 0];
+        self.stream_next = self.stream_next.wrapping_add(1);
+        Some(m)
     }
 }
 

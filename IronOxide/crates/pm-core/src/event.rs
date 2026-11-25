@@ -32,6 +32,9 @@ pub enum Command {
     Program(Params),
     /// Start temporary pacing with this set.
     StartTemporary(Params),
+    /// The temporary set replaced by this one while temporary pacing is
+    /// in force (the threshold test's next setting, PM17.4; task 22.6).
+    StepTemporary(Params),
     /// End temporary pacing.
     EndTemporary,
     /// Pace-Now.

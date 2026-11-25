@@ -53,7 +53,7 @@
   "capacities": {
     "lock_stack": 4,
     "timer_slots": 20,
-    "event_log": 32,
+    "event_log": 16,
     "derived": true
   },
   "layout": {
@@ -477,7 +477,9 @@
       "raises": [],
       "endpoint_roles": [
         "program.dcm",
-        "status.dcm"
+        "status.dcm",
+        "records.dcm",
+        "request.dcm"
       ],
       "nesting_depth": 0,
       "slots": {
@@ -510,7 +512,9 @@
       "resources": [],
       "raises": [],
       "endpoint_roles": [
-        "events.log"
+        "events.log",
+        "records.log",
+        "request.log"
       ],
       "nesting_depth": 0,
       "slots": {
@@ -675,6 +679,94 @@
         }
       ],
       "storage_offset": 2048,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "records",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 2,
+      "k": 2,
+      "ceiling": "kernel",
+      "payload_bytes": 24,
+      "payload_type": "[u32;6]",
+      "protocol": null,
+      "gating_rank": 0,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "log",
+          "task": "diag.history",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": []
+        },
+        {
+          "role": "dcm",
+          "task": "comms.link",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_records"
+            }
+          ]
+        }
+      ],
+      "storage_offset": 2944,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "request",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 2,
+      "k": 2,
+      "ceiling": "kernel",
+      "payload_bytes": 12,
+      "payload_type": "[u32;3]",
+      "protocol": null,
+      "gating_rank": 0,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "dcm",
+          "task": "comms.link",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_nothing"
+            }
+          ]
+        },
+        {
+          "role": "log",
+          "task": "diag.history",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": []
+        }
+      ],
+      "storage_offset": 3136,
       "derived": [
         "k",
         "storage_offset"

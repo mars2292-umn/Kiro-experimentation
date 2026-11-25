@@ -21,11 +21,11 @@ A mutant, from the workspace root: `cargo xtask mutations --only <id>` applies i
 
 | Member (`-p`) | Source it proves | Files proved, 2026-11-24 |
 |---|---|---|
-| `pm-core-proof` | `crates/pm-core/src/` | 186 |
+| `pm-core-proof` | `crates/pm-core/src/` | 192 |
 | `pm-hw-proof` | `crates/pm-hw/src/` | 63 |
-| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 85 |
-| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 87 |
-| `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 27 |
+| `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 86 |
+| `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 88 |
+| `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 41 |
 
 ## The therapy logic: `pm-core`
 
@@ -47,7 +47,7 @@ Supporting statements about the Mode, used by the above: `Chambers::has` (`mode.
 
 **The MSR and the URL (2026-11-25).** P1 supposes `url_floor`: no escape interval the set allows is shorter than its URL interval, which in a rate-adaptive Mode asks that the MSR interval is not. On the user's decision `validate` now refuses a set of VDDR or DDDR, the two rate-adaptive Modes the URL limits, whose MSR is above its URL: the limit is part of `spec::limits` and so of P5, with the mutant `pm-validate-p5-msr-above-url-admitted` and a host test over every pair of values that also compares the two intervals of each set returned. That `validate`'s result satisfies `url_floor` is not stated as a contract: it follows from P5's limits (MSR ≤ URL, LRL ≤ URL) through the conversion of a rate to its interval, and is tested, not proven. In the rate-adaptive Modes that do not track the supposition stays one.
 
-**ATR's change of Mode and stage E5 (2026-11-25).** The Mode now changes at the ventricular event at which Fallback begins or ends (finding B41): the tick foresees the event and marks a change as waiting, and the event goes through `switched`. No contract changed and none states ATR: P1 and P2 are stated for events at which no change is waiting, as before, and the events of ATR's changes are now among those at which one is. The event record of stage E5 (`record.rs`, `escape_modifiers`, and in `therapy` the ring, the batch and the Marks) is proven free of run-time errors with the rest of the two crates and has no contract of its own but `record::word1`'s. `diag` (level D) has no member. The file counts above are of 2026-11-25, each member proven with each pair of solvers alone; `pm-hw-proof` was last proven by the job of the same day, before these changes, which do not touch it.
+**ATR's change of Mode and stage E5 (2026-11-25).** The Mode now changes at the ventricular event at which Fallback begins or ends (finding B41): the tick foresees the event and marks a change as waiting, and the event goes through `switched`. No contract changed and none states ATR: P1 and P2 are stated for events at which no change is waiting, as before, and the events of ATR's changes are now among those at which one is. The event record of stage E5 (`record.rs`, `escape_modifiers`, and in `therapy` the ring, the batch and the Marks) is proven free of run-time errors with the rest of the two crates and has no contract of its own but `record::word1`'s. `diag` (level D) has no member. Tasks 22.4 to 22.6 added, under the same proof and with no contract of their own, the requests and records (`record.rs`), the threshold test's settings (`threshold.rs`), the step's command `StepTemporary` (which keeps the State: P4 is proven over it with the rest), the link's handling of them in `comms`, and `control`'s count of the test's cycles. The file counts above are of 2026-11-25, each member proven with each pair of solvers alone; `pm-hw-proof` was last proven by the job of the same day, before these changes, which do not touch it.
 
 **The noise rule is tested, not proven (finding B42, 2026-11-25).** No contract states PM13.1; a defect in it (the atrium's cycle in the dual-chamber Modes) was found on the rig and passed every proof before and after its fix.
 

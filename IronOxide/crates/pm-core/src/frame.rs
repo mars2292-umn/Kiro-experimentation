@@ -69,6 +69,19 @@ pub mod kind {
     pub const THRESHOLD_START: u8 = 0x34;
     pub const THRESHOLD_STOP: u8 = 0x35;
     pub const MEASURE: u8 = 0x36;
+    /// Stage E5 (task 22.4). One part of a record of `diag`'s: the
+    /// record's kind and the part, a byte each; answered by a [`RECORD`].
+    /// [`MEASURE`] reads the measured data so.
+    pub const READ_RECORD: u8 = 0x37;
+    /// The Marker transmission started and stopped (PM20.1): while it
+    /// runs every Marker comes as a [`RECORD`].
+    pub const MARKERS_START: u8 = 0x38;
+    pub const MARKERS_STOP: u8 = 0x39;
+    /// A trend begun now: the duration and the content, a byte each (PM18.3).
+    pub const TREND_START: u8 = 0x3A;
+    /// A word of the implant data (0) or a measured value's stand-in (1)
+    /// supplied: which, the index, and the value as four bytes.
+    pub const SET_DATA: u8 = 0x3B;
 
     /// Nothing to answer.
     pub const IDLE: u8 = 0x80;
@@ -83,11 +96,14 @@ pub mod kind {
     pub const RECORD: u8 = 0x84;
 }
 
+/// The parts a RECORD frame may name: the most a record has (the trend's).
+pub const RECORD_PARTS: usize = 65;
+
 /// Whether `k` is a kind of frame.
 #[inline(always)]
 #[must_use]
 pub const fn kind_known(k: u8) -> bool {
-    matches!(k, 0x01..=0x03 | 0x10..=0x13 | 0x20..=0x22 | 0x30..=0x36 | 0x80..=0x84)
+    matches!(k, 0x01..=0x03 | 0x10..=0x13 | 0x20..=0x22 | 0x30..=0x3B | 0x80..=0x84)
 }
 
 /// A frame, decoded.
@@ -171,7 +187,10 @@ pub fn decode(b: &[u8; FRAME]) -> Option<Frame> {
         return None;
     }
     let len = b[3] as usize;
-    if !kind_known(b[1]) || len > PAYLOAD || b[2] as usize >= PARTS || b[28] != 0 || b[29] != 0 {
+    // A RECORD's part is the record's (a trend has 65: `record::parts`); any
+    // other frame's is a part of a parameter set.
+    let parts = if b[1] == kind::RECORD { RECORD_PARTS } else { PARTS };
+    if !kind_known(b[1]) || len > PAYLOAD || b[2] as usize >= parts || b[28] != 0 || b[29] != 0 {
         return None;
     }
     let mut payload = [0u8; PAYLOAD];

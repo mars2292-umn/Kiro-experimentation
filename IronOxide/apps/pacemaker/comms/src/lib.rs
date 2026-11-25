@@ -35,6 +35,18 @@ pacemaker_decl::rsk_partition_comms!();
 
 pub use proto::Link;
 
+/// The validation function of the channel of `request` toward `link`,
+/// which carries nothing: no message is one.
+pub fn validate_nothing(_m: &[u32; pm_core::record::REQUEST_WORDS]) -> bool {
+    false
+}
+
+/// The validation function of the Endpoint `records` (R42.4: from level D
+/// to level C; PM22.4): exactly the records of `pm_core::record`.
+pub fn validate_records(m: &[u32; pm_core::record::DATA_WORDS]) -> bool {
+    pm_core::record::admitted(m)
+}
+
 /// The counts `link` keeps for the rig's probe, beside `proto::Link`'s.
 #[cfg(feature = "nrf52840")]
 mod spim {
@@ -124,6 +136,9 @@ pub fn link(mut cx: rsk_ctx::Link) {
             let mut set = pm_core::NOMINAL_WORDS;
             set[pm_core::word::LRL] = 31;
             let _ = cx.program.send(&pm_core::wire::message_with_set(pm_core::wire::code::PROGRAM, 0, &set));
+        } else if misbehave::KIND == b'r' {
+            // `record`: it is `diag` that misbehaves (task 22.4); `link`
+            // goes on as ever.
         } else {
             // Messages the validation function admits, far more than the
             // Endpoint holds or `control` takes.
@@ -199,6 +214,20 @@ pub fn link(mut cx: rsk_ctx::Link) {
                 proto::peer_changed(l);
             }),
             Err(_) => cx.proto.with(|l| proto::not_forwarded(l)),
+        }
+    }
+    // The request to `diag` for a frame that was one, and a record of
+    // `diag`'s when the one before has been told (task 22.4). A record the
+    // validation function refused never reaches here: the Kernel reports
+    // it against `diag`. `diag` stopped or restarted is nothing to `link`.
+    if let Some(r) = cx.proto.with(|l| proto::take_request(l)) {
+        if cx.request.send(&r).is_err() {
+            cx.proto.with(|l| proto::not_requested(l));
+        }
+    }
+    if cx.proto.with(|l| proto::wants_record(l)) {
+        if let Ok(Some(m)) = cx.records.recv() {
+            cx.proto.with(|l| proto::record_in(l, &m));
         }
     }
     // The battery level again, when `therapy` has started again.

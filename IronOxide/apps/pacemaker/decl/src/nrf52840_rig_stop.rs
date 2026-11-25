@@ -5,7 +5,10 @@
 //! rest of the run (PM23.4). Nothing else differs.
 rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 45.s(),
-    safe_state = crate::safe_state, log_capacity = 32;
+    // A Health_Monitor log of 16 events (32 until 2026-11-25): the log is in
+    // the Kernel's RAM, which the builds with the Kernel's trace need for
+    // the Kernel's stack (finding B44); no run has logged more than five.
+    safe_state = crate::safe_state, log_capacity = 16;
 
     partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 12.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
@@ -85,6 +88,16 @@ rsk::app! {
     // The channel toward `control` exists and is never read; its
     // validation function accepts nothing.
     endpoint events: [u32; 28] { pg => therapy.control validate = crate::validate_events ops = 1, log => diag.history ops = 2 } capacity = 2, payload = 112;
+
+    // What leaves `diag`, and what is asked of it (task 22.4). `records`:
+    // one record of six words, a link frame's payload, which `comms`'s
+    // validation function admits only as a record of `pm_core::record`
+    // (R42.4: from level D to level C). `request`: a code and two values
+    // from `link`; the channel toward `link` carries nothing. One message
+    // a Job each way and a capacity of two: `history` sends one record in
+    // 100 ms and `link` takes one in 50 ms.
+    endpoint records: [u32; 6] { log => diag.history ops = 1, dcm => comms.link validate = crate::validate_records ops = 1 } capacity = 2, payload = 24;
+    endpoint request: [u32; 3] { dcm => comms.link validate = crate::validate_nothing ops = 1, log => diag.history ops = 1 } capacity = 2, payload = 12;
 
     // A sense edge: its instant captured by TIMER3, and counted (the fork).
     ppi sense_a_edge (event = GPIOTE[0x100], task = TIMER3[0x048], fork = TIMER1[0x008]);

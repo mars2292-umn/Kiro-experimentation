@@ -15,13 +15,13 @@ fn a_message_carries_its_code_its_number_and_its_set() {
 }
 
 #[test]
-fn the_validation_admits_exactly_the_eight_codes() {
+fn the_validation_admits_exactly_the_ten_codes() {
     for c in 0..=255u8 {
         let plain = admitted(&message(c, 9));
         let with_set = admitted(&message_with_set(c, 9, &NOMINAL_WORDS));
         match c {
-            // (Five codes until tasks 16.4 and 16.5 added the two that carry a value, seven until task 19.5 added the activity value; 0 is a value of all three.)
-            code::HEARD | code::END_TEMPORARY | code::PACE_NOW | code::BATTERY | code::ACTIVITY | code::MAGNET_RESPONSE => assert!(plain && !with_set, "code {c:#x}"),
+            // (Five codes until tasks 16.4 and 16.5 added the two that carry a value, seven until task 19.5 added the activity value, eight until task 22.6 added the threshold test's two; 0 is a value of all four that carry one.)
+            code::HEARD | code::END_TEMPORARY | code::PACE_NOW | code::BATTERY | code::ACTIVITY | code::MAGNET_RESPONSE | code::THRESHOLD_START | code::THRESHOLD_STOP => assert!(plain && !with_set, "code {c:#x}"),
             // A set of zeros is no set (the Mode's word alone would pass; the LRL's does not).
             code::PROGRAM | code::TEMPORARY => assert!(!plain && with_set, "code {c:#x}"),
             _ => assert!(!plain && !with_set, "code {c:#x}"),
@@ -99,4 +99,14 @@ fn a_value_is_admitted_exactly_in_its_range() {
     let m = message_with_value(code::BATTERY, 7, 3);
     assert_eq!((code_of(&m), seq_of(&m), value_of(&m)), (code::BATTERY, 7, 3));
     assert_eq!([0, 1, 2, 3, 4, 5].map(|v| battery_of(v) as u8), [0, 1, 2, 3, 4, 4]);
+}
+
+/// Task 22.6: the threshold test names one of four values.
+#[test]
+fn the_threshold_test_names_one_of_four_values() {
+    for v in 0..=3 {
+        assert!(admitted(&message_with_value(code::THRESHOLD_START, 1, v)));
+    }
+    assert!(!admitted(&message_with_value(code::THRESHOLD_START, 1, 4)));
+    assert!(!admitted(&message_with_value(code::THRESHOLD_STOP, 1, 1)), "a Stop carries nothing");
 }

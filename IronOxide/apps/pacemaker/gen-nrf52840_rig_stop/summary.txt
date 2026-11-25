@@ -4,10 +4,12 @@ Profile: 0.6 Ravenscar
 Operating duration: 720000000 ticks
 Safe state: crate::safe_state
 Config checksum (CRC-32): 0x3a9fafbc
-Capacities: lock stack 4, timer slots 20, event log 32
+Capacities: lock stack 4, timer slots 20, event log 16
 Endpoint program (plain, `[u32;30]`): dcm => comms.link, pg => therapy.control; capacity 4 each way, payload 120 bytes, storage offset 0; dcm performs up to 2 operations per Job, pg validates the payload with crate::validate_program, pg performs up to 4 operations per Job
 Endpoint status (plain, `[u32;4]`): pg => therapy.control, dcm => comms.link; capacity 2 each way, payload 16 bytes, storage offset 1920; pg validates the payload with crate::validate_status, dcm performs up to 2 operations per Job
 Endpoint events (plain, `[u32;28]`): pg => therapy.control, log => diag.history; capacity 2 each way, payload 112 bytes, storage offset 2048; pg validates the payload with crate::validate_events, log performs up to 2 operations per Job
+Endpoint records (plain, `[u32;6]`): log => diag.history, dcm => comms.link; capacity 2 each way, payload 24 bytes, storage offset 2944; dcm validates the payload with crate::validate_records
+Endpoint request (plain, `[u32;3]`): dcm => comms.link, log => diag.history; capacity 2 each way, payload 12 bytes, storage offset 3136; dcm validates the payload with crate::validate_nothing
 Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0, 2 -> 0xc0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
 Kernel-owned peripherals: CLOCK, TIMER0, WDT, PPI
 Kernel peripheral intervals (R16.2, outside every Partition view): PPB 0xe0000000 (2^20), CLOCK 0x40000000 (2^12), TIMER0 0x40008000 (2^12), WDT 0x40010000 (2^12), PPI 0x4001f000 (2^12)

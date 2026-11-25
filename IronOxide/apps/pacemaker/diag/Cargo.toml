@@ -11,6 +11,9 @@ publish.workspace = true
 # records' keeping alone (`history`), for host tests: the QEMU declaration
 # has no `diag`.
 nrf52840 = ["pacemaker-decl/nrf52840"]
+# Task 22.4: with `PM_LINK_FAULT=record`, from 10 s into the run every Job
+# of `history` sends a record that `comms`'s validation function refuses.
+misbehave = ["nrf52840"]
 
 [dependencies]
 pacemaker-decl = { path = "../decl" }

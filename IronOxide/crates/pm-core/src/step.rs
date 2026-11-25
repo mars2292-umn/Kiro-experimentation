@@ -1263,6 +1263,16 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                         st.temporary_wanted = true;
                     }
                 }
+                Command::StepTemporary(set) => {
+                    // PM17.4: only in the Temporary State, which it does
+                    // not change: the set in force is the new one from
+                    // here, as its pulses are from the next arming.
+                    if matches!(st.therapy, Therapy::Temporary) && st.temporary_wanted {
+                        st.temporary = set;
+                        st.in_force = in_force(&st);
+                        st.in_force_valid = true;
+                    }
+                }
                 Command::EndTemporary => st.temporary_wanted = false,
                 // PM8.4: in force, with the State, at the next timing event.
                 Command::MagnetResponse(on) => st.magnet_off = !on,

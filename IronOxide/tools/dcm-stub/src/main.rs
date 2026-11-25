@@ -41,6 +41,12 @@
 //!   serve is sent, and its answer carries the status);
 //! - `wait:<field>=<value>`: until a STATUS has the field (`state`, `mode`,
 //!   `battery`, `link_up`) at the value, for at most 200 transfers;
+//! - `read:<kind>,<part>`: one part of a record of `diag`'s (task 22.4);
+//!   `reset-histograms`, `trend:<duration>,<content>`,
+//!   `data:<0 implant, 1 measured>,<index>,<value>`: the requests;
+//!   `markers:<seconds>`: the Marker transmission for that long, every
+//!   record with its arrival; `threshold:<0..3>` and `threshold-stop`
+//!   (task 22.6);
 //! - `hold:<seconds>`: answer the polls for that long and do nothing else;
 //! - `stop`: answer no more.
 //!
@@ -364,6 +370,15 @@ fn epoch() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
+/// The six words of a RECORD frame.
+fn words_of_record(f: &pm_core::frame::Frame) -> [u32; 6] {
+    let mut w = [0u32; 6];
+    for (k, x) in w.iter_mut().enumerate() {
+        *x = u32::from_le_bytes([f.payload[4 * k], f.payload[4 * k + 1], f.payload[4 * k + 2], f.payload[4 * k + 3]]);
+    }
+    w
+}
+
 fn words_of(text: &str) -> Option<[u32; pm_core::WORDS]> {
     let mut w = NOMINAL_WORDS;
     for pair in text.split(',').filter(|p| !p.is_empty()) {
@@ -461,6 +476,73 @@ fn run_ops(device: &str, ops: &[String]) -> std::io::Result<(bool, Value)> {
                     _ => s.wait(200, &has)?,
                 };
                 (a.is_some(), json!(a.as_ref().map(|a| json!({ "status": told(&a.reply), "transfers": a.transfers }))))
+            }
+            // Task 22.4: one part of a record of `diag`'s, its six words.
+            "read" => {
+                let (k, part) = arg.split_once(',').unwrap_or((arg, "0"));
+                let (k, part): (u8, u8) = (k.parse().unwrap_or(0), part.parse().unwrap_or(0));
+                let f = s.dcm.bytes(kind::READ_RECORD, &[k, part]);
+                sent = epoch();
+                let a = s.command(&f, 20)?;
+                let asked = matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 10, .. }));
+                let r = if asked { s.wait(20, |r| matches!(r, Reply::Record(f) if f.payload[0] == k && f.part == part))? } else { None };
+                match r.as_ref().map(|a| &a.reply) {
+                    Some(Reply::Record(f)) => (true, json!({ "kind": k, "part": part, "words": words_of_record(f)[1..].to_vec(), "transfers": r.as_ref().map(|a| a.transfers) })),
+                    _ => (false, json!({ "kind": k, "part": part, "answer": a.as_ref().map(|a| told(&a.reply)) })),
+                }
+            }
+            // The requests that change what `diag` keeps: answered REQUESTED (10).
+            "reset-histograms" | "trend" | "data" => {
+                let numbers: Vec<u32> = arg.split(',').filter(|p| !p.is_empty()).filter_map(|p| p.parse().ok()).collect();
+                let f = match (name, numbers.as_slice()) {
+                    ("reset-histograms", []) => Some(s.dcm.plain(kind::RESET_HISTOGRAMS)),
+                    ("trend", [d, w]) => Some(s.dcm.bytes(kind::TREND_START, &[*d as u8, *w as u8])),
+                    ("data", [which, index, value]) => {
+                        let v = value.to_le_bytes();
+                        Some(s.dcm.bytes(kind::SET_DATA, &[*which as u8, *index as u8, v[0], v[1], v[2], v[3]]))
+                    }
+                    _ => None,
+                };
+                match f {
+                    None => (false, json!("wrong arguments")),
+                    Some(f) => {
+                        sent = epoch();
+                        let a = s.command(&f, 20)?;
+                        (matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 10, .. })), json!(a.as_ref().map(|a| told(&a.reply))))
+                    }
+                }
+            }
+            // The Marker transmission for so many seconds: every record
+            // that came, with the host's clock at its arrival.
+            "markers" => {
+                let seconds: f64 = arg.parse().unwrap_or(0.0);
+                let f = s.dcm.plain(kind::MARKERS_START);
+                sent = epoch();
+                let a = s.command(&f, 20)?;
+                let started_ok = matches!(a.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 10, .. }));
+                let until = epoch() + seconds;
+                let mut records = Vec::new();
+                while epoch() < until {
+                    if let Some(a) = s.wait(1, |r| matches!(r, Reply::Record(f) if f.payload[0] == pm_core::record::data::MARKER))? {
+                        if let Reply::Record(f) = &a.reply {
+                            let w = words_of_record(f);
+                            records.push(json!({ "arrived": epoch(), "number": w[1], "words": [w[2], w[3], w[4]] }));
+                        }
+                    }
+                }
+                let f = s.dcm.plain(kind::MARKERS_STOP);
+                let stopped = s.command(&f, 20)?;
+                let stopped_ok = matches!(stopped.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 10, .. }));
+                (started_ok && stopped_ok, json!({ "records": records }))
+            }
+            // Task 22.6: the pacing threshold test, and its Stop.
+            "threshold" => {
+                let f = s.dcm.byte(kind::THRESHOLD_START, arg.parse().unwrap_or(255));
+                commanded(&mut s, f, &mut sent)?
+            }
+            "threshold-stop" => {
+                let f = s.dcm.plain(kind::THRESHOLD_STOP);
+                commanded(&mut s, f, &mut sent)?
             }
             // The polls answered for so many seconds (a transfer is 50 ms),
             // so that the link stays up between two operations.

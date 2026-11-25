@@ -3,7 +3,7 @@
 //! function through a session.
 #![forbid(unsafe_code)]
 
-use pacemaker_comms::proto::{answer, code, not_resent, peer_changed, status_in, take_forward, take_resend, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
+use pacemaker_comms::proto::{answer, code, not_resent, peer_changed, record_in, status_in, take_forward, take_request, take_resend, wants_record, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
 use pm_core::wire::{self, Status};
 use pm_core::frame::{decode, encode, kind, set_part, Assembly, Frame};
 use pm_core::NOMINAL_WORDS;
@@ -19,12 +19,14 @@ fn the_zero_state_is_the_new_state() {
     assert_eq!(
         Link::new(),
         Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 29],
-               forward_ready: 0, unforwarded: 0, forward: [0; 30], have_status: 0, status: [0; 4], told: [0; 3], battery: 0, resend_battery: 0 }
+               forward_ready: 0, unforwarded: 0, forward: [0; 30], have_status: 0, status: [0; 4], told: [0; 3], battery: 0, resend_battery: 0,
+               request_ready: 0, unrequested: 0, request: [0; 3], record_ready: 0, records: 0, record: [0; 6], withheld: 0 }
     );
     // Task 16.1 added the words of the two Endpoints (2 + 29 + 1 + 4 + 3);
     // the battery level kept for a restarted `therapy` two more (2026-11-24);
     // a set has 29 words since task 19.5 (28 before: three words more here).
-    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 29 * 4 + 29 * 4 + 42 * 4, "no padding");
+    // Task 22.4 added the request and the record with their marks (14 words).
+    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 29 * 4 + 29 * 4 + 42 * 4 + 14 * 4, "no padding");
 }
 
 #[test]
@@ -126,8 +128,9 @@ fn a_read_sends_the_five_parts_in_order_and_a_command_ends_it() {
 #[test]
 fn the_commands_of_later_tasks_are_not_served() {
     // END_TEMPORARY and PACE_NOW were in this list until task 16.1; `link` forwards them now (the test below).
-    // (SET_BATTERY too until task 16.5, SET_ACTIVITY until task 19.5.)
-    for k in [kind::SET_CLOCK, kind::RESET_HISTOGRAMS, kind::EGRAM_START, kind::EGRAM_STOP, kind::THRESHOLD_START, kind::THRESHOLD_STOP, kind::MEASURE] {
+    // (SET_BATTERY too until task 16.5, SET_ACTIVITY until task 19.5; RESET_HISTOGRAMS, MEASURE and the two of the
+    // threshold test until tasks 22.4 and 22.6: the tests at the end of this file. The electrogram's two stay: finding B46.)
+    for k in [kind::SET_CLOCK, kind::EGRAM_START, kind::EGRAM_STOP] {
         let mut l = Link::new();
         assert_eq!(status_of(&answer(&mut l, Some(&Frame::empty(3, k)))), (3, code::NOT_SERVED), "kind {k:#x}");
     }
@@ -295,4 +298,193 @@ fn the_battery_level_is_sent_again_to_a_restarted_therapy() {
     let _ = answer(&mut l, Some(&f));
     peer_changed(&mut l);
     assert_eq!(take_resend(&mut l), None);
+}
+
+// ------------------------------------------------------------ tasks 22.4, 22.6
+
+fn framed(seq: u8, k: u8, bytes: &[u8]) -> Frame {
+    let mut f = Frame::empty(seq, k);
+    f.len = bytes.len() as u8;
+    f.payload[..bytes.len()].copy_from_slice(bytes);
+    f
+}
+
+/// Task 22.4: each record command is one request for `diag`, answered
+/// REQUESTED; a wrong length, a record that is none, and an index outside
+/// the data are BAD_PART and no request.
+#[test]
+fn the_record_commands_become_requests_for_diag() {
+    use pm_core::record::{data, request};
+    let cases: [(Frame, [u32; 3]); 9] = [
+        (framed(1, kind::RESET_HISTOGRAMS, &[]), [request::RESET_HISTOGRAMS, 0, 0]),
+        (framed(2, kind::MARKERS_START, &[]), [request::MARKERS, 1, 0]),
+        (framed(3, kind::MARKERS_STOP, &[]), [request::MARKERS, 0, 0]),
+        (framed(4, kind::TREND_START, &[1, 2]), [request::TREND, 1, 2]),
+        (framed(5, kind::MEASURE, &[]), [request::READ, data::MEASURED as u32, 0]),
+        (framed(6, kind::READ_RECORD, &[data::HISTOGRAM + 3, 3]), [request::READ, 0x13, 3]),
+        (framed(7, kind::READ_RECORD, &[data::TREND, 64]), [request::READ, 0x30, 64]),
+        (framed(8, kind::SET_DATA, &[0, 9, 0x78, 0x56, 0x34, 0x12]), [request::SET_IMPLANT, 9, 0x1234_5678]),
+        (framed(9, kind::SET_DATA, &[1, 4, 1, 0, 0, 0]), [request::SET_MEASURED, 4, 1]),
+    ];
+    for (f, want) in cases {
+        let mut l = Link::new();
+        assert_eq!(take_request(&mut l), None);
+        assert_eq!(status_of(&answer(&mut l, Some(&f))), (f.seq, code::REQUESTED), "kind {:#x}", f.kind);
+        assert_eq!(take_request(&mut l), Some(want), "kind {:#x}", f.kind);
+        assert_eq!(take_request(&mut l), None, "once");
+        // `control` is told the frame was heard, as of any frame.
+        assert_eq!(take_forward(&mut l).map(|m| wire::code_of(&m)), Some(wire::code::HEARD));
+    }
+    for f in [
+        framed(1, kind::RESET_HISTOGRAMS, &[0]),
+        framed(2, kind::MARKERS_START, &[1]),
+        framed(3, kind::TREND_START, &[1]),
+        framed(4, kind::MEASURE, &[0]),
+        framed(5, kind::READ_RECORD, &[data::HISTOGRAM, 4]),
+        framed(6, kind::READ_RECORD, &[data::MARKER, 1]),
+        framed(7, kind::READ_RECORD, &[0x99, 0]),
+        framed(8, kind::READ_RECORD, &[data::COUNTS]),
+        framed(9, kind::SET_DATA, &[2, 0, 0, 0, 0, 0]),
+        framed(10, kind::SET_DATA, &[0, 10, 0, 0, 0, 0]),
+        framed(11, kind::SET_DATA, &[1, 5, 0, 0, 0, 0]),
+        framed(12, kind::SET_DATA, &[0, 0, 0]),
+    ] {
+        let mut l = Link::new();
+        assert_eq!(status_of(&answer(&mut l, Some(&f))), (f.seq, code::BAD_PART), "kind {:#x}", f.kind);
+        assert_eq!(take_request(&mut l), None);
+    }
+}
+
+/// Task 22.4: a record of `diag`'s is told as a RECORD frame, once, in a
+/// period that has nothing of a read to send, and before a status.
+#[test]
+fn a_record_is_told_as_a_frame() {
+    use pm_core::record::{data, head};
+    let poll = Frame::empty(0, kind::POLL);
+    let mut l = Link::new();
+    assert!(wants_record(&l));
+    let m = [head(data::HISTOGRAM + 2, 3), 1, 2, 0x0403_0201, 0, 0xFFFF_FFFF];
+    record_in(&mut l, &m);
+    assert!(!wants_record(&l), "one at a time");
+    let a = answer(&mut l, Some(&poll));
+    assert_eq!((a.kind, a.part, a.len), (kind::RECORD, 3, 24));
+    assert_eq!(&a.payload[..4], &[0x12, 3, 0, 0]);
+    assert_eq!(&a.payload[12..16], &[1, 2, 3, 4], "least significant byte first");
+    assert_eq!(&a.payload[20..24], &[0xFF; 4]);
+    assert!(wants_record(&l));
+    assert_eq!(l.records, 1);
+    assert_eq!(answer(&mut l, Some(&poll)).kind, kind::IDLE, "told once");
+    // With no frame heard as well (the DCM's poll was lost): the record is not kept back.
+    record_in(&mut l, &m);
+    assert_eq!(answer(&mut l, None).kind, kind::RECORD);
+}
+
+/// The validation function of the Endpoint `records` is `pm_core`'s.
+#[test]
+fn the_validation_of_a_record() {
+    use pm_core::record::{data, head};
+    assert!(pacemaker_comms::validate_records(&[head(data::COUNTS, 1), 9, 9, 9, 9, 9]));
+    assert!(!pacemaker_comms::validate_records(&[0x99, 0, 0, 0, 0, 0]));
+    assert!(!pacemaker_comms::validate_records(&[head(data::COUNTS, 2), 0, 0, 0, 0, 0]));
+}
+
+/// Task 22.6: the threshold test's two commands go to `therapy`.
+#[test]
+fn the_threshold_test_s_commands_are_forwarded() {
+    let mut l = Link::new();
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(4, kind::THRESHOLD_START, &[3])))), (4, code::FORWARDED));
+    assert_eq!(take_forward(&mut l), Some(wire::message_with_value(wire::code::THRESHOLD_START, 4, 3)));
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(5, kind::THRESHOLD_STOP, &[])))), (5, code::FORWARDED));
+    assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::THRESHOLD_STOP, 5)));
+    // A value that names nothing is refused here; a wrong length is a bad part.
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(6, kind::THRESHOLD_START, &[4])))), (6, code::REFUSED));
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(7, kind::THRESHOLD_START, &[])))), (7, code::BAD_PART));
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(8, kind::THRESHOLD_STOP, &[1])))), (8, code::BAD_PART));
+}
+
+/// PM17.7 (finding A9): at a battery level of ERT or below the measured
+/// data and the Markers are disabled. The requests for them are declined
+/// and not handed to `diag`, a Marker transmission is ended, and a record
+/// of either kind is not told; everything else is as at BOL.
+#[test]
+fn at_ert_the_measured_data_and_the_markers_are_disabled() {
+    use pm_core::record::{data, head, request};
+    let poll = Frame::empty(0, kind::POLL);
+    let disabled = [
+        framed(1, kind::MEASURE, &[]),
+        framed(2, kind::READ_RECORD, &[data::MEASURED, 1]),
+        framed(3, kind::READ_RECORD, &[data::MARKER, 0]),
+        framed(4, kind::MARKERS_START, &[]),
+    ];
+    for level in 0u8..=4 {
+        for f in &disabled {
+            let mut l = Link::new();
+            assert_eq!(status_of(&answer(&mut l, Some(&framed(9, kind::SET_BATTERY, &[level])))), (9, code::FORWARDED));
+            // Setting the level ends a Marker transmission from ERT on.
+            assert_eq!(take_request(&mut l), if level >= 2 { Some([request::MARKERS, 0, 0]) } else { None }, "level {level}");
+            let a = status_of(&answer(&mut l, Some(f)));
+            if level >= 2 {
+                assert_eq!(a, (f.seq, code::DECLINED), "level {level}, kind {:#x}", f.kind);
+                assert_eq!(take_request(&mut l), None, "level {level}, kind {:#x}", f.kind);
+            } else {
+                assert_eq!(a, (f.seq, code::REQUESTED), "level {level}, kind {:#x}", f.kind);
+                assert!(take_request(&mut l).is_some());
+            }
+        }
+        // What the level does not disable is requested at every level.
+        for (f, want) in [
+            (framed(1, kind::READ_RECORD, &[data::HISTOGRAM, 0]), [request::READ, data::HISTOGRAM as u32, 0]),
+            (framed(2, kind::READ_RECORD, &[data::COUNTS, 1]), [request::READ, data::COUNTS as u32, 1]),
+            (framed(3, kind::READ_RECORD, &[data::TREND, 5]), [request::READ, data::TREND as u32, 5]),
+            (framed(4, kind::READ_RECORD, &[data::IMPLANT, 0]), [request::READ, data::IMPLANT as u32, 0]),
+            (framed(5, kind::MARKERS_STOP, &[]), [request::MARKERS, 0, 0]),
+            (framed(6, kind::RESET_HISTOGRAMS, &[]), [request::RESET_HISTOGRAMS, 0, 0]),
+        ] {
+            let mut l = Link::new();
+            let _ = answer(&mut l, Some(&framed(9, kind::SET_BATTERY, &[level])));
+            let _ = take_request(&mut l);
+            assert_eq!(status_of(&answer(&mut l, Some(&f))), (f.seq, code::REQUESTED), "level {level}, kind {:#x}", f.kind);
+            assert_eq!(take_request(&mut l), Some(want));
+        }
+        // The records: a Marker and the measured data are not told from ERT on.
+        for k in [data::MARKER, data::MEASURED, data::HISTOGRAM, data::COUNTS, data::TREND, data::IMPLANT] {
+            let off = level >= 2 && (k == data::MARKER || k == data::MEASURED);
+            let m = [head(k, 0), 1, 2, 3, 4, 5];
+            // One that comes at the level.
+            let mut l = Link::new();
+            let _ = answer(&mut l, Some(&framed(9, kind::SET_BATTERY, &[level])));
+            record_in(&mut l, &m);
+            assert_eq!(wants_record(&l), off, "level {level}, kind {k:#x}");
+            assert_eq!(l.withheld, u32::from(off));
+            assert_eq!(answer(&mut l, Some(&poll)).kind, if off { kind::IDLE } else { kind::RECORD }, "level {level}, kind {k:#x}");
+            // One taken before the level was set and not yet told.
+            let mut l = Link::new();
+            record_in(&mut l, &m);
+            let _ = answer(&mut l, Some(&framed(9, kind::SET_BATTERY, &[level])));
+            assert_eq!(l.withheld, u32::from(off));
+            assert_eq!(answer(&mut l, Some(&poll)).kind, if off { kind::IDLE } else { kind::RECORD }, "level {level}, kind {k:#x}");
+        }
+    }
+    // The level of `control`'s status counts as well: a `link` that has
+    // started again has no level of the DCM's.
+    for told in 0u8..=4 {
+        let mut l = Link::new();
+        let st = wire::Status { battery: told, ..wire::Status::of_words(&[0; 4]) };
+        status_in(&mut l, &st.words());
+        assert_eq!(pacemaker_comms::proto::level(&l), u32::from(told));
+        let want = if told >= 2 { code::DECLINED } else { code::REQUESTED };
+        let a = answer(&mut l, Some(&framed(3, kind::MEASURE, &[])));
+        assert_eq!((a.kind, a.payload[0], a.payload[1]), (kind::STATUS, 3, want), "status level {told}");
+        record_in(&mut l, &[head(data::MARKER, 0), 0, 0, 0, 0, 0]);
+        assert_eq!(l.withheld, u32::from(told >= 2));
+        // The worse of the two.
+        let _ = answer(&mut l, Some(&framed(4, kind::SET_BATTERY, &[3])));
+        assert_eq!(pacemaker_comms::proto::level(&l), u32::from(told.max(3)));
+    }
+    // Back at BOL they are supplied again.
+    let mut l = Link::new();
+    let _ = answer(&mut l, Some(&framed(1, kind::SET_BATTERY, &[2])));
+    let _ = answer(&mut l, Some(&framed(2, kind::SET_BATTERY, &[0])));
+    let _ = take_request(&mut l);
+    assert_eq!(status_of(&answer(&mut l, Some(&framed(3, kind::MEASURE, &[])))), (3, code::REQUESTED));
 }

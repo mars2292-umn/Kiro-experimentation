@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use pacemaker_diag::history::*;
-use pm_core::record::{self, aug, batch, kind, modifier};
+use pm_core::record::{self, aug, batch, data, kind, modifier, request};
 
 fn rec(at: u32, k: u8, chamber: u8, since: u32) -> [u32; 3] {
     [at, record::word1(k, chamber, 0, 0), since]
@@ -206,4 +206,135 @@ fn the_trend_continuous_and_fixed() {
     assert_eq!(a.pace_interval, 900_000);
     a.take(&batch_of(1, 0, 0, &[rec(2, kind::PACE, 1, 800_000), rec(3, kind::PACE, 0, 700_000)]));
     assert_eq!(a.pace_interval, 800_000);
+}
+
+// ------------------------------------------------------------ tasks 22.4, 22.5
+
+fn read(h: &mut History, kind: u8, part: u8) -> [u32; 5] {
+    let m = h.request(&[request::READ, kind as u32, part as u32], 0).expect("a record");
+    assert_eq!(m[0], record::head(kind, part));
+    assert!(record::admitted(&m), "what `diag` sends is what `comms` admits");
+    [m[1], m[2], m[3], m[4], m[5]]
+}
+
+/// Task 22.4: each kind of record read part by part is the store's content.
+#[test]
+fn every_record_is_read_as_the_store_has_it() {
+    let mut h = History::new();
+    for n in 0..BINS as u32 {
+        h.histogram[SENSED_V][n as usize] = 100 + n;
+    }
+    h.pvcs = 3;
+    h.atr_episodes = 2;
+    h.records = 77;
+    h.dropped = 5;
+    h.lost = 4;
+    h.resets = 1;
+    h.batches = 9;
+    h.peer_changes = 6;
+    h.markers_written = 70;
+    // The histogram: 17 bins in four parts of five, zeros after the last.
+    let bins: Vec<u32> = (0..4).flat_map(|p| read(&mut h, data::HISTOGRAM + 3, p)).collect();
+    assert_eq!(&bins[..BINS], &(100..100 + BINS as u32).collect::<Vec<u32>>()[..]);
+    assert_eq!(&bins[BINS..], &[0, 0, 0]);
+    assert_eq!(read(&mut h, data::HISTOGRAM, 0), [0; 5], "another histogram");
+    assert_eq!(read(&mut h, data::COUNTS, 0), [3, 2, 77, 5, 4]);
+    assert_eq!(read(&mut h, data::COUNTS, 1), [1, 9, 6, 70, 0]);
+    // A request for a record or a part that is none is counted and not answered.
+    for r in [[request::READ, 0x99, 0], [request::READ, data::COUNTS as u32, 2], [request::READ, 0x110, 0], [77, 0, 0], [request::SET_IMPLANT, 10, 1], [request::SET_MEASURED, 5, 1]] {
+        assert_eq!(h.request(&r, 0), None);
+    }
+    assert_eq!(h.unknown_requests, 6);
+}
+
+/// The trend read back: the header, then the samples oldest first, in
+/// both durations and after the buffer has gone round.
+#[test]
+fn the_trend_is_read_oldest_first() {
+    let mut h = History::new();
+    assert_eq!(h.request(&[request::TREND, duration::FIXED, what::BOTH], 4_000), None);
+    for s in 0..5u32 {
+        h.take(&batch_of(s, 0, 600_000 + s, &[rec(1, kind::PACE, 1, 800_000 + s)]));
+        for _ in 0..TREND_JOBS {
+            h.job(5_000);
+        }
+    }
+    assert_eq!(read(&mut h, data::TREND, 0), [duration::FIXED, what::BOTH, 5, 4_000, TREND as u32]);
+    assert_eq!(read(&mut h, data::TREND, 1), [800_000, 600_000, 800_001, 600_001, 0]);
+    assert_eq!(read(&mut h, data::TREND, 3), [800_004, 600_004, 0, 0, 0], "one sample in the last part that has any");
+    assert_eq!(read(&mut h, data::TREND, 4), [0; 5]);
+    // Continuous, gone round by three samples: the oldest kept is the fourth.
+    let _ = h.request(&[request::TREND, duration::CONTINUOUS, what::PACING_RATE], 0);
+    for s in 0..(TREND as u32 + 3) {
+        h.take(&batch_of(100 + s, 0, 0, &[rec(1, kind::PACE, 1, 1_000 + s)]));
+        for _ in 0..TREND_JOBS {
+            h.job(9_000 + s);
+        }
+    }
+    assert_eq!(read(&mut h, data::TREND, 0)[2], TREND as u32 + 3);
+    assert_eq!(read(&mut h, data::TREND, 1), [1_003, 0, 1_004, 0, 0]);
+    assert_eq!(read(&mut h, data::TREND, 64), [1_000 + TREND as u32 + 1, 0, 1_000 + TREND as u32 + 2, 0, 0], "the last two");
+}
+
+/// PM18.2 over the Endpoint: the reset.
+#[test]
+fn the_reset_request_clears_the_histograms() {
+    let mut h = History::new();
+    h.take(&batch_of(0, 0, 0, &[rec(1, kind::PACE, 1, 1_000_000), rec(2, kind::PVC, 1, 500_000)]));
+    assert_eq!(read(&mut h, data::COUNTS, 0)[0], 1);
+    assert_eq!(h.request(&[request::RESET_HISTOGRAMS, 0, 0], 0), None);
+    assert!(h.histogram.iter().flatten().all(|c| *c == 0));
+    assert_eq!((read(&mut h, data::COUNTS, 0)[0], read(&mut h, data::COUNTS, 1)[0]), (0, 1));
+}
+
+/// PM20.1, PM18.5: the Marker transmission sends each record once, in
+/// order, from its start; stopped, nothing; and records the buffer lost
+/// before they were sent are passed over and counted.
+#[test]
+fn the_marker_transmission() {
+    let mut h = History::new();
+    h.take(&batch_of(0, 0, 0, &[rec(10, kind::PACE, 1, 1), rec(11, kind::SENSE, 0, 2)]));
+    assert_eq!(h.next_marker(), None, "not started");
+    let _ = h.request(&[request::MARKERS, 1, 0], 0);
+    assert_eq!(h.next_marker(), None, "what came before the start is not sent");
+    h.take(&batch_of(2, 0, 0, &[rec(12, kind::PACE, 1, 3), [13, record::word1(kind::AT, 0, 0, aug::ATR_END), 4]]));
+    let m = h.next_marker().unwrap();
+    assert!(record::admitted(&m));
+    assert_eq!(m, [record::head(data::MARKER, 0), 2, 12, record::word1(kind::PACE, 1, 0, 0), 3, 0]);
+    assert_eq!(h.next_marker().unwrap()[1..5], [3, 13, record::word1(kind::AT, 0, 0, aug::ATR_END), 4]);
+    assert_eq!(h.next_marker(), None, "each once");
+    // More records than the buffer holds before the next is sent.
+    let mut seq = 4;
+    for n in 0..(MARKERS as u32 + 6) {
+        h.take(&batch_of(seq, 0, 0, &[rec(100 + n, kind::PACE, 1, 5)]));
+        seq += 1;
+    }
+    let m = h.next_marker().unwrap();
+    assert_eq!((m[1], m[2], h.stream_skipped), (10, 106, 6), "the oldest the buffer still has");
+    let _ = h.request(&[request::MARKERS, 0, 0], 0);
+    assert_eq!(h.next_marker(), None, "stopped");
+}
+
+/// Task 22.5 (PM18.7, PM17.1 to PM17.3, PM17.5): the implant data and the
+/// measured data's stand-ins are what was supplied, the measured data
+/// marked as simulated.
+#[test]
+fn the_implant_data_and_the_measured_stand_ins() {
+    let mut h = History::new();
+    assert_eq!(read(&mut h, data::MEASURED, 0), [record::SIMULATED, 0, 0, 0, 0], "marked as simulated from the start");
+    for k in 0..record::IMPLANT_WORDS as u32 {
+        assert_eq!(h.request(&[request::SET_IMPLANT, k, 1_000 + k], 0), None);
+    }
+    for k in 0..record::MEASURED_WORDS as u32 {
+        assert_eq!(h.request(&[request::SET_MEASURED, k, 2_000 + k], 0), None);
+    }
+    assert_eq!(read(&mut h, data::IMPLANT, 0), [1_000, 1_001, 1_002, 1_003, 1_004]);
+    assert_eq!(read(&mut h, data::IMPLANT, 1), [1_005, 1_006, 1_007, 1_008, 1_009]);
+    assert_eq!(read(&mut h, data::MEASURED, 0), [record::SIMULATED, 2_000, 2_001, 2_002, 2_003]);
+    assert_eq!(read(&mut h, data::MEASURED, 1), [2_004, 0, 0, 0, 0]);
+    assert_eq!(h.implant[implant::INDICATIONS], 1_009);
+    assert_eq!(h.measured[measured::LAST_INTERROGATION], 2_004);
+    // A reset of the histograms leaves both.
+    h.reset_histograms();
+    assert_eq!(read(&mut h, data::IMPLANT, 0)[0], 1_000);
 }

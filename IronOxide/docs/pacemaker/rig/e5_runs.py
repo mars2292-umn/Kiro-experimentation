@@ -2,7 +2,8 @@
 """Tasks 22.1 to 22.3 of docs/pacemaker/tasks.md: the rig runs of the event
 records, the Markers and what `diag` keeps.
 
-Usage: e5_runs.py <record.json> [events] [markers] [atr_markers]
+Usage: e5_runs.py <record.json> [events] [markers] [atr_markers] [records] [malformed]
+                  [stream] [interrogation] [threshold]
 
 Run from the workspace root with rsk's tools on PATH. What `diag` keeps is
 read through the debug probe in one access: the Task `history`'s state
@@ -29,11 +30,42 @@ that task's.
                probe: the Markers AT, the augmentation Markers of ATR, and
                the count of ATR episodes.
 
+  records      (22.4) DDD against the `fixed` rhythm on the Flight build.
+               Every kind of record read over the link, part by part: the
+               four histograms, the counts, the trend, the implant data and
+               the measured data; then the store read through the probe,
+               and the two compared. A reset of the histograms and a trend
+               begun, by their commands, and read back.
+  malformed    (22.4) the rig variant in which `history` sends records
+               that `comms`'s validation function refuses, from 10 s on:
+               the Kernel's first event is the rejected message, against
+               `diag`; VVI pacing goes on as judged by `pm-judge`.
+  stream       (22.2) the Marker transmission over the link for 20 s of
+               DDD against the `fixed` rhythm: every record that came
+               against the capture's edges, within PM-PAR-04; the records'
+               numbers without a gap.
+  interrogation (22.5) the implant data and the measured data's stand-ins
+               supplied over the link and read back, with the mark that
+               the measured data is simulated; the battery level by the
+               status.
+  threshold    (22.6) a ventricular test in VVI and an atrial one in AAI,
+               of the pulse width from 1.0 ms: the widths on the capture
+               step down one setting every fourth pulse; the ventricular
+               test ended by Stop, the atrial one by the loss of the link.
+  ert          (finding A9, PM17.7) DDD against the `fixed` rhythm on the
+               Flight build: the measured data read and the Marker
+               transmission run at BOL; at ERT and at ERP the read of the
+               measured data, the read of a Marker and the start of the
+               transmission are answered as declined and no Marker comes,
+               while a histogram, the counts and the implant data are
+               read; at BOL again both are supplied.
+
 Exit 0 when every run chosen passed.
 """
 import json
 import os
 import sys
+import time
 
 import numpy as np
 
@@ -65,7 +97,7 @@ def store(elf):
     for line in st.probe("read", st.BOARD_A, "b32", f"0x{address:08x}", str(size // 4)).stdout.splitlines():
         if ":" in line:
             words += [int(x, 16) for x in line.split(":", 1)[1].split()]
-    if len(words) != 10 + 4 * BINS + 1 + 3 * MARKERS + 4 + 2 * TREND + 3:
+    if len(words) != 10 + 4 * BINS + 1 + 3 * MARKERS + 4 + 2 * TREND + 3 + 4 + 10 + 5 + 1:
         return None
     it = iter(words)
     take = lambda n: [next(it) for _ in range(n)]
@@ -76,6 +108,9 @@ def store(elf):
     h.update(zip(["trend_duration", "trend_what", "trend_written", "trend_stamp_ms"], take(4)))
     trend = [take(2) for _ in range(TREND)]
     h.update(zip(["pace_interval", "sensor_interval", "jobs"], take(3)))
+    h.update(zip(["stream", "stream_next", "stream_skipped", "unknown_requests"], take(4)))
+    h["implant"] = take(10)
+    h["measured"] = take(5)
     # The buffer in the order written: the last MARKERS records.
     n = h["markers_written"]
     order = [raw[k % MARKERS] for k in range(max(0, n - MARKERS), n)]
@@ -158,9 +193,14 @@ def judge_markers(cap, h, checks, label=""):
         return
     errors, worst, missing, since_errors = {}, 0.0, [], []
     last = {}
+    beyond = 0
     for m in ms:
         g = group(m)
         want = line[0] * m["at_us"] + line[1]
+        if want > len(cap.data) - 2_000:
+            # The capture had ended: nothing to compare the record with.
+            beyond += 1
+            continue
         e = edges[g]
         k = int(np.argmin(np.abs(e - want))) if len(e) else None
         d = float(e[k] - want) if k is not None else None
@@ -179,7 +219,7 @@ def judge_markers(cap, h, checks, label=""):
         if m["kind"] in ("pace", "pace_fused", "sense", "at", "pvc"):
             last[g[1]] = int(e[k])
     e4.check(checks, f"{label}every record of the Marker buffer has its edge on the capture within PM-PAR-04 (1 ms): a Pace its pulse, a Sense the sense mirror's edge",
-             len(ms) >= 20 and not missing, {"records": len(ms), "error_us": errors, "furthest_us": worst, "without_an_edge": missing[:5]})
+             len(ms) - beyond >= 20 and not missing, {"records": len(ms), "after_the_captures_end": beyond, "error_us": errors, "furthest_us": worst, "without_an_edge": missing[:5]})
     e4.check(checks, f"{label}each record's time since the Chamber's last non-refractory event is the capture's within PM-PAR-04", len(since_errors) >= 10 and max(abs(x) for x in since_errors) <= MARKER_TOLERANCE_US,
              {"compared": len(since_errors), "error_us": st.spread(since_errors)})
 
@@ -257,7 +297,237 @@ def run_atr_markers():
     return e4.result(checks, {**extra, "ops": lines, "store": {k: v for k, v in h.items() if k != "trend"}})
 
 
-RUNS = {"events": ("22.1", run_events), "markers": ("22.2, 22.3", run_markers), "atr_markers": ("22.2", run_atr_markers)}
+HISTOGRAMS = ["paced_atrial", "sensed_atrial", "paced_ventricular", "sensed_ventricular"]
+
+
+def reads(lines, kind):
+    """The words of a record of `kind` read by the stub, its parts in order."""
+    out = []
+    for l in lines:
+        if l["op"].startswith(f"read:{kind},") and l["ok"]:
+            out += l["detail"]["words"]
+    return out
+
+
+def link_build():
+    st.probe("download", st.BOARD_A, "--disable-progressbars", st.PG)
+
+
+def run_records():
+    link_build()
+    ops = ["up", f"set:0={e4.CODE['DDD']},1=60", f"wait:state={e4.PERMANENT}", "hold:14"]
+    for k in range(4):
+        ops += [f"read:{0x10 + k},{p}" for p in range(4)]
+    ops += ["read:32,0", "read:32,1"] + [f"read:48,{p}" for p in range(0, 9)]
+    cap, lines, extra = e4.session("fixed", ops, 30)
+    h = store(st.PG)
+    checks = []
+    failed = [l["op"] for l in lines if not l["ok"]]
+    e4.check(checks, "every record was read over the link (16 parts of histograms, 2 of counts, 9 of the trend) and the store through the probe", not failed and h is not None, failed)
+    if h is None or failed:
+        return e4.result(checks, {**extra, "ops": lines})
+    # The store is read after the records, the first of which were read
+    # 27 reads and the capture's end before it: a bin may have grown by the
+    # events of that time, at most one a cycle of 800 ms and two more.
+    read_at = min(l["done"] for l in lines if l["op"].startswith("read:"))
+    grown = int((time.time() - read_at) / 0.8) + 2
+    for k, name in enumerate(HISTOGRAMS):
+        got = reads(lines, 0x10 + k)[:BINS]
+        e4.check(checks, f"the {name.replace('_', ' ')} histogram over the link is the store's (the store read later: no bin less, none more than the events since above)",
+                 all(0 <= h["histogram"][name][b] - got[b] <= grown for b in range(BINS)) and reads(lines, 0x10 + k)[BINS:] == [0, 0, 0],
+                 {"over_the_link": got, "store": h["histogram"][name], "events_since_at_most": grown})
+    c = reads(lines, 32)
+    e4.check(checks, "the counts over the link are the store's (PVCs, ATR episodes, records, lost; resets, batches)",
+             c[0] == h["pvcs"] and c[1] == h["atr_episodes"] and 0 <= h["records"] - c[2] <= 3 * grown and c[3] == h["dropped"] == 0 and c[4] == h["lost"] == 0 and c[5] == h["resets"] == 0,
+             {"over_the_link": c, "store": {k: h[k] for k in ("pvcs", "atr_episodes", "records", "dropped", "lost", "resets", "batches")}})
+    t = reads(lines, 48)
+    head, samples = t[:5], [t[5 + 5 * p: 5 + 5 * p + 4] for p in range(8)]
+    flat = [s[0:2] for s in samples] + [s[2:4] for s in samples]
+    paced = [x[0] for x in flat if x[0]]
+    e4.check(checks, "the trend over the link: Continuous, both contents, the samples the pacing interval of the rhythm (800 ms)",
+             head[0] == 0 and head[1] == 0 and head[4] == TREND and 10 <= head[2] <= h["trend_written"] and len(paced) >= 8 and all(abs(x - 800_000) <= 1_000 for x in paced[2:]),
+             {"header": head, "pacing_intervals_us": paced})
+    # The commands that change the store: a reset and a Fixed trend of the pacing rate.
+    more = st.stub("up", "reset-histograms", "trend:1,1", "hold:4", "read:32,0", "read:32,1", "read:18,1", "read:48,0", "read:48,1")
+    c2, hist2, t2 = reads(more, 32), reads(more, 18), reads(more, 48)
+    e4.check(checks, "after RESET_HISTOGRAMS the counts say one reset and the paced ventricular histogram has only the events since (5 at most)",
+             all(l["ok"] for l in more) and c2[5] == 1 and sum(hist2) <= 5, {"counts": c2, "paced_ventricular_part_1": hist2})
+    e4.check(checks, "after TREND_START the trend is Fixed, of the pacing rate alone, with the samples since (2 to 5) and no sensor value",
+             len(t2) == 10 and t2[0] == 1 and t2[1] == 1 and 2 <= t2[2] <= 5 and t2[5] != 0 and t2[6] == 0, {"header": t2[:5], "first_samples": t2[5:]})
+    return e4.result(checks, {**extra, "ops": lines + more, "store": {k: v for k, v in h.items() if k not in ("trend", "markers")}})
+
+
+def run_malformed():
+    h = ef.heart("fixed")
+    st.sh(["cargo", "build", "-q", "-p", "pm-judge"])
+    pg = ef.build("nrf52840,debug-port,quiet,rig,set-env,misbehave,trace-ram", "target/pacemaker-misbehave", {"PM_SET": f"0={ef.VVI},1=90", "PM_LINK_FAULT": "record"})
+    cap, launched, ev = ef.run_attached(pg, 30, capture_after=14.0)
+    capture, report = os.path.join(ef.st_scratch(), "capture.bin"), os.path.join(ef.st_scratch(), "judge.json")
+    cap.data.tofile(capture)
+    if os.path.exists(report):
+        os.remove(report)
+    judged = st.sh(["target/debug/pm-judge", capture, str(st.RATE), "--mode", "VVI", "--set", "LRL=90", "--scenario", "fixed", "--binary", f"pacemaker={pg}", "--binary", f"heart-sim={h}",
+                    "--json", report], check=False)
+    j = json.load(open(report)) if os.path.exists(report) else {"verdict": "NO REPORT", "error": judged.stderr[-500:]}
+    counts = e1.counts(pg)
+    evs = ef.own_events(ev, ef.partitions())
+    checks = []
+    e4.check(checks, "the Kernel's first event is the record `comms`'s validation function refused, reported against `diag`, at 10 s of the run",
+             bool(evs) and evs[0]["event"] == "message_rejected" and evs[0]["partition"] == "diag" and 9.9 <= evs[0]["instant_s"] <= 10.3, evs[:3])
+    e4.check(checks, "pacing goes on as programmed across it (`pm-judge`, VVI at 90 ppm, 30 s from before the onset), and `therapy` did not restart",
+             j.get("verdict") == "PASS" and counts is not None and counts["started"] == 1 and counts["hw_fault"] == 0 and counts["records"] > 60,
+             {"judge": j.get("verdict"), "violations": j.get("violations", [])[:3], "ventricular": j.get("ventricular", {}).get("pace_intervals"), "counts": counts})
+    link_build()
+    return e4.result(checks, {"binary": st.sha(pg), "judge": j, "kernel_events": evs, "therapy_counts_at_the_end": counts})
+
+
+def run_stream():
+    link_build()
+    ops = ["up", f"set:0={e4.CODE['DDD']},1=60", f"wait:state={e4.PERMANENT}", "hold:3", "markers:20", "status"]
+    cap, lines, extra = e4.session("fixed", ops, 32)
+    checks = []
+    m = e4.op(lines, "markers")
+    e4.check(checks, "every operation of the stub succeeded", all(l["ok"] for l in lines) and m is not None, [l["op"] for l in lines if not l["ok"]])
+    if m is None or not m["ok"]:
+        return e4.result(checks, {**extra, "ops": lines})
+    recs = m["detail"]["records"]
+    numbers = [r["number"] for r in recs]
+    e4.check(checks, "the records came in order without a gap, at the rate of the scenario (3 an 800 ms cycle)",
+             len(recs) >= 60 and all(b == a + 1 for a, b in zip(numbers, numbers[1:])), {"records": len(recs), "first_number": numbers[:1], "last_number": numbers[-1:]})
+    as_store = {"markers": [{"at_us": r["words"][0], "kind": KIND.get(r["words"][1] & 0xFF, "?"), "chamber": (r["words"][1] >> 8) & 0xFF, "modifiers": (r["words"][1] >> 16) & 0xFF,
+                             "augmentation": AUG.get(r["words"][1] >> 24, "?"), "since_us": None if r["words"][2] == NO_INTERVAL else r["words"][2]} for r in recs]}
+    judge_markers(cap, as_store, checks, "over the link: ")
+    kinds = {}
+    for x in as_store["markers"]:
+        kinds[x["kind"] + ("_a" if x["chamber"] == 0 else "_v")] = kinds.get(x["kind"] + ("_a" if x["chamber"] == 0 else "_v"), 0) + 1
+    e4.check(checks, "the stream holds what the scenario gives: tracked atrial Senses, ventricular Paces, the conducted beat as a Refractory sense",
+             min(kinds.get("sense_a", 0), kinds.get("pace_v", 0), kinds.get("sense_refractory_v", 0)) >= 18, kinds)
+    return e4.result(checks, {**extra, "ops": [l for l in lines if l["op"] != "markers:20"], "stream": {"records": len(recs), "kinds": kinds}, "records_as_they_came": recs[:400]})
+
+
+def run_interrogation():
+    link_build()
+    st.probe("reset", st.BOARD_C)
+    st.probe("reset", st.BOARD_A)
+    time.sleep(2.5)
+    implant = [9_461, 9_461, 3, 12, 15, 21, 87, 510, 620, 4]       # dates as days since 2000-01-01 (2025-11-26); bipolar leads
+    measured = [2_780, 23, 91, 505 + (615 << 16), 9_460]
+    ops = ["up"] + [f"data:0,{k},{v}" for k, v in enumerate(implant)] + [f"data:1,{k},{v}" for k, v in enumerate(measured)]
+    ops += ["hold:1", "read:80,0", "read:80,1", "read:96,0", "read:96,1", "battery:1", "status", "battery:0", "data:0,10,1", "data:2,0,1", "read:153,0"]
+    lines = st.stub(*ops)
+    checks = []
+    wrong = [l["op"] for l in lines if not l["ok"]]
+    e4.check(checks, "every value was supplied and every record read; a value outside the data and a record that is none are answered as bad parts",
+             wrong == ["data:0,10,1", "data:2,0,1", "read:153,0"] and all(l["detail"].get("code") == 5 if isinstance(l["detail"], dict) and "code" in l["detail"] else l["detail"].get("answer", {}).get("code") == 5
+                                                                       for l in lines if l["op"] in wrong), wrong)
+    e4.check(checks, "the implant data read back is what was supplied (PM18.7): the dates, the lead polarity, the thresholds, the wave amplitudes, the impedances, the indications",
+             reads(lines, 80) == implant, {"supplied": implant, "read": reads(lines, 80)})
+    m = reads(lines, 96)
+    e4.check(checks, "the measured data read back is the stand-ins supplied, marked as simulated (PM17.5): the battery voltage, the P and R wave, the lead impedances, the date of the last interrogation",
+             m[0] == 1 and m[1:5] == measured[:4] and m[5] == measured[4] and m[6:] == [0, 0, 0, 0], {"supplied": measured, "read": m})
+    told = e4.op(lines, "status")
+    e4.check(checks, "the battery status level is told by the status (PM17.3, PM17.6): ERN after it was set", told is not None and told["ok"] and told["detail"]["battery"] == 1, told and told["detail"])
+    return e4.result(checks, {"ops": lines, "binaries": {"pacemaker": st.sha(st.PG)}})
+
+
+WIDTHS = [1900 - 100 * k for k in range(19)] + [50]
+
+
+def groups(pulses):
+    """Runs of pulses of one width (within 20 µs of a setting)."""
+    out = []
+    for p in pulses:
+        w = min(WIDTHS + [400], key=lambda s: abs(s - p[2]))
+        if abs(w - p[2]) > st.WIDTH_TOLERANCE_US:
+            w = p[2]
+        if out and out[-1][0] == w:
+            out[-1][1] += 1
+        else:
+            out.append([w, 1])
+    return out
+
+
+def run_threshold():
+    link_build()
+    out, ok = {}, True
+    for name, mode, pin, word, which, end in (("ventricular", "VVI", st.VENTRICULAR, 11, 3, "stop"), ("atrial", "AAI", st.ATRIAL, 10, 1, "link")):
+        code = e4.CODE[mode]
+        ops = ["up", f"set:0={code},1=90", f"wait:state={e4.PERMANENT}", "hold:3", f"temp:0={code},1=90,{word}=1000", "wait:state=2", f"threshold:{which}", "hold:22"]
+        ops += ["threshold-stop", "wait:state=1", "hold:4", "status"] if end == "stop" else ["stop"]
+        elf, text = e4.flash_heart([0, 0, 0, 0, 0])
+        st.probe("reset", st.BOARD_B)
+        st.start_pg()
+        cap = st.Capture(40)
+        cap.started()
+        lines = st.stub(*ops)
+        cap.finish()
+        checks = []
+        t = e4.op(lines, "threshold")
+        e4.check(checks, "every operation of the stub succeeded and the test was accepted", all(l["ok"] for l in lines) and t is not None and t["detail"]["accepted"], [l["op"] for l in lines if not l["ok"]])
+        if t is None:
+            out[name] = e4.result(checks, {"ops": lines})
+            ok = False
+            continue
+        begin = e4.sample_of(cap, e4.op(lines, "wait", 0)["done"]) + 1_000_000
+        pulses = [p for p in cap.pulses(pin) if p[1] >= begin]
+        g = groups(pulses)
+        # The permanent width, the test's start value, the steps, and the permanent width again.
+        first_step = next((k for k, x in enumerate(g) if x[0] == 1000), None)
+        last_step = max((k for k, x in enumerate(g) if x[0] != 400), default=None)
+        steps = g[first_step:last_step + 1] if first_step is not None and last_step is not None else []
+        widths = [x[0] for x in steps]
+        e4.check(checks, "the widths on the capture: the permanent 0.40 ms, then from 1.00 ms down one setting at a time, then the permanent width again",
+                 first_step is not None and g[0][0] == 400 and g[-1][0] == 400 and len(widths) >= 6 and widths == WIDTHS[9:9 + len(widths)], {"runs_of_one_width": g})
+        e4.check(checks, "every setting but the first and the last has four pulses (the first has those before the test's start too, the last is cut by the end)",
+                 len(steps) >= 6 and all(x[1] == 4 for x in steps[1:-1]), {"pulses_at_each_setting": [x[1] for x in steps]})
+        gaps = st.intervals(pulses)
+        e4.check(checks, "the back-up pacing is at its rate throughout (90 ppm) and the other Chamber is not paced",
+                 st.all_near(gaps, 666_666, e4.TOL) and not [p for p in cap.pulses(1 - pin) if p[1] >= begin], st.spread(gaps))
+        if end == "stop":
+            told = e4.op(lines, "status")
+            e4.check(checks, "the Stop ends the test and temporary pacing: the State is Permanent", told is not None and told["detail"]["state"] == e4.PERMANENT, told and told["detail"])
+        else:
+            lost = e4.sample_of(cap, lines[-1]["done"])
+            after = [p for p in pulses if p[1] > lost + 1_500_000]
+            e4.check(checks, "the loss of the link ends the test: 0.40 ms pulses from 1.5 s after the stub stopped answering, to the end of the capture",
+                     len(after) >= 5 and st.all_near([p[2] for p in after], 400, st.WIDTH_TOLERANCE_US), st.spread([p[2] for p in after]))
+        print(f"  threshold, {name}:", flush=True)
+        out[name] = e4.result(checks, {"ops": lines, "heart": text})
+        ok = ok and out[name]["verdict"] == "PASS"
+    out["verdict"] = "PASS" if ok else "FAIL"
+    return out
+
+
+def run_ert():
+    link_build()
+    ops = ["up", f"set:0={e4.CODE['DDD']},1=60", f"wait:state={e4.PERMANENT}", "hold:3",
+           "read:96,0", "markers:3",                                                    # 4, 5: at BOL
+           "battery:2", "wait:battery=2", "read:96,0", "read:64,0", "markers:3",          # 8, 9, 10: at ERT
+           "read:16,0", "read:32,0", "read:80,0",
+           "battery:3", "wait:battery=3", "read:96,1", "markers:3",                       # 16, 17: at ERP
+           "battery:0", "wait:battery=0", "read:96,0", "markers:3", "status"]             # 20, 21: at BOL again
+    cap, lines, extra = e4.session("fixed", ops, 36)
+    checks = []
+    e4.check(checks, "every operation of the stub ran", len(lines) == len(ops), {"ran": len(lines), "of": len(ops)})
+    if len(lines) != len(ops):
+        return e4.result(checks, {**extra, "ops": lines})
+    count = lambda k: len(lines[k]["detail"]["records"]) if isinstance(lines[k]["detail"], dict) else None
+    code = lambda k: (lines[k]["detail"].get("answer") or {}).get("code") if isinstance(lines[k]["detail"], dict) else None
+    e4.check(checks, "at BOL the measured data is read and the Marker transmission brings records",
+             lines[4]["ok"] and lines[5]["ok"] and count(5) >= 6, {"read": lines[4]["ok"], "markers": count(5)})
+    e4.check(checks, "at ERT the read of the measured data and of a Marker are answered as declined (code 8), the transmission is not started and no Marker comes (PM17.7)",
+             not lines[8]["ok"] and code(8) == 8 and not lines[9]["ok"] and code(9) == 8 and not lines[10]["ok"] and count(10) == 0,
+             {"measured": lines[8]["detail"], "marker": lines[9]["detail"], "markers": count(10)})
+    e4.check(checks, "at ERT a histogram, the counts and the implant data are read as before", all(lines[k]["ok"] for k in (11, 12, 13)), [lines[k]["ok"] for k in (11, 12, 13)])
+    e4.check(checks, "at ERP the same: declined, no Marker", not lines[16]["ok"] and code(16) == 8 and not lines[17]["ok"] and count(17) == 0, {"measured": lines[16]["detail"], "markers": count(17)})
+    e4.check(checks, "at BOL again the measured data is read and the transmission brings records", lines[20]["ok"] and lines[21]["ok"] and count(21) >= 6, {"read": lines[20]["ok"], "markers": count(21)})
+    others = [l["op"] for k, l in enumerate(lines) if not l["ok"] and k not in (8, 9, 10, 16, 17)]
+    e4.check(checks, "every other operation succeeded", others == [], others)
+    return e4.result(checks, {**extra, "ops": [dict(l, detail={"records": len(l["detail"]["records"])}) if l["op"].startswith("markers") and isinstance(l["detail"], dict) else l for l in lines]})
+
+
+RUNS = {"events": ("22.1", run_events), "markers": ("22.2, 22.3", run_markers), "atr_markers": ("22.2", run_atr_markers), "records": ("22.4", run_records),
+        "malformed": ("22.4", run_malformed), "stream": ("22.2", run_stream), "interrogation": ("22.5", run_interrogation), "threshold": ("22.6", run_threshold), "ert": ("16.5, 22.4 (finding A9)", run_ert)}
 
 
 def main():

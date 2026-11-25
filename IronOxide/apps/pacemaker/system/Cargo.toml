@@ -42,7 +42,9 @@ coverage = ["rsk-kernel/coverage", "pacemaker-therapy/coverage"]
 set-env = ["pacemaker-therapy/set-env"]
 # Task 17: the injections of the fault-response runs (see the Partition crates).
 inject-once = ["pacemaker-therapy/inject-once"]
-misbehave = ["pacemaker-comms?/misbehave"]
+# With `PM_LINK_FAULT=record` it is `diag` that misbehaves (task 22.4):
+# `history` sends records that `comms` refuses.
+misbehave = ["pacemaker-comms?/misbehave", "pacemaker-diag?/misbehave"]
 rig-stop = ["pacemaker-therapy/rig-stop"]
 
 [dependencies]

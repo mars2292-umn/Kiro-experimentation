@@ -58,11 +58,17 @@ pub mod rsk_target {
     pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
 const _: () = assert!(::core::mem::size_of::<[u32;28]>() <= 112, "the payload of Endpoint `events` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;6]>() <= 24, "the payload of Endpoint `records` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;3]>() <= 12, "the payload of Endpoint `request` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `diag.history` (Priority 1).
     pub struct History {
         /// Role `log` of Endpoint `events` (task 21.2; R38.1, R40.1): 2 messages of `[u32;28]` each way.
         pub events: ::rsk::Endpoint<[u32;28], 28>,
+        /// Role `log` of Endpoint `records` (task 21.2; R38.1, R40.1): 2 messages of `[u32;6]` each way.
+        pub records: ::rsk::Endpoint<[u32;6], 6>,
+        /// Role `log` of Endpoint `request` (task 21.2; R38.1, R40.1): 2 messages of `[u32;3]` each way.
+        pub request: ::rsk::Endpoint<[u32;3], 3>,
         /// Per-Task state `store` (PR-25).
         pub store: ::rsk::PerTask<'static, crate :: History>,
     }
@@ -84,6 +90,8 @@ pub mod rsk_jobs {
     pub fn history() {
         let () = super::history(super::rsk_ctx::History {
             events: ::rsk::Endpoint::new(2, 1),
+            records: ::rsk::Endpoint::new(3, 0),
+            request: ::rsk::Endpoint::new(4, 1),
             store: ::rsk::PerTask::new(&super::rsk_state::HISTORY_STORE),
         });
     }

@@ -114,3 +114,98 @@ pub const fn modifiers_of(r: &[u32; RECORD_WORDS]) -> u8 {
 pub const fn augmentation_of(r: &[u32; RECORD_WORDS]) -> u8 {
     (r[1] / 0x100_0000) as u8
 }
+
+/// A request to `diag` over the Endpoint `request` (task 22.4): a code and
+/// two values, as words.
+pub const REQUEST_WORDS: usize = 3;
+
+/// The codes of a request, with what the two values are.
+pub mod request {
+    /// PM18.2: every histogram and both counts cleared together.
+    pub const RESET_HISTOGRAMS: u32 = 1;
+    /// PM18.3: a trend begun now: the duration (0 Continuous, 1 Fixed) and
+    /// the content (0 both, 1 the pacing rate, 2 the sensor data).
+    pub const TREND: u32 = 2;
+    /// One part of a record: the record's kind ([`super::data`]) and the part.
+    pub const READ: u32 = 3;
+    /// PM20.1: the Marker transmission started (1) or stopped (0).
+    pub const MARKERS: u32 = 4;
+    /// PM18.7, PM17.5: a word of the implant data, or a measured value's
+    /// stand-in, supplied: its index and the value.
+    pub const SET_IMPLANT: u32 = 5;
+    pub const SET_MEASURED: u32 = 6;
+}
+
+/// A record of `diag`'s over the Endpoint `records`: word 0 the record's
+/// kind and, above it, the part; then five words of data. Six words are
+/// the payload of a link frame.
+pub const DATA_WORDS: usize = 6;
+
+/// The kinds of record, and the parts each has.
+pub mod data {
+    /// The four rate histograms, 17 bins in four parts of five:
+    /// `HISTOGRAM` plus 0 paced atrial, 1 sensed atrial, 2 paced
+    /// ventricular, 3 sensed ventricular.
+    pub const HISTOGRAM: u8 = 0x10;
+    /// Part 0: the PVCs, the ATR episodes, the records taken, the records
+    /// the ring of `therapy` lost, the records of batches that did not
+    /// arrive. Part 1: the resets, the batches, the restarts of `therapy`
+    /// seen, the records written to the Marker buffer.
+    pub const COUNTS: u8 = 0x20;
+    /// Part 0: the duration, the content, the samples written, the stamp
+    /// in milliseconds, the samples the trend holds. Parts 1 to 64: two
+    /// samples each, oldest first, the pacing interval and the sensor's.
+    pub const TREND: u8 = 0x30;
+    /// One record of the Marker stream: its number, then its three words.
+    pub const MARKER: u8 = 0x40;
+    /// The implant data, ten words in two parts (PM18.7).
+    pub const IMPLANT: u8 = 0x50;
+    /// The measured data's stand-ins, six values in two parts; the first
+    /// word of part 0 says they are simulated (PM17.5).
+    pub const MEASURED: u8 = 0x60;
+}
+
+/// The words of the implant data and the values of the measured data.
+pub const IMPLANT_WORDS: usize = 10;
+pub const MEASURED_WORDS: usize = 5;
+/// The first word of the measured data: the values are stand-ins.
+pub const SIMULATED: u32 = 1;
+
+/// The parts of a record of `kind`; 0 for a kind that is none.
+#[inline(always)]
+#[must_use]
+pub const fn parts(kind: u8) -> u32 {
+    if kind >= data::HISTOGRAM && kind < data::HISTOGRAM + 4 {
+        4
+    } else if kind == data::COUNTS || kind == data::IMPLANT || kind == data::MEASURED {
+        2
+    } else if kind == data::TREND {
+        65
+    } else if kind == data::MARKER {
+        1
+    } else {
+        0
+    }
+}
+
+/// Word 0 of a record of `kind`, part `part`.
+#[inline(always)]
+#[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == kind@ + part@ * 0x100))]
+pub const fn head(kind: u8, part: u8) -> u32 {
+    kind as u32 + part as u32 * 0x100
+}
+
+/// Whether `m` is a record of the Endpoint `records`: `comms`'s
+/// validation function (R42.4: from level D to level C; PM22.4). The kind
+/// is one of [`data`], the part one the kind has, and nothing is above them.
+#[inline(always)]
+#[must_use]
+pub const fn admitted(m: &[u32; DATA_WORDS]) -> bool {
+    if m[0] > 0xFFFF {
+        return false;
+    }
+    let kind = (m[0] % 0x100) as u8;
+    let part = m[0] / 0x100;
+    part < parts(kind)
+}

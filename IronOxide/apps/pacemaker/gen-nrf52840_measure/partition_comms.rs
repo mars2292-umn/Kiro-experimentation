@@ -24,6 +24,18 @@ pub mod rsk_state {
 pub mod rsk_roles {
 }
 pub mod rsk_validate {
+    /// The validation function of role `dcm` of Endpoint `records` (R42.4): `crate::validate_records`.
+    #[allow(non_camel_case_types)]
+    pub struct records_dcm;
+    impl ::rsk::Validate<[u32;6]> for records_dcm {
+        fn accept(m: &[u32;6]) -> bool { crate::validate_records(m) }
+    }
+    /// The validation function of role `dcm` of Endpoint `request` (R42.4): `crate::validate_nothing`.
+    #[allow(non_camel_case_types)]
+    pub struct request_dcm;
+    impl ::rsk::Validate<[u32;3]> for request_dcm {
+        fn accept(m: &[u32;3]) -> bool { crate::validate_nothing(m) }
+    }
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
@@ -73,6 +85,8 @@ pub mod rsk_target {
 }
 const _: () = assert!(::core::mem::size_of::<[u32;30]>() <= 120, "the payload of Endpoint `program` exceeds its declared `payload` bytes (R38.1)");
 const _: () = assert!(::core::mem::size_of::<[u32;4]>() <= 16, "the payload of Endpoint `status` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;6]>() <= 24, "the payload of Endpoint `records` exceeds its declared `payload` bytes (R38.1)");
+const _: () = assert!(::core::mem::size_of::<[u32;3]>() <= 12, "the payload of Endpoint `request` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `comms.link` (Priority 2).
     pub struct Link {
@@ -80,6 +94,10 @@ pub mod rsk_ctx {
         pub program: ::rsk::Endpoint<[u32;30], 30>,
         /// Role `dcm` of Endpoint `status` (task 21.2; R38.1, R40.1): 2 messages of `[u32;4]` each way.
         pub status: ::rsk::Endpoint<[u32;4], 4>,
+        /// Role `dcm` of Endpoint `records` (task 21.2; R38.1, R40.1): 2 messages of `[u32;6]` each way, received through the role's validation function (R42.4).
+        pub records: ::rsk::Endpoint<[u32;6], 6, super::rsk_validate::records_dcm>,
+        /// Role `dcm` of Endpoint `request` (task 21.2; R38.1, R40.1): 2 messages of `[u32;3]` each way, received through the role's validation function (R42.4).
+        pub request: ::rsk::Endpoint<[u32;3], 3, super::rsk_validate::request_dcm>,
         /// Per-Task state `started` (PR-25).
         pub started: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `transfers` (PR-25).
@@ -116,6 +134,8 @@ pub mod rsk_jobs {
         let () = super::link(super::rsk_ctx::Link {
             program: ::rsk::Endpoint::new(0, 0),
             status: ::rsk::Endpoint::new(1, 1),
+            records: ::rsk::Endpoint::new(3, 1),
+            request: ::rsk::Endpoint::new(4, 0),
             started: ::rsk::PerTask::new(&super::rsk_state::LINK_STARTED),
             transfers: ::rsk::PerTask::new(&super::rsk_state::LINK_TRANSFERS),
             stuck: ::rsk::PerTask::new(&super::rsk_state::LINK_STUCK),

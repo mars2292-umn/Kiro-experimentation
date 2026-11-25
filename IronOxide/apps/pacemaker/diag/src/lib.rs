@@ -26,7 +26,11 @@ pub use history::History;
 /// `history`'s, and the Endpoint holds two (finding B44).
 pub const BATCHES: usize = 2;
 
-/// Task `history` (periodic, 100 ms).
+/// Task `history` (periodic, 100 ms): the batches of `events`; one request
+/// of `link`'s; one record for `link`, the answer to the request or else
+/// the next record of the Marker transmission (the Endpoint `records`
+/// holds two and `link` takes one in each of its periods, two in one of
+/// this Task's: one a Job never finds it full); and the trend's sample.
 #[cfg(feature = "nrf52840")]
 pub fn history(mut cx: rsk_ctx::History) {
     let mut k = 0;
@@ -43,5 +47,24 @@ pub fn history(mut cx: rsk_ctx::History) {
         }
     }
     let now_ms = (rsk::now() / rsk_target::ms(1)) as u32;
+    let answer = match cx.request.recv() {
+        Ok(Some(r)) => cx.store.with(|h| h.request(&r, now_ms)),
+        _ => None,
+    };
+    #[cfg(feature = "misbehave")]
+    let answer = if env!("PM_LINK_FAULT").as_bytes()[0] == b'r' && rsk::now() >= rsk_target::ms(10_000) {
+        // A record `comms`'s validation function refuses (a kind that is
+        // none): the Kernel reports it against this Partition (R42.4).
+        Some([0x99, 0, 0, 0, 0, 0])
+    } else {
+        answer
+    };
+    let record = match answer {
+        Some(m) => Some(m),
+        None => cx.store.with(|h| h.next_marker()),
+    };
+    if let Some(m) = record {
+        let _ = cx.records.send(&m);
+    }
     cx.store.with(|h| h.job(now_ms));
 }

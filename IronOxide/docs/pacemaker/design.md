@@ -193,7 +193,7 @@ tools/dcm-stub/        the DCM_Stub, a host program
 | `sense_a` | therapy | sporadic | TIMER1 compare | MIT 50 ms | 4 ms | 450 µs | 324.7 µs | 5 | The same for the atrium |
 | `control` | therapy | periodic | — | 20 ms | 20 ms | 5 ms | 488.0 µs | 4 | Init; commands and parameters from the Endpoint; State changes; magnet pin; battery and activity values; rate adaptation; ATR timing; link loss; drain the event ring to `diag` |
 | `link` | comms | periodic | — | 50 ms | 50 ms | 2 ms | 539.1 µs | 2 | One SPI frame each way; forward commands, return status and records |
-| `history` | diag | periodic | — | 100 ms | 100 ms | 2 ms | not measured | 1 | Histograms, trends, the Marker buffer (tasks 22.1 to 22.3); answer record requests (task 22.4) |
+| `history` | diag | periodic | — | 100 ms | 100 ms | 2 ms | not measured | 1 | Histograms, trends, the Marker buffer (tasks 22.1 to 22.3); one request of `link`'s and one record for it a Job (task 22.4) |
 
 Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage E5 (electrogram sampling) or as margin.
 
@@ -208,8 +208,8 @@ Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage
 | `program` | `comms.link` → `therapy.control` | 30 words (`pm_core::wire`; 29 until task 19.5 gave a set its 29th word): a code and the DCM's frame number, then a parameter set for the two codes that carry one. One message for every frame of the DCM's that `link` hears: a command (PROGRAM, TEMPORARY, END_TEMPORARY, PACE_NOW), or the mark that a frame was heard | `therapy`'s validation function (R42.4: from level C to level A), `wire::admitted`: exactly the five codes, a set exactly when `validate` accepts it (Table 19-1 and Table 19-5; PM19.3, PM22.3), zeros where no set belongs | none: `control` takes up to four messages every period, and at most one command |
 | `status` | `therapy.control` → `comms.link` | 4 words: the State, the Mode in force, the battery level, whether `control` has the link as up; the count of verdicts; the last verdict and the frame it answers; the count of refused messages. Sent when it changes, when `comms` has restarted, and once a second | none needed (downward). The channel toward `control` is never read; its validation function accepts nothing | none |
 | `events` | `therapy.control` → `diag.history` | 28 words (`pm_core::record`; task 22.1): the count of records, the number of the first, the count of records the ring has lost and the sensor's interval, then up to 8 event records of three words. Capacity 2 | none needed (downward). The channel toward `control` is never read; its validation function accepts nothing | none: `control` sends one batch in a period of `history` at most (every fifth Job), and once a second an empty one; `history` takes up to two |
-| `records` | `diag.history` → `comms.link` | One histogram, trend or Marker frame | `comms`'s validation function (from level D to level C): frame kind and length in range | none |
-| `request` | `comms.link` → `diag.history` | A record request or a reset | none needed (downward) | none |
+| `records` | `diag.history` → `comms.link` | 6 words, a link frame's payload (`pm_core::record`; task 22.4): the record's kind and part, then five words of data. Capacity 2 | `comms`'s validation function (R42.4: from level D to level C), `record::admitted`: a kind of record and a part that kind has, nothing above them | none: `history` sends one in a Job, `link` takes one in a Job when the one before has been told |
+| `request` | `comms.link` → `diag.history` | 3 words: a code and two values (reset the histograms; begin a trend; read a part of a record; start or stop the Marker transmission; supply a word of the implant data or a measured value's stand-in). Capacity 2 | none needed (downward). The channel toward `link` is never read; its validation function accepts nothing | none: one a Job each side |
 
 No Endpoint releases a Task: every receiver is periodic, so a flood from a lower Partition costs the receiver nothing beyond its own Budget (PM22.5). A full `events` buffer makes `control` keep the batch in the ring and count a drop when the ring overflows; `pace` and the sense Tasks never touch an Endpoint (PM22.4).
 
@@ -397,6 +397,31 @@ As built (2026-11-25):
 - **The modifiers of a Pace**: hysteresis, sensor rate, Rate Smoothing Up and Down. They say what made the escape interval the Pace ended what it was, by `pm_core::escape_modifiers`, which composes the interval as the step's `escape` does and is evaluated when the cycle begins. It decides nothing of the timing and has no contract; it is tested.
 - **The augmentation Markers**: ATR-Dur, ATR-FB and ATR-End from the change of ATR's phase in the step, PVP→ when the PVARP is extended after a PVC. One an event, with the event's first record (Property P9).
 - **The time since the Chamber's last non-refractory event** (PM18.6) is taken from the records: the instant of the Chamber's last record that was no Refractory sense and no noise. It is not taken from the step's state, which may have accounted a Pace before the Pace's report comes (finding B45).
+
+### Records over the link (task 22.4), the data supplied (task 22.5)
+
+A command of the DCM's for `diag` is one request; `link` answers it with a STATUS of the code REQUESTED and hands the request on, `history` answers a read in its next Job with one record, and `link` tells it as a RECORD frame in a period that has no part of a parameter read to send: the record's part in the frame's, its six words as the payload. From the DCM's frame to the RECORD is at most one period of `history` and two of `link` (200 ms). The records:
+
+| Kind | Parts | Content |
+|---|---|---|
+| The four histograms | 4 each | 17 bins, five a part |
+| Counts | 2 | PVCs, ATR episodes, records taken, records the ring lost, records of batches that did not arrive; resets, batches, restarts of `therapy` seen, records written to the Marker buffer |
+| Trend | 65 | The duration, the content, the samples written, the stamp, the size; then two samples a part, oldest first |
+| Marker | 1 | One record of the Marker transmission with its number |
+| Implant data | 2 | Ten words (PM18.7): the implant date and the lead implant date as days since 2000-01-01, the lead polarity, the pacing thresholds, the P and R wave amplitudes and the lead impedances at implant, the indications. The model and the serial number are `link`'s IDENTITY |
+| Measured data | 2 | The mark that the values are simulated; the battery voltage, the P and R wave amplitudes, the lead impedances, the date of the last interrogation |
+
+**The Marker transmission** (PM20.1, PM18.5): from MARKERS_START until MARKERS_STOP `history` sends each record of the Marker buffer once, in order, one a Job, which is 10 a second; a record the buffer lost before its turn is passed over and counted. A transmission the loss of the link broke is begun again by the DCM's next MARKERS_START (PM18.4's resumption, for the Markers).
+
+**The implant data and the measured data are supplied, not measured** (PM17.5, PM-NG-03): the DCM_Stub writes each word (SET_DATA), `diag` keeps it, and a read returns it, the measured data with its mark. Nothing in the Application measures a wave, an impedance or a voltage. The battery status level is the one `therapy` has from the link (PM17.6) and is told in every STATUS.
+
+**At a battery level of ERT or below the measured data and the Markers are disabled** (PM17.7; finding A9, 2026-11-25). It is `link` that does it, because `link` has the level the DCM set and `diag` does not: a read of the measured data (MEASURE, or READ_RECORD of that kind), a read of a Marker and MARKERS_START are answered with a STATUS of the code DECLINED and are not handed to `diag`; the SET_BATTERY that brings the level to ERT or below also hands `diag` the end of the Marker transmission; and a record of either kind that still comes from `diag`, or was taken and not yet told, is not told and is counted (`Link::withheld`). The last is what holds if the request to end the transmission is lost at a full Endpoint. The histograms, the counts, the trend and the implant data are read at every level, and so is the battery status level, which is in every STATUS; the battery voltage and the date of the last interrogation are words of the measured data and are not read at ERT. Back at a better level the DCM begins a transmission again by MARKERS_START. The level `link` has is 0 (BOL) after a restart of `comms` until the DCM sets it again.
+
+### The pacing threshold test (task 22.6)
+
+The test runs in the Temporary State (PM17.4). The DCM starts temporary pacing with the back-up Mode and rate and the start value, then names the value under test: the amplitude or the pulse width of one Chamber (THRESHOLD_START). `control` counts the cardiac cycles by the records of the Mode's timing Chamber and, after every fourth, gives the step the command `StepTemporary` with the temporary set whose value under test is one setting of Table 19-1 lower (`pm_core::threshold`); the step replaces the temporary set, in the Temporary State only, and the set is in force from the next arming. At the lowest setting the test stays there. THRESHOLD_STOP ends temporary pacing and the test; the loss of the link ends temporary pacing by the State machine, and `control` ends the test when the State is no longer Temporary. At ERT and below temporary pacing is declined, and the test with it (PM17.7).
+
+Only the pulse width can be seen on the rig: an amplitude is a value the Application carries (PM-NG-03), and its test is the same code on another word, host-tested.
 
 ### What `diag` keeps (task 22.3)
 

@@ -102,9 +102,13 @@ pub struct LinkSide {
     /// start. It is used only while the link is up: without the link
     /// there is no sensor, and the sensor rate returns to the LRL.
     pub activity: u32,
-    /// Always zero: the words of the link are an even number, so that the
-    /// Resource, whose alignment is 8, ends without a padding byte.
-    pub reserved: u32,
+    /// The pacing threshold test (PM17.4; task 22.6): 0 while none runs,
+    /// else the value under test (`pm_core::threshold::what`) and 1; the
+    /// cardiac cycles at the present setting; and the instant of the
+    /// timing Chamber's last record, by which a cycle is counted.
+    pub test: u32,
+    pub test_cycles: u32,
+    pub test_mark: u32,
 }
 
 /// The Jobs of `control` without a message after which the link is lost
@@ -210,7 +214,7 @@ impl Timing {
             spare: 0,
             marks: Marks::NONE,
             counts: Counts { too_late: 0, moved: 0, late: 0, dropped: 0 },
-            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0, activity: 0, reserved: 0 },
+            link: LinkSide { up: 0, quiet: 0, serial: 0, last: 0, refused: 0, battery: 0, tripped: 0, activity: 0, test: 0, test_cycles: 0, test_mark: 0 },
         }
     }
 }
@@ -630,10 +634,11 @@ impl Timing {
             let mut hw = Driver::resume(board::Board { words: board }, *driver);
             if tripped {
                 trip(state, ring, written, drained, marks, counts, link, &mut hw);
-                if command.is_some() {
+                if command.is_some() || link.test != 0 {
                     v = verdict::DECLINED;
                     answered = true;
                 }
+                link.test = 0;
             } else {
                 link.tripped = 0;
                 if let Some(command) = command {
@@ -643,9 +648,15 @@ impl Timing {
                     }
                     answered = true;
                 }
+                // A threshold test is begun only in the Temporary State.
+                if code_of(&inbox.command) == code::THRESHOLD_START && inbox.has_command && !matches!(state.therapy, Therapy::Temporary) {
+                    link.test = 0;
+                    v = verdict::DECLINED;
+                }
                 let now = hw.now();
                 let magnet = hw.magnet();
                 event(state, ring, written, drained, marks, counts, &mut hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
+                threshold(state, ring, written, drained, marks, counts, link, &mut hw);
             }
             hw.refresh(Chamber::A);
             hw.refresh(Chamber::V);
@@ -709,6 +720,16 @@ fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool)
             command = Some(pm_core::Command::PaceNow);
         } else if c == code::MAGNET_RESPONSE {
             command = Some(pm_core::Command::MagnetResponse(pm_core::wire::value_of(&inbox.command) == 1));
+        } else if c == code::THRESHOLD_START {
+            // Whether a test can run is decided where the State is known
+            // (`on_control`): here it is only asked for.
+            link.test = pm_core::wire::value_of(&inbox.command).saturating_add(1);
+            link.test_cycles = 0;
+            answered = true;
+        } else if c == code::THRESHOLD_STOP {
+            // PM17.4: a Stop ends the test, and temporary pacing with it.
+            link.test = 0;
+            command = Some(pm_core::Command::EndTemporary);
         }
     }
     (command, answered)
@@ -734,6 +755,34 @@ fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, 
         *drained = 0;
         *marks = Marks::NONE;
         link.tripped = 1;
+    }
+}
+
+/// The pacing threshold test (PM17.4; task 22.6; `pm_core::threshold`),
+/// once in a Job of `control`. It runs in the Temporary State and ends
+/// with it: by a Stop, by the loss of the link, or by whatever else ends
+/// temporary pacing. Every fourth cardiac cycle (a cycle is a new record
+/// of the timing Chamber) the temporary set is replaced by the set with
+/// the value under test one setting lower; at the lowest setting the test
+/// stays there.
+fn threshold<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
+    if link.test == 0 {
+        return;
+    }
+    if !matches!(state.therapy, Therapy::Temporary) {
+        link.test = 0;
+        return;
+    }
+    let k = state.params().mode.timing_chamber().index();
+    if marks.seen[k] != 0 && marks.last[k] != link.test_mark {
+        link.test_mark = marks.last[k];
+        link.test_cycles = link.test_cycles.saturating_add(1);
+    }
+    if link.test_cycles > pm_core::threshold::CYCLES {
+        link.test_cycles = 1;
+        if let Some(next) = pm_core::threshold::step_down(&state.temporary, link.test - 1) {
+            event(state, ring, written, drained, marks, counts, hw, Event::Command(pm_core::Command::StepTemporary(next)));
+        }
     }
 }
 

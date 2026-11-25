@@ -13,7 +13,10 @@
 //! | PROGRAM_PART, TEMPORARY_PART | STATUS with RECEIVED, SET_COMPLETE or BAD_PART; a complete set is forwarded to `therapy` |
 //! | END_TEMPORARY, PACE_NOW, SET_BATTERY, SET_ACTIVITY, SET_MAGNET_RESPONSE | STATUS with FORWARDED; the command is forwarded to `therapy` (the two with a byte: BAD_PART unless the length is 1) |
 //! | READ_PARAMETERS | part 0 of the last complete set as PARAM_PART, the other parts in the periods after; STATUS with NO_SET if there is none |
-//! | any other kind of the DCM's | STATUS with NOT_SERVED |
+//! | RESET_HISTOGRAMS, TREND_START, MARKERS_START, MARKERS_STOP, SET_DATA | STATUS with REQUESTED; the request is handed to `diag` (BAD_PART for a wrong length) |
+//! | READ_RECORD, MEASURE | STATUS with REQUESTED (BAD_PART for a kind or a part no record has); the RECORD follows when `diag` has answered. At a battery level of ERT or below the measured data, a Marker and MARKERS_START are answered DECLINED, and a Marker transmission is ended (PM17.7) |
+//! | THRESHOLD_START, THRESHOLD_STOP | STATUS with FORWARDED; the command is forwarded to `therapy` |
+//! | any other kind of the DCM's (EGRAM_START, EGRAM_STOP: finding B46) | STATUS with NOT_SERVED |
 //! | a kind of the PG's | as bytes that are no frame |
 //!
 //! **Toward `therapy`** (task 16.1). For every frame of the DCM's it hears,
@@ -33,10 +36,18 @@
 //! instead: with `control`'s verdict and the number of the frame it
 //! answers when the verdict is new, with the code NONE otherwise.
 //!
+//! **To and from `diag`** (task 22.4). A request is one message for the
+//! Endpoint `request` ([`take_request`]). A record `diag` sent
+//! ([`record_in`]; the Kernel has put it through [`pm_core::record::admitted`],
+//! this Partition's validation function, before `link` sees it) is told
+//! as a RECORD frame in the next period that has no part of a read to
+//! send: its part in the frame's, its six words as the payload.
+//!
 //! READ_PARAMETERS still reads back the last set `link` put together,
 //! whatever `therapy` said of it: it is not the set in force.
 
 use pm_core::frame::{kind, set_part, words_in_part, Assembly, Frame, PARTS};
+use pm_core::record::{self, DATA_WORDS, REQUEST_WORDS};
 use pm_core::wire::{self, Status, PROGRAM_WORDS, STATUS_WORDS};
 use pm_core::WORDS;
 #[cfg(creusot)]
@@ -69,6 +80,8 @@ pub mod code {
     pub use pm_core::wire::verdict::{ACCEPTED, DECLINED, REFUSED};
     /// The command was handed to `therapy`; its verdict follows.
     pub const FORWARDED: u8 = 9;
+    /// The request was handed to `diag`; a record follows if it asked for one.
+    pub const REQUESTED: u8 = 10;
 }
 
 /// A STATUS byte `link` has no value for.
@@ -116,12 +129,24 @@ pub struct Link {
     /// and 1 when it is to be sent to `therapy` again.
     pub battery: u32,
     pub resend_battery: u32,
+    /// 1 when `request` is a request for `diag` not yet taken; requests
+    /// the Endpoint did not take.
+    pub request_ready: u32,
+    pub unrequested: u32,
+    pub request: [u32; REQUEST_WORDS],
+    /// 1 when `record` is a record of `diag`'s not yet told; records told.
+    pub record_ready: u32,
+    pub records: u32,
+    pub record: [u32; DATA_WORDS],
+    /// Records of `diag`'s not taken because the battery level disables
+    /// them (PM17.7; saturating).
+    pub withheld: u32,
 }
 
 impl Link {
     #[must_use]
     pub const fn new() -> Link {
-        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS], forward_ready: 0, unforwarded: 0, forward: [0; PROGRAM_WORDS], have_status: 0, status: [0; STATUS_WORDS], told: [0; 3], battery: 0, resend_battery: 0 }
+        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS], forward_ready: 0, unforwarded: 0, forward: [0; PROGRAM_WORDS], have_status: 0, status: [0; STATUS_WORDS], told: [0; 3], battery: 0, resend_battery: 0, request_ready: 0, unrequested: 0, request: [0; REQUEST_WORDS], record_ready: 0, records: 0, record: [0; DATA_WORDS], withheld: 0 }
     }
 }
 
@@ -165,6 +190,73 @@ pub fn take_resend(l: &mut Link) -> Option<[u32; PROGRAM_WORDS]> {
 /// offered again in the next period.
 pub fn not_resent(l: &mut Link) {
     l.resend_battery = 1;
+}
+
+/// The request for the Endpoint `request`, once.
+#[must_use]
+pub fn take_request(l: &mut Link) -> Option<[u32; REQUEST_WORDS]> {
+    if l.request_ready == 1 {
+        l.request_ready = 0;
+        Some(l.request)
+    } else {
+        None
+    }
+}
+
+/// The Endpoint did not take the request [`take_request`] gave.
+pub fn not_requested(l: &mut Link) {
+    l.unrequested = l.unrequested.saturating_add(1);
+}
+
+/// Whether a record can be taken from the Endpoint `records`: the one
+/// before has been told.
+#[must_use]
+pub fn wants_record(l: &Link) -> bool {
+    l.record_ready == 0
+}
+
+/// A record of `diag`'s, taken from the Endpoint `records`. At a battery
+/// level of ERT or below a Marker and the measured data are not taken
+/// (PM17.7): one asked for before the level fell, or one of a Marker
+/// transmission `diag` has not yet been told to end.
+pub fn record_in(l: &mut Link, m: &[u32; DATA_WORDS]) {
+    if level(l) >= ERT && disabled_at_ert((m[0] % 0x100) as u8) {
+        l.withheld = l.withheld.saturating_add(1);
+        return;
+    }
+    l.record = *m;
+    l.record_ready = 1;
+}
+
+/// The battery level (as SET_BATTERY's byte) from which the measured data
+/// and the Markers are disabled (PM17.7): ERT; 3 is ERP, 4 below the trip
+/// level.
+pub const ERT: u32 = 2;
+
+/// The battery level the measured data and the Markers go by: the worse
+/// of the one the DCM last set and the one in `control`'s last status. The
+/// first is 0 after a restart of `comms`, the second after a restart of
+/// `therapy` until the level has been sent again.
+#[must_use]
+pub fn level(l: &Link) -> u32 {
+    let told = if l.have_status == 1 { (l.status[0] / 0x1_0000) & 0xFF } else { 0 };
+    if told > l.battery { told } else { l.battery }
+}
+
+/// Whether a record of `kind` is one a battery level of ERT or below
+/// disables: the measured data and a Marker (PM17.7). The histograms, the
+/// counts, the trend and the implant data are neither.
+#[must_use]
+pub const fn disabled_at_ert(kind: u8) -> bool {
+    kind == record::data::MEASURED || kind == record::data::MARKER
+}
+
+/// Whether `r` asks `diag` for what a battery level of ERT or below
+/// disables: a read of the measured data or of a Marker, or the start of
+/// the Marker transmission. Its end is not.
+fn asks_disabled(r: &[u32; REQUEST_WORDS]) -> bool {
+    (r[0] == record::request::READ && (r[1] == record::data::MEASURED as u32 || r[1] == record::data::MARKER as u32))
+        || (r[0] == record::request::MARKERS && r[1] != 0)
 }
 
 /// The message for the Endpoint `program`, once.
@@ -228,6 +320,21 @@ fn idle_or_part(l: &mut Link, seq: u8) -> Frame {
         }
     }
     l.read_next = 0;
+    // A record of `diag`'s.
+    if l.record_ready == 1 {
+        l.record_ready = 0;
+        l.records = l.records.wrapping_add(1);
+        let mut f = Frame::empty(seq, kind::RECORD);
+        f.part = ((l.record[0] / 0x100) & 0xFF) as u8;
+        f.len = 24;
+        put_word(&mut f.payload, 0, l.record[0]);
+        put_word(&mut f.payload, 4, l.record[1]);
+        put_word(&mut f.payload, 8, l.record[2]);
+        put_word(&mut f.payload, 12, l.record[3]);
+        put_word(&mut f.payload, 16, l.record[4]);
+        put_word(&mut f.payload, 20, l.record[5]);
+        return f;
+    }
     // A status of `control`'s that the DCM has not been told.
     if l.have_status == 1 && (l.status[0] != l.told[0] || l.status[1] != l.told[1] || l.status[2] != l.told[2]) {
         let s = Status::of_words(&l.status);
@@ -330,9 +437,86 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
         if f.kind == kind::SET_BATTERY {
             l.battery = f.payload[0] as u32;
             l.resend_battery = 0;
+            // At ERT and below a Marker transmission ends (PM17.7), and a
+            // record not yet told that the level disables is dropped.
+            if l.battery >= ERT {
+                l.request = [record::request::MARKERS, 0, 0];
+                l.request_ready = 1;
+                if l.record_ready == 1 && disabled_at_ert((l.record[0] % 0x100) as u8) {
+                    l.record_ready = 0;
+                    l.withheld = l.withheld.saturating_add(1);
+                }
+            }
         }
         l.forward = m;
         return status(l, seq, f.seq, code::FORWARDED);
     }
-    status(l, seq, f.seq, code::NOT_SERVED)
+    // The pacing threshold test (task 22.6): to `therapy`, as the other
+    // commands with a byte and with none.
+    if f.kind == kind::THRESHOLD_START || f.kind == kind::THRESHOLD_STOP {
+        let with_value = f.kind == kind::THRESHOLD_START;
+        if f.len != if with_value { 1 } else { 0 } {
+            return status(l, seq, f.seq, code::BAD_PART);
+        }
+        let m = if with_value { wire::message_with_value(f.kind, f.seq, f.payload[0] as u32) } else { wire::message(f.kind, f.seq) };
+        if !wire::admitted(&m) {
+            return status(l, seq, f.seq, code::REFUSED);
+        }
+        l.forward = m;
+        return status(l, seq, f.seq, code::FORWARDED);
+    }
+    // The requests to `diag` (task 22.4).
+    match request_of(f) {
+        // The measured data and the Markers are disabled at ERT and below
+        // (PM17.7): declined, as `control` declines temporary pacing there.
+        Requested::Is(r) if level(l) >= ERT && asks_disabled(&r) => status(l, seq, f.seq, code::DECLINED),
+        Requested::Is(r) => {
+            l.request = r;
+            l.request_ready = 1;
+            status(l, seq, f.seq, code::REQUESTED)
+        }
+        Requested::Bad => status(l, seq, f.seq, code::BAD_PART),
+        Requested::No => status(l, seq, f.seq, code::NOT_SERVED),
+    }
+}
+
+/// What a frame asks of `diag`.
+enum Requested {
+    Is([u32; REQUEST_WORDS]),
+    /// A request with a wrong length, or for a record that is none.
+    Bad,
+    /// No request.
+    No,
+}
+
+/// The request a frame of the DCM's is.
+fn request_of(f: &Frame) -> Requested {
+    use record::request;
+    if f.kind == kind::RESET_HISTOGRAMS {
+        return if f.len == 0 { Requested::Is([request::RESET_HISTOGRAMS, 0, 0]) } else { Requested::Bad };
+    }
+    if f.kind == kind::MARKERS_START || f.kind == kind::MARKERS_STOP {
+        return if f.len == 0 { Requested::Is([request::MARKERS, if f.kind == kind::MARKERS_START { 1 } else { 0 }, 0]) } else { Requested::Bad };
+    }
+    if f.kind == kind::TREND_START {
+        return if f.len == 2 { Requested::Is([request::TREND, f.payload[0] as u32, f.payload[1] as u32]) } else { Requested::Bad };
+    }
+    if f.kind == kind::MEASURE {
+        return if f.len == 0 { Requested::Is([request::READ, record::data::MEASURED as u32, 0]) } else { Requested::Bad };
+    }
+    if f.kind == kind::READ_RECORD {
+        return if f.len == 2 && (f.payload[1] as u32) < record::parts(f.payload[0]) { Requested::Is([request::READ, f.payload[0] as u32, f.payload[1] as u32]) } else { Requested::Bad };
+    }
+    if f.kind == kind::SET_DATA {
+        if f.len != 6 || f.payload[0] > 1 {
+            return Requested::Bad;
+        }
+        let limit = if f.payload[0] == 0 { record::IMPLANT_WORDS } else { record::MEASURED_WORDS };
+        if f.payload[1] as usize >= limit {
+            return Requested::Bad;
+        }
+        let value = f.payload[2] as u32 + f.payload[3] as u32 * 0x100 + f.payload[4] as u32 * 0x1_0000 + f.payload[5] as u32 * 0x100_0000;
+        return Requested::Is([if f.payload[0] == 0 { request::SET_IMPLANT } else { request::SET_MEASURED }, f.payload[1] as u32, value]);
+    }
+    Requested::No
 }

@@ -63,30 +63,51 @@ def build(features, target_dir, env):
     if out.returncode != 0:
         sys.exit(out.stderr[-2000:])
     elf = f"{target_dir}/{TARGET}/release/pacemaker"
-    kernel_stack_room(elf)
+    os.makedirs(e1_runs.SCRATCH, exist_ok=True)
+    kernel_stack_room(elf, features)
     return elf
 
 
-KRAM_BYTES = 32_768
-KERNEL_STACK_BOUND = 1_368   # the Link_Checker's bound on the Flight build (docs/pacemaker/build_checks)
-
-
-def kernel_stack_room(elf):
+def kernel_stack_room(elf, features=""):
     """The Kernel's stack is what its RAM region has left above its data
     (the linker script the Generator writes), and a build with the Kernel's
-    trace fills most of the region with the trace's buffers. No build check
-    runs on such a build, so the room is checked here: at least one and a
-    half times the Link_Checker's bound (finding B44: a build 20 bytes
-    short ran and gave records that could not be read)."""
-    used = 0
-    for line in st.sh(["/Library/Developer/CommandLineTools/usr/bin/llvm-size", "-A", elf]).stdout.splitlines():
-        f = line.split()
-        if len(f) == 3 and f[0] in (".kernel.data", ".kernel.bss", ".kernel.noinit", ".kernel.cov"):
-            used += int(f[1])
-    room = KRAM_BYTES - used
-    if room < KERNEL_STACK_BOUND * 3 // 2:
-        sys.exit(f"{elf}: the Kernel's RAM has {room} bytes left for its stack, whose bound is {KERNEL_STACK_BOUND}")
-    return room
+    trace fills most of the region with the trace's buffers; the Endpoints'
+    storage is there too. `apps/pacemaker/build_checks.py` runs the
+    Link_Checker on the Flight builds only, so it is run here on every rig
+    build: the Kernel's stack and every Partition's within their regions
+    (finding B44: a build 20 bytes short ran and gave records that could
+    not be read)."""
+    import re
+    variant = "nrf52840_rig_stop" if "rig-stop" in features else "nrf52840_rig" if "rig" in features else "nrf52840_measure" if "measure" in features else "nrf52840"
+    policy = open("Cargo.toml").read()
+    verified = []
+    for name in re.findall(r"^([a-z0-9-]+) = \{[^}\n]*\bkernel = true", policy, re.M):
+        src = os.path.join("crates", name, "src")
+        for root, _, files in os.walk(src):
+            for f in files:
+                if f.endswith(".rs") and "verus! {" in open(os.path.join(root, f)).read():
+                    rel = os.path.relpath(os.path.join(root, f), src)[:-3].split(os.sep)
+                    verified.append("::".join([name.replace("-", "_")] + [x for x in rel if x not in ("lib", "mod", "main")]))
+    bounds = os.path.join(e1_runs.SCRATCH, "stack_bounds_rig.json")
+    cmd = ["cargo", "run", "--quiet", "-p", "rsk-link", "--", elf, f"apps/pacemaker/gen-{variant}/task_model.json", "--out", bounds, "--profile", "profile/profile.toml",
+           "--core-subset", "profile/core_subset.toml", "--system-crate", "pacemaker-system"]
+    for v in sorted(verified):
+        cmd += ["--verified", v]
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    if out.returncode != 0:
+        sys.exit(f"{elf}: the Link_Checker refuses the build\n{(out.stdout + out.stderr)[-1500:]}")
+    kernel = next(r for r in json.load(open(bounds))["regions"] if r["name"] == "kernel")
+    # The Link_Checker's bound is not enough for a build with the Kernel's
+    # trace: with 1,956 bytes left against a bound of 1,536 such a build ran
+    # and gave nothing readable, as one with 1,348 had; with 2,244 and more
+    # they run (2026-11-25). Why is not known. Until it is, the room a
+    # trace build has run with is the floor.
+    if "trace-ram" in features and kernel["available"] < KERNEL_STACK_FLOOR:
+        sys.exit(f"{elf}: the Kernel's RAM has {kernel['available']} bytes left for its stack; builds with the trace have run with {KERNEL_STACK_FLOOR} and more")
+    return {"available": kernel["available"], "bound": kernel["bound"]}
+
+
+KERNEL_STACK_FLOOR = 2_244
 
 
 def heart(scenario):
