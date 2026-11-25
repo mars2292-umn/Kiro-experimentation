@@ -109,8 +109,9 @@ pub mod spec {
     /// VRP < URL interval, PVARP + Fixed AV Delay ≤ URL interval and, with
     /// the Dynamic AV Delay On, the minimum ≤ the fixed delay; in the Mode
     /// that uses the offset, the fixed delay ≥ the offset + 30 ms; in a
-    /// rate-adaptive Mode, LRL ≤ MSR; in a Mode that uses hysteresis, with
-    /// hysteresis on, HRL ≤ LRL.
+    /// rate-adaptive Mode, LRL ≤ MSR, and MSR ≤ URL if the Mode also
+    /// tracks; in a Mode that uses hysteresis, with hysteresis on, HRL ≤
+    /// LRL.
     #[logic(open)]
     pub fn limits(m: Mode, w: Seq<u32>) -> bool {
         pearlite! {
@@ -121,6 +122,7 @@ pub mod spec {
                 && (w[5]@ != 1 || w[6] <= w[4]))
             && (tracks_spec(m) && m.paces == Chambers::Both ==> w[4]@ >= w[7]@ + 30)
             && (m.adaptive ==> w[1] <= w[3])
+            && (tracks_spec(m) && m.adaptive ==> w[3] <= w[2])
             && (hysteresis_spec(m) && w[18]@ != 0 ==> w[18] <= w[1])
         }
     }
@@ -318,6 +320,10 @@ pub const fn delivered_in_e2(m: Mode) -> bool {
 ///
 /// - LRL ≤ MSR: in the rate-adaptive Modes, the only ones that use the
 ///   Maximum Sensor Rate;
+/// - MSR ≤ URL: in the rate-adaptive Modes that track (VDDR, DDDR), the
+///   only ones that use both. This limit is not of Table 19-5: it is the
+///   user's decision of 2026-11-25, so that no admitted set has a sensor
+///   rate above the rate Property P1 holds pacing to (`step::url_floor`);
 /// - HRL ≤ LRL, where hysteresis is on: in the Modes that use hysteresis
 ///   (AAI, VVI, DDD and their rate-adaptive forms).
 ///
@@ -338,7 +344,7 @@ const fn limits_hold(m: Mode, w: &[u32; WORDS]) -> bool {
         true
     };
     let offset = !m.uses_sensed_av_offset() || w[word::FIXED_AV] >= w[word::SENSED_AV_OFFSET] + 30;
-    let sensor = !m.adaptive || w[word::LRL] <= w[word::MSR];
+    let sensor = !m.adaptive || (w[word::LRL] <= w[word::MSR] && (!m.tracks() || w[word::MSR] <= w[word::URL]));
     let hysteresis = !m.uses_hysteresis() || w[word::HRL] == 0 || w[word::HRL] <= w[word::LRL];
     tracking && offset && sensor && hysteresis
 }

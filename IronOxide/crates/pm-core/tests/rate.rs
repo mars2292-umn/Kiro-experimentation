@@ -481,6 +481,46 @@ fn continuous_noise_does_not_inhibit() {
     }
 }
 
+/// PM13.1 in the ventricular-based cycle (finding B42, from the rig's storm
+/// on the atrial line): in DDD and VDD the atrium's cycle begins at the
+/// ventricular event, and atrial edges never further apart than PM-PAR-12
+/// from the end of the PVARP are noise: none is tracked, the pending Paces
+/// stay where they are.
+#[test]
+fn continuous_atrial_noise_is_not_tracked() {
+    for mode in [Mode::DDD, Mode::VDD, Mode::DDI] {
+        let p = set(mode, 60);
+        let (s, _) = step(&p, &programmed(p), tick(0, 0));
+        let (mut s, _) = step(&p, &s, Event::Paced { chamber: V, at: Micros(1_000_000) });
+        let pending = (s.chamber[0].pending, s.chamber[1].pending);
+        assert_eq!(pending.1.at, Micros(2_000_000), "{mode:?}");
+        // An atrial edge every 50 ms from the ventricular Pace until the
+        // atrial Pace would be due (850 ms after it).
+        let (mut noise, mut refractory) = (0, 0);
+        for n in 1..17u64 {
+            let (t, a) = step(&p, &s, sense(A, 1_000_000 + n * 50_000, 1));
+            assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep), "{mode:?} edge {n}");
+            assert_eq!((t.chamber[0].pending, t.chamber[1].pending), pending, "{mode:?} edge {n}");
+            match a.markers.atrial {
+                Some((Marker::Noise, _)) => noise += 1,
+                Some((Marker::Sense { refractory: true }, _)) => refractory += 1,
+                other => panic!("{mode:?} edge {n}: {other:?}"),
+            }
+            s = t;
+        }
+        // The PVARP is 250 ms of the 800.
+        assert_eq!((refractory, noise), (4, 12), "{mode:?}");
+        // The next cycle: an atrial edge that comes alone, 600 ms after the
+        // ventricular Pace, is a Sense, and DDD and VDD track it.
+        let (s, _) = step(&p, &s, Event::Paced { chamber: V, at: Micros(2_000_000) });
+        let (_, a) = step(&p, &s, sense(A, 2_600_000, 1));
+        assert_eq!(a.markers.atrial, Some((Marker::Sense { refractory: false }, Micros(2_600_000))), "{mode:?}");
+        if mode != Mode::DDI {
+            assert!(matches!(a.ventricular, Pace::At { at: Micros(2_750_000), .. }), "{mode:?}: {:?}", a.ventricular);
+        }
+    }
+}
+
 /// The two sides of PM-PAR-12, by the spacing of the services and by the
 /// count of edges in one service.
 #[test]

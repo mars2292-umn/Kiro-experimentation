@@ -2,7 +2,7 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: Draft 0.5 (0.5, 2026-11-23: PM-PAR-15 is 4 ms, from task 9.2; amended by `design.md` Draft 0.2, section "Requirements Impact"; 0.4 changes PM27.5 only; nothing implemented; the Task set is the design's Table 2; every open question decided on 2026-11-22). Spec: `pacemaker`. Written 2026-11-22 from the source document, the rsk requirements (`.kiro/specs/rsk-ravenscar-profile/requirements.md`, Draft 0.3) and the rsk tree at that date.
+Status: Draft 0.6 (0.6, 2026-11-25: MSR ≤ URL in VDDR and DDDR, Table 19-5 and PM15.2; 0.5, 2026-11-23: PM-PAR-15 is 4 ms, from task 9.2; amended by `design.md` Draft 0.2, section "Requirements Impact"; 0.4 changes PM27.5 only; nothing implemented; the Task set is the design's Table 2; every open question decided on 2026-11-22). Spec: `pacemaker`. Written 2026-11-22 from the source document, the rsk requirements (`.kiro/specs/rsk-ravenscar-profile/requirements.md`, Draft 0.3) and the rsk tree at that date.
 
 ## Introduction
 
@@ -310,7 +310,7 @@ Terms of the rsk Glossary (Application, Partition, Task, Job, Release, Release_S
 #### Acceptance Criteria
 
 1. WHILE the Mode is rate-adaptive, THE PG SHALL adjust the pacing interval from the activity sensor's output [PM §5.7].
-2. THE PG SHALL NOT pace, under sensor control, faster than the MSR, within PM-PAR-02; the MSR SHALL be programmable independently of the URL and required in every rate-adaptive Mode [PM §5.7.1].
+2. THE PG SHALL NOT pace, under sensor control, faster than the MSR, within PM-PAR-02; the MSR SHALL be programmable independently of the URL and required in every rate-adaptive Mode [PM §5.7.1]. In the two Modes that use both, VDDR and DDDR, the independence is limited: a set with the MSR above the URL is rejected (Table 19-5; the user's decision of 2026-11-25, which departs from the source here so that Property P1 holds for every set the PG accepts).
 3. WHILE the sensor's output is at or below the Activity Threshold, THE PG SHALL NOT raise the rate for activity [PM §5.7.2].
 4. THE PG SHALL give a larger rate change for the same activity at a higher Response Factor, the largest at 16 and the smallest at 1 [PM §5.7.3]. The target rate SHALL be the LRL plus (MSR − LRL) × e × f / 16, limited to the MSR, where f is the Response Factor and e, from 0 to 1, is the activity above the Activity Threshold as a fraction of the range above it; activity is a value from 0 to PM-PAR-14 and the seven Activity Thresholds are evenly spaced over that range (a choice of this spec, decided 2026-11-22). The source gives no mapping.
 5. THE PG SHALL raise the rate so that sustained activity takes it from the LRL to the MSR in the programmed Reaction Time [PM §5.7.4].
@@ -457,6 +457,7 @@ The Upper Rate Limit stays a stored, programmable value in every Mode, since ATR
 |---|---|
 | LRL ≤ URL | The tracking ceiling is not below the floor |
 | LRL ≤ MSR | The sensor ceiling is not below the floor |
+| MSR ≤ URL, in the rate-adaptive Modes that track (VDDR, DDDR) | The sensor does not ask for a rate above the one Property P1 holds ventricular pacing to (decided 2026-11-25; see PM15.2) |
 | HRL ≤ LRL, where hysteresis is on | Hysteresis only lengthens the escape interval |
 | Minimum Dynamic AV Delay ≤ Fixed AV Delay | The dynamic range is not empty |
 | VRP < URL interval; ARP < URL interval | A Chamber is not refractory for a whole cycle at the highest rate |

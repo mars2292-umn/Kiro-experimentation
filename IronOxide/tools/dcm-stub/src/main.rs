@@ -41,6 +41,7 @@
 //!   serve is sent, and its answer carries the status);
 //! - `wait:<field>=<value>`: until a STATUS has the field (`state`, `mode`,
 //!   `battery`, `link_up`) at the value, for at most 200 transfers;
+//! - `hold:<seconds>`: answer the polls for that long and do nothing else;
 //! - `stop`: answer no more.
 //!
 //! `session`: with the pulse generator running, polls, interrogates it,
@@ -460,6 +461,16 @@ fn run_ops(device: &str, ops: &[String]) -> std::io::Result<(bool, Value)> {
                     _ => s.wait(200, &has)?,
                 };
                 (a.is_some(), json!(a.as_ref().map(|a| json!({ "status": told(&a.reply), "transfers": a.transfers }))))
+            }
+            // The polls answered for so many seconds (a transfer is 50 ms),
+            // so that the link stays up between two operations.
+            "hold" => {
+                let seconds: f64 = arg.parse().unwrap_or(0.0);
+                let until = started + seconds;
+                while epoch() < until {
+                    let _ = s.wait(1, |_| false)?;
+                }
+                (true, Value::Null)
             }
             "stop" => {
                 s.stop()?;

@@ -13,6 +13,7 @@ const BASE: Scenario = Scenario {
     conduction_ms: 160,
     overrides: [Override::NONE; OVERRIDES],
     extras: [Extra::NONE; EXTRAS],
+    bursts: [Burst::NONE; BURSTS],
     responsive: false,
 };
 
@@ -163,4 +164,33 @@ fn the_numbers_of_a_scenario_given_as_text() {
     assert_eq!(numbers(""), [0; 5]);
     // A sixth number is dropped.
     assert_eq!(numbers("1,2,3,4,5,6"), [1, 2, 3, 4, 5]);
+}
+
+/// Tasks 20.2 and 20.3: a burst gives one beat of each of its Chambers
+/// every interval from its beginning until its end, beside the rhythm,
+/// which it does not restart; an unused row gives none.
+#[test]
+fn a_burst_beats_beside_the_rhythm_and_restarts_nothing() {
+    let quiet = Scenario { conduction_ms: 0, ..BASE };
+    let (a0, v0) = play(&quiet, 5_000, &[]);
+    let tachycardia = Scenario { bursts: [Burst { mask: 1, from_ms: 1_000, to_ms: 2_000, interval_ms: 300 }, Burst::NONE], ..quiet };
+    let (a, v) = play(&tachycardia, 5_000, &[]);
+    let mut want = a0.clone();
+    want.extend([1_300, 1_600, 1_900]);
+    want.sort();
+    // The rhythm has a beat at 1,000 itself; 2,000 is the end and not in it.
+    assert_eq!(a, want);
+    assert_eq!(v, v0);
+    let storm = Scenario { bursts: [Burst { mask: 2, from_ms: 100, to_ms: 150, interval_ms: 1 }, Burst { mask: 3, from_ms: 150, to_ms: 160, interval_ms: 1 }], ..quiet };
+    let (a, v) = play(&storm, 999, &[]);
+    assert_eq!(v, (100..160).collect::<Vec<u32>>());
+    assert_eq!(a, (150..160).chain([200]).collect::<Vec<u32>>());
+}
+
+#[test]
+fn the_numbers_of_a_scenario_with_bursts() {
+    use heart_sim_part::scenario::numbers_with_bursts;
+    assert_eq!(numbers_with_bursts("600,900,0,0,0,1,8000,30000,300"), [600, 900, 0, 0, 0, 1, 8000, 30000, 300, 0, 0, 0, 0]);
+    assert_eq!(numbers_with_bursts("0,0,0,0,0,2,100,200,1,3,200,300,1,9"), [0, 0, 0, 0, 0, 2, 100, 200, 1, 3, 200, 300, 1]);
+    assert_eq!(numbers_with_bursts("200,800"), [200, 800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 }

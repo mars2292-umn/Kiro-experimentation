@@ -361,6 +361,8 @@ pub fn sense_v(cx: rsk_ctx::SenseV) {
 | CSN | P0.31 (A5), unused: an input at its reset state | — | P0.31 (A5): the bridge's own chip select, moved by its pull resistors |
 | Ground | GND | — | GND |
 
+**Bursts and the stub's hold (tasks 20.2 and 20.3, 2026-11-25).** A scenario of the Heart_Simulator may hold two bursts: between two instants, a beat of the Chambers named every so many milliseconds, beside the rhythms and restarting nothing. An atrial burst faster than the URL is the atrial tachycardia of the ATR scenario; a burst of one beat a millisecond is the sense storm (the Task `beat` has a period of 1 ms, so this is the densest it gives: a 100 µs pulse every millisecond). `PM_HEART` takes the bursts as eight more numbers. The DCM_Stub's `hold:<seconds>` answers the polls and does nothing else, so that the link stays up, and with it the activity value, between two operations of a scenario. The rig driver of stage E4 is `rig/e4_runs.py`.
+
 ### The link and the bridge (tasks 15.2, 15.3; 2026-11-24)
 
 `link` is the SPI master and exchanges 32 bytes with the bridge in every period of 50 ms; the answer to the frame of one period goes out in the next. A Job takes back the two buffers it lent the Job before, decodes, answers and starts the next transfer, which takes 0.5 ms at 500 kbps and runs after the Job has ended. Three things are as they are because of what the board and rsk allow:

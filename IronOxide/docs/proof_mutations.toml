@@ -3133,8 +3133,18 @@ prover = "creusot"
 id = "pm-validate-p5-sensor-limit-dropped"
 kills = "Property P5 on `validate`, through `limits_hold`'s contract (task 19.5): with LRL ≤ MSR no longer required in the rate-adaptive Modes, the program admits a set Table 19-5 refuses"
 file = "crates/pm-core/src/validate.rs"
-find = "    let sensor = !m.adaptive || w[word::LRL] <= w[word::MSR];\n"
-replace = "    let sensor = true;\n"
+find = "    let sensor = !m.adaptive || (w[word::LRL] <= w[word::MSR] && (!m.tracks() || w[word::MSR] <= w[word::URL]));\n"
+replace = "    let sensor = !m.adaptive || (!m.tracks() || w[word::MSR] <= w[word::URL]);\n"
+expect = ["proof failed", "vc_limits_hold"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-validate-p5-msr-above-url-admitted"
+kills = "Property P5 on `validate`, through `limits_hold`'s contract (the limit of 2026-11-25): with MSR ≤ URL no longer required in the rate-adaptive Modes that track, the program admits a set whose sensor rate is above the rate Property P1 holds pacing to"
+file = "crates/pm-core/src/validate.rs"
+find = "    let sensor = !m.adaptive || (w[word::LRL] <= w[word::MSR] && (!m.tracks() || w[word::MSR] <= w[word::URL]));\n"
+replace = "    let sensor = !m.adaptive || w[word::LRL] <= w[word::MSR];\n"
 expect = ["proof failed", "vc_limits_hold"]
 package = "pm-core-proof"
 prover = "creusot"

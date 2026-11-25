@@ -53,6 +53,29 @@ impl Extra {
 /// The number of extra beats a scenario holds.
 pub const EXTRAS: usize = 4;
 
+/// A stretch of beats outside every rhythm (docs/pacemaker tasks 20.2 and
+/// 20.3): from `from_ms` until `to_ms`, one beat of each Chamber of `mask`
+/// every `interval_ms`. Like an extra beat it restarts nothing. An atrial
+/// one faster than the URL is an atrial tachycardia; one of 1 ms is a
+/// storm of edges on the sense line.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Burst {
+    /// Bit 0: the atrium; bit 1: the ventricle.
+    pub mask: u8,
+    pub from_ms: u32,
+    pub to_ms: u32,
+    /// 0: an unused row.
+    pub interval_ms: u32,
+}
+
+impl Burst {
+    /// An unused row.
+    pub const NONE: Burst = Burst { mask: 0, from_ms: 0, to_ms: 0, interval_ms: 0 };
+}
+
+/// The number of bursts a scenario holds.
+pub const BURSTS: usize = 2;
+
 /// One scenario (PM26.3): the intrinsic rhythm of each Chamber, the
 /// conduction from atrium to ventricle, the beats that deviate, and whether
 /// the heart answers a Pace.
@@ -66,6 +89,7 @@ pub struct Scenario {
     pub conduction_ms: u32,
     pub overrides: [Override; OVERRIDES],
     pub extras: [Extra; EXTRAS],
+    pub bursts: [Burst; BURSTS],
     /// A Pace captures its Chamber: the Chamber's rhythm restarts from the
     /// Pace, an atrial Pace conducts, and a ventricular Pace takes the
     /// place of the conducted beat.
@@ -193,6 +217,19 @@ impl Heart {
                 if x.chamber == 0 {
                     beats.atrial = true;
                 } else {
+                    beats.ventricular = true;
+                }
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < BURSTS {
+            let b = sc.bursts[i];
+            if b.interval_ms != 0 && now >= b.from_ms && now < b.to_ms && (now - b.from_ms) % b.interval_ms == 0 {
+                if b.mask & 1 != 0 {
+                    beats.atrial = true;
+                }
+                if b.mask & 2 != 0 {
                     beats.ventricular = true;
                 }
             }

@@ -282,6 +282,9 @@ fn loose(code: u32) -> [u32; WORDS] {
     w[word::PVARP] = 150;
     w[word::FIXED_AV] = 70;
     w[word::MIN_DYNAMIC_AV] = 30;
+    // The MSR at the loose URL: MSR ≤ URL in the rate-adaptive Modes that
+    // track (the limit of 2026-11-25), and LRL ≤ MSR.
+    w[word::MSR] = 50;
     w
 }
 
@@ -302,8 +305,9 @@ fn limit_lrl_not_above_url() {
                 let mut w = loose(code);
                 w[word::LRL] = lrl;
                 w[word::URL] = url;
-                // The MSR of the loose set is 120: the sensor's limit.
-                let sensor = !adaptive(code) || lrl <= 120;
+                // The MSR of the loose set is 50: the sensor's limit (and
+                // MSR ≤ URL holds for every URL).
+                let sensor = !adaptive(code) || lrl <= 50;
                 assert_eq!(validate(&w).is_some(), (!tracks || lrl <= url) && sensor, "mode {code} LRL {lrl} URL {url}");
                 cases += 1;
             }
@@ -420,6 +424,41 @@ fn limit_lrl_not_above_msr() {
         }
     }
     assert_eq!(cases, 19 * 62 * 26);
+}
+
+/// MSR ≤ URL, in the rate-adaptive Modes that track (VDDR, DDDR): the
+/// limit of 2026-11-25, which Table 19-5 does not have. With it no
+/// admitted set of those Modes has an MSR interval shorter than its URL
+/// interval, which Property P1 supposes (`step::url_floor`).
+#[test]
+fn limit_msr_not_above_url_where_the_mode_tracks() {
+    let (mut cases, mut refused) = (0, 0);
+    for (code, tracks, _) in fixed_rate_modes() {
+        for msr in values(word::MSR) {
+            for url in values(word::URL) {
+                let mut w = loose(code);
+                w[word::MSR] = msr;
+                w[word::URL] = url;
+                // The loose LRL is 30, below every MSR and URL, and the
+                // loose refractory periods fit the shortest URL interval.
+                w[word::VRP] = 150;
+                w[word::PVARP] = 150;
+                let expected = !(adaptive(code) && tracks) || msr <= url;
+                let got = validate(&w);
+                assert_eq!(got.is_some(), expected, "mode {code} MSR {msr} URL {url}");
+                if let Some(p) = got {
+                    if adaptive(code) && tracks {
+                        assert!(p.url <= p.msr, "mode {code}: URL interval {} above MSR interval {}", p.url, p.msr);
+                    }
+                }
+                cases += 1;
+                refused += usize::from(!expected);
+            }
+        }
+    }
+    assert_eq!(cases, 19 * 26 * 26);
+    // Two Modes (VDDR, DDDR), the pairs with MSR above URL: 26 * 25 / 2.
+    assert_eq!(refused, 2 * 325);
 }
 
 /// HRL ≤ LRL where hysteresis is on, in the Modes that use hysteresis.

@@ -1,0 +1,5424 @@
+{
+ "runs": {
+  "activity": {
+   "heart": "env 0,0,0,0,0",
+   "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795621203.673877,
+     "ok": true,
+     "op": "up",
+     "sent": 1795621203.421851,
+     "started": 1795621203.421851
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795621204.47384,
+     "ok": true,
+     "op": "set:0=18,1=60,3=120,24=3,25=10,26=16,27=2",
+     "sent": 1795621203.67407,
+     "started": 1795621203.674047
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 106,
+       "of": 0,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 3
+     },
+     "done": 1795621204.773853,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795621204.473949,
+     "started": 1795621204.473949
+    },
+    {
+     "detail": null,
+     "done": 1795621210.823792,
+     "ok": true,
+     "op": "hold:6",
+     "sent": 1795621204.773921,
+     "started": 1795621204.773921
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 106,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      }
+     },
+     "done": 1795621211.023818,
+     "ok": true,
+     "op": "activity:255",
+     "sent": 1795621210.823849,
+     "started": 1795621210.823847
+    },
+    {
+     "detail": null,
+     "done": 1795621233.073808,
+     "ok": true,
+     "op": "hold:22",
+     "sent": 1795621211.023922,
+     "started": 1795621211.023922
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 106,
+       "of": 8,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 3
+      }
+     },
+     "done": 1795621233.273854,
+     "ok": true,
+     "op": "activity:0",
+     "sent": 1795621233.073866,
+     "started": 1795621233.073864
+    },
+    {
+     "detail": null,
+     "done": 1795621265.323917,
+     "ok": true,
+     "op": "hold:32",
+     "sent": 1795621233.273955,
+     "started": 1795621233.273955
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 9,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 3
+     },
+     "done": 1795621265.473981,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621265.323965,
+     "started": 1795621265.323965
+    }
+   ],
+   "sent_s": {
+    "activity_255": 1795621210.823849,
+    "activity_0": 1795621233.073866
+   },
+   "capture_began_s": 1795621203.0678442,
+   "wire": {
+    "atrial_paces": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_paces": {
+     "count": 117,
+     "at_s": [
+      3.66835,
+      4.668346,
+      5.668342,
+      6.668338,
+      7.668334,
+      8.66833,
+      9.597694,
+      10.453855,
+      11.251299,
+      12.000921,
+      12.711146,
+      13.386818,
+      14.032809,
+      14.653154,
+      15.250522,
+      15.827221,
+      16.385254,
+      16.926377,
+      17.452137,
+      17.963905,
+      18.463903,
+      18.963901,
+      19.463899,
+      19.963897,
+      20.463895,
+      20.963893,
+      21.463891,
+      21.963889,
+      22.463887,
+      22.963885,
+      23.463883,
+      23.963881,
+      24.463879,
+      24.963877,
+      25.463875,
+      25.963873,
+      26.463871,
+      26.963869,
+      27.463867,
+      27.963865,
+      28.463863,
+      28.963861,
+      29.463859,
+      29.963857,
+      30.463855,
+      30.96452,
+      31.466232,
+      31.968995,
+      32.472813,
+      32.977691,
+      33.483633,
+      33.990687,
+      34.498815,
+      35.008021,
+      35.518353,
+      36.029772,
+      36.542327,
+      37.056023,
+      37.570821,
+      38.08677,
+      38.603875,
+      39.122141,
+      39.641574,
+      40.162179,
+      40.683961,
+      41.206924,
+      41.731076,
+      42.256422,
+      42.782966,
+      43.310761,
+      43.839766,
+      44.369986,
+      44.901474,
+      45.434237,
+      45.968232,
+      46.503514,
+      47.040087,
+      47.577912,
+      48.117041,
+      48.657482,
+      49.19924,
+      49.742322,
+      50.286784,
+      50.832582,
+      51.379725,
+      51.928219,
+      52.47812,
+      53.029385,
+      53.582072,
+      54.136187,
+      54.691689,
+      55.248634,
+      55.807031,
+      56.366887,
+      56.928209,
+      57.491004,
+      58.055283,
+      58.621051,
+      59.188371,
+      59.757196,
+      60.327536,
+      60.899452,
+      61.472899,
+      62.047939,
+      62.624582,
+      63.202837,
+      63.782713,
+      64.364218,
+      64.947363,
+      65.532156,
+      66.118606,
+      66.706722,
+      67.296574,
+      67.888112,
+      68.481404,
+      69.076462,
+      69.673237
+     ]
+    },
+    "atrial_senses": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_senses": {
+     "count": 0,
+     "at_s": []
+    }
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded, both activity values accepted",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "every pace interval is the interval of a rate the rule gives for the instants it spans, within PM-PAR-01",
+     "ok": true,
+     "detail": {
+      "paces": 117,
+      "outside": [],
+      "furthest_outside_the_span_us": 4
+     }
+    },
+    {
+     "check": "at the plateau every interval is the MSR interval within PM-PAR-02 (4 ms)",
+     "ok": true,
+     "detail": {
+      "count": 23,
+      "min": 499998,
+      "max": 499998
+     }
+    },
+    {
+     "check": "before the activity every interval is the LRL interval",
+     "ok": true,
+     "detail": {
+      "count": 4,
+      "min": 999996,
+      "max": 999996
+     }
+    },
+    {
+     "check": "the rise from the LRL to the MSR takes the Reaction Time (10 s; the first interval at the MSR ends 9.8 to 11.6 s after the send)",
+     "ok": true,
+     "detail": {
+      "first_interval_at_the_msr_ends_s_after_the_send": 10.707898139953613
+     }
+    },
+    {
+     "check": "the fall is at the rate of the Recovery Time (2 min from the MSR to the LRL: 0.5 ppm a second, within a tenth)",
+     "ok": true,
+     "detail": {
+      "ppm_per_s": -0.49876311930500583,
+      "seconds_observed": 37.20042419433594,
+      "recovery_time_it_gives_s": 120.29758752733386,
+      "rate_at_the_end_ppm": 100.54040467512881
+     }
+    },
+    {
+     "check": "every pulse is 0.40 ms wide and the atrium is not paced",
+     "ok": true,
+     "detail": {
+      "count": 117,
+      "min": 400,
+      "max": 400
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "20.2"
+  },
+  "hysteresis": {
+   "heart": "env 0,0,0,0,0,2,6000,14000,800,2,22400,22401,1",
+   "heart_binary": "sha256:14ffb620a29242b75b61ce463caac35e709ce88d080692ad1d723a5483030db1",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795621281.843952,
+     "ok": true,
+     "op": "up",
+     "sent": 1795621281.591081,
+     "started": 1795621281.591081
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795621282.643982,
+     "ok": true,
+     "op": "set:0=8,1=60,18=40",
+     "sent": 1795621281.844052,
+     "started": 1795621281.84404
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 6,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 3
+     },
+     "done": 1795621282.794033,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795621282.64411,
+     "started": 1795621282.64411
+    },
+    {
+     "detail": null,
+     "done": 1795621312.843153,
+     "ok": true,
+     "op": "hold:30",
+     "sent": 1795621282.79409,
+     "started": 1795621282.79409
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 42,
+      "of": 7,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621312.994109,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621312.843206,
+     "started": 1795621312.843206
+    }
+   ],
+   "wire": {
+    "atrial_paces": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_paces": {
+     "count": 23,
+     "at_s": [
+      2.128298,
+      11.761624,
+      12.76162,
+      13.761617,
+      14.761613,
+      15.761609,
+      16.761605,
+      17.761601,
+      18.761597,
+      20.961568,
+      21.961564,
+      22.96156,
+      23.961556,
+      24.961552,
+      25.961548,
+      26.961545,
+      27.961541,
+      28.961537,
+      29.961533,
+      30.961529,
+      31.961525,
+      32.961521,
+      33.961518
+     ]
+    },
+    "atrial_senses": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_senses": {
+     "count": 11,
+     "at_s": [
+      3.061674,
+      3.861669,
+      4.661664,
+      5.461659,
+      6.261654,
+      7.061649,
+      7.861644,
+      8.66164,
+      9.461635,
+      10.26163,
+      19.461574
+     ]
+    }
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "every Pace is at its instant within PM-PAR-01: one HRL interval (1500 ms) after a Sense, one LRL interval (1000 ms) after a Pace",
+     "ok": true,
+     "detail": {
+      "errors_us": {
+       "hrl_after_a_sense": {
+        "count": 2,
+        "min": -6,
+        "max": -6
+       },
+       "lrl_after_a_pace": {
+        "count": 20,
+        "min": -4,
+        "max": -3
+       }
+      },
+      "violations": [],
+      "counts": {
+       "refractory_senses": 0,
+       "senses": 11,
+       "unjudged": 0
+      }
+     }
+    },
+    {
+     "check": "both cases were met: a Pace after the rhythm's last beat and one after the single beat, and Paces after Paces",
+     "ok": true,
+     "detail": {
+      "hrl_after_a_sense": 2,
+      "lrl_after_a_pace": 20
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "20.2"
+  },
+  "smoothing_down": {
+   "heart": "env 0,0,0,0,0,2,6000,16000,600",
+   "heart_binary": "sha256:c966b7c0d8936978d4ddc047b64a4da167f4f0ba365cc9378676ad1257fda465",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795621323.984135,
+     "ok": true,
+     "op": "up",
+     "sent": 1795621323.734099,
+     "started": 1795621323.734099
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795621324.784196,
+     "ok": true,
+     "op": "set:0=8,1=60,28=12",
+     "sent": 1795621323.98427,
+     "started": 1795621323.984252
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 6,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 3
+     },
+     "done": 1795621324.93418,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795621324.784313,
+     "started": 1795621324.784313
+    },
+    {
+     "detail": null,
+     "done": 1795621350.984205,
+     "ok": true,
+     "op": "hold:26",
+     "sent": 1795621324.934287,
+     "started": 1795621324.934287
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 42,
+      "of": 7,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621351.134226,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621350.984257,
+     "started": 1795621350.984257
+    }
+   ],
+   "wire": {
+    "atrial_paces": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_paces": {
+     "count": 19,
+     "at_s": [
+      2.135411,
+      13.323883,
+      14.076517,
+      14.919466,
+      15.86357,
+      16.863566,
+      17.863562,
+      18.863558,
+      19.863555,
+      20.863551,
+      21.863547,
+      22.863543,
+      23.863539,
+      24.863536,
+      25.863532,
+      26.863528,
+      27.863524,
+      28.86352,
+      29.863517
+     ]
+    },
+    "atrial_senses": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_senses": {
+     "count": 17,
+     "at_s": [
+      3.051945,
+      3.651941,
+      4.251938,
+      4.851934,
+      5.451931,
+      6.051927,
+      6.651923,
+      7.25192,
+      7.851916,
+      8.451912,
+      9.051909,
+      9.651905,
+      10.251902,
+      10.851898,
+      11.451894,
+      12.051891,
+      12.651887
+     ]
+    }
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "every Pace is at its instant within PM-PAR-01: the cycle before plus 12 % of it, the LRL interval at most",
+     "ok": true,
+     "detail": {
+      "errors_us": {
+       "smoothed": {
+        "count": 4,
+        "min": -1,
+        "max": 2
+       },
+       "lrl": {
+        "count": 14,
+        "min": -4,
+        "max": -3
+       }
+      },
+      "violations": [],
+      "counts": {
+       "refractory_senses": 0,
+       "senses": 17,
+       "unjudged": 0
+      }
+     }
+    },
+    {
+     "check": "after the rhythm stops the intervals lengthen step by step to the LRL interval (smoothed Paces met, then Paces at the LRL)",
+     "ok": true,
+     "detail": {
+      "counts": {
+       "smoothed": 4,
+       "lrl": 14
+      },
+      "intervals_after_the_last_beat_us": [
+       752634,
+       842949,
+       944104,
+       999996,
+       999996,
+       999996,
+       999997,
+       999996
+      ]
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "20.2"
+  },
+  "smoothing_up": {
+   "heart": "env 0,0,0,0,0",
+   "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795621362.276283,
+     "ok": true,
+     "op": "up",
+     "sent": 1795621362.023362,
+     "started": 1795621362.023362
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795621363.077308,
+     "ok": true,
+     "op": "set:0=18,1=60,3=120,24=3,25=10,26=16,27=2,19=3",
+     "sent": 1795621362.276408,
+     "started": 1795621362.276388
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 106,
+       "of": 6,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 3
+     },
+     "done": 1795621363.227374,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795621363.077438,
+     "started": 1795621363.077438
+    },
+    {
+     "detail": null,
+     "done": 1795621369.276325,
+     "ok": true,
+     "op": "hold:6",
+     "sent": 1795621363.227473,
+     "started": 1795621363.227473
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 106,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      }
+     },
+     "done": 1795621369.476339,
+     "ok": true,
+     "op": "activity:255",
+     "sent": 1795621369.276384,
+     "started": 1795621369.276381
+    },
+    {
+     "detail": null,
+     "done": 1795621395.527409,
+     "ok": true,
+     "op": "hold:26",
+     "sent": 1795621369.476442,
+     "started": 1795621369.476442
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 8,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 2
+     },
+     "done": 1795621395.676399,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621395.527464,
+     "started": 1795621395.527464
+    }
+   ],
+   "first_interval_at_the_msr_ends_s_after_the_send": 17.084943771362305,
+   "without_smoothing_s": "see the run `activity`",
+   "wire": {
+    "atrial_paces": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_paces": {
+     "count": 56,
+     "at_s": [
+      3.124954,
+      4.12495,
+      5.124946,
+      6.124943,
+      7.124939,
+      8.124935,
+      9.094931,
+      10.035828,
+      10.948497,
+      11.833787,
+      12.692519,
+      13.525489,
+      14.333469,
+      15.117212,
+      15.877442,
+      16.614866,
+      17.330168,
+      18.024012,
+      18.69704,
+      19.349879,
+      19.983132,
+      20.597389,
+      21.193219,
+      21.771174,
+      22.331792,
+      22.875592,
+      23.403078,
+      23.91474,
+      24.414738,
+      24.914737,
+      25.414735,
+      25.914733,
+      26.414731,
+      26.914729,
+      27.414727,
+      27.914725,
+      28.414723,
+      28.914722,
+      29.41472,
+      29.914718,
+      30.414716,
+      30.914714,
+      31.414712,
+      31.91471,
+      32.414708,
+      32.914706,
+      33.414705,
+      33.914703,
+      34.414701,
+      34.914699,
+      35.414697,
+      35.914695,
+      36.414693,
+      36.914691,
+      37.41469,
+      37.914688
+     ]
+    },
+    "atrial_senses": {
+     "count": 0,
+     "at_s": []
+    },
+    "ventricular_senses": {
+     "count": 0,
+     "at_s": []
+    }
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "no interval is shorter than the one before less 3 % (within PM-PAR-01), longer than the one before, or shorter than the MSR interval",
+     "ok": true,
+     "detail": {
+      "intervals": 55,
+      "outside": []
+     }
+    },
+    {
+     "check": "the rise is limited by the smoothing: most shortened intervals are the one before less 3 %, within 1.5 ms",
+     "ok": true,
+     "detail": {
+      "shortened_intervals": 23,
+      "of_them_on_the_limit": 22,
+      "distance_from_the_limit_us": {
+       "count": 23,
+       "min": -2,
+       "max": 3685
+      }
+     }
+    },
+    {
+     "check": "the rate arrives at the MSR: the last intervals are the MSR interval within PM-PAR-02",
+     "ok": true,
+     "detail": [
+      499998,
+      499999,
+      499998
+     ]
+    }
+   ],
+   "verdict": "PASS",
+   "task": "20.2"
+  },
+  "atr": {
+   "heart": "env 600,900,0,0,0,1,9000,31000,300",
+   "heart_binary": "sha256:79bec2c4a3716bd7f36242daca54b9294df0e94ec0e95fba07774317eea51aac",
+   "ops": [
+    {
+     "detail": {
+      "battery": 0,
+      "code": 0,
+      "link_up": true,
+      "mode": 42,
+      "of": 0,
+      "refused": 0,
+      "state": 0,
+      "verdicts": 0
+     },
+     "done": 1795621408.467508,
+     "ok": true,
+     "op": "up",
+     "sent": 1795621408.215511,
+     "started": 1795621408.215511
+    },
+    {
+     "detail": {
+      "accepted": true,
+      "predicted_valid": true,
+      "verdict": {
+       "battery": 0,
+       "code": 6,
+       "link_up": true,
+       "mode": 42,
+       "of": 5,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 1
+      }
+     },
+     "done": 1795621409.267533,
+     "ok": true,
+     "op": "set:0=1,1=60,20=1,21=10,22=1",
+     "sent": 1795621408.467641,
+     "started": 1795621408.467621
+    },
+    {
+     "detail": {
+      "status": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 63,
+       "of": 6,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "transfers": 3
+     },
+     "done": 1795621409.417555,
+     "ok": true,
+     "op": "wait:state=1",
+     "sent": 1795621409.267641,
+     "started": 1795621409.267641
+    },
+    {
+     "detail": null,
+     "done": 1795621411.467496,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621409.417655,
+     "started": 1795621409.417655
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 7,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621411.61752,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621411.467548,
+     "started": 1795621411.467548
+    },
+    {
+     "detail": null,
+     "done": 1795621413.667508,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621411.617616,
+     "started": 1795621411.617616
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 8,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621413.817586,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621413.667548,
+     "started": 1795621413.667548
+    },
+    {
+     "detail": null,
+     "done": 1795621415.867505,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621413.817679,
+     "started": 1795621413.817679
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 9,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621416.017534,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621415.867558,
+     "started": 1795621415.867558
+    },
+    {
+     "detail": null,
+     "done": 1795621418.067549,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621416.017629,
+     "started": 1795621416.017629
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 10,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621418.217545,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621418.067592,
+     "started": 1795621418.067592
+    },
+    {
+     "detail": null,
+     "done": 1795621420.267498,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621418.217634,
+     "started": 1795621418.217634
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 11,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621420.417559,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621420.267541,
+     "started": 1795621420.267541
+    },
+    {
+     "detail": null,
+     "done": 1795621422.467554,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621420.417647,
+     "started": 1795621420.417647
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 12,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621422.617576,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621422.467594,
+     "started": 1795621422.467594
+    },
+    {
+     "detail": null,
+     "done": 1795621424.667547,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621422.617668,
+     "started": 1795621422.617668
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 13,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621424.81757,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621424.667601,
+     "started": 1795621424.667601
+    },
+    {
+     "detail": null,
+     "done": 1795621426.867514,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621424.817666,
+     "started": 1795621424.817666
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 14,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621427.017606,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621426.867545,
+     "started": 1795621426.867545
+    },
+    {
+     "detail": null,
+     "done": 1795621429.067509,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621427.0177,
+     "started": 1795621427.0177
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 15,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621429.217565,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621429.067537,
+     "started": 1795621429.067537
+    },
+    {
+     "detail": null,
+     "done": 1795621431.267585,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621429.217626,
+     "started": 1795621429.217626
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 16,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621431.417615,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621431.267637,
+     "started": 1795621431.267637
+    },
+    {
+     "detail": null,
+     "done": 1795621433.467581,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621431.417706,
+     "started": 1795621431.417706
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 17,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621433.617621,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621433.467634,
+     "started": 1795621433.467634
+    },
+    {
+     "detail": null,
+     "done": 1795621435.66758,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621433.617692,
+     "started": 1795621433.617692
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 18,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621435.817633,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621435.667622,
+     "started": 1795621435.667622
+    },
+    {
+     "detail": null,
+     "done": 1795621437.867589,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621435.817723,
+     "started": 1795621435.817723
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 19,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621438.017645,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621437.867618,
+     "started": 1795621437.867618
+    },
+    {
+     "detail": null,
+     "done": 1795621440.067592,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621438.017737,
+     "started": 1795621438.017737
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 20,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621440.217636,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621440.067632,
+     "started": 1795621440.067632
+    },
+    {
+     "detail": null,
+     "done": 1795621442.267612,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621440.217683,
+     "started": 1795621440.217683
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 21,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621442.417671,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621442.267645,
+     "started": 1795621442.267645
+    },
+    {
+     "detail": null,
+     "done": 1795621444.467618,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621442.417767,
+     "started": 1795621442.417767
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 106,
+      "of": 22,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621444.617705,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621444.467656,
+     "started": 1795621444.467656
+    },
+    {
+     "detail": null,
+     "done": 1795621446.667657,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621444.617798,
+     "started": 1795621444.617798
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 23,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621446.817687,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621446.667709,
+     "started": 1795621446.667709
+    },
+    {
+     "detail": null,
+     "done": 1795621448.867637,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621446.817778,
+     "started": 1795621446.817778
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 24,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621449.017691,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621448.867666,
+     "started": 1795621448.867666
+    },
+    {
+     "detail": null,
+     "done": 1795621451.067684,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621449.017781,
+     "started": 1795621449.017781
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 25,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621451.217713,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621451.067737,
+     "started": 1795621451.067737
+    },
+    {
+     "detail": null,
+     "done": 1795621453.267714,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621451.217802,
+     "started": 1795621451.217802
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 26,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621453.417739,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621453.267758,
+     "started": 1795621453.267758
+    },
+    {
+     "detail": null,
+     "done": 1795621455.467711,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621453.41783,
+     "started": 1795621453.41783
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 27,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621455.617747,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621455.467761,
+     "started": 1795621455.467761
+    },
+    {
+     "detail": null,
+     "done": 1795621457.666768,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621455.617837,
+     "started": 1795621455.617837
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 28,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621457.817751,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621457.666809,
+     "started": 1795621457.666809
+    },
+    {
+     "detail": null,
+     "done": 1795621459.86683,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621457.817842,
+     "started": 1795621457.817842
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 29,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621460.017755,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621459.866891,
+     "started": 1795621459.866891
+    },
+    {
+     "detail": null,
+     "done": 1795621462.06684,
+     "ok": true,
+     "op": "hold:2",
+     "sent": 1795621460.017845,
+     "started": 1795621460.017845
+    },
+    {
+     "detail": {
+      "battery": 0,
+      "code": 4,
+      "link_up": true,
+      "mode": 63,
+      "of": 30,
+      "refused": 0,
+      "state": 1,
+      "verdicts": 1
+     },
+     "done": 1795621462.217771,
+     "ok": true,
+     "op": "status",
+     "sent": 1795621462.066893,
+     "started": 1795621462.066893
+    }
+   ],
+   "counter": {
+    "onset_s": 8.144914,
+    "cessation_s": 35.444753
+   },
+   "ventricular_events": {
+    "fallback_begins": 19,
+    "fallback_ends": 53,
+    "paces_in_the_capture": 76
+   },
+   "capture_began_s": 1795621408.134172,
+   "wire": {
+    "atrial_paces": {
+     "count": 3,
+     "at_s": [
+      1.976577,
+      2.976573,
+      14.144878
+     ]
+    },
+    "ventricular_paces": {
+     "count": 76,
+     "at_s": [
+      0.203507,
+      1.12658,
+      2.126576,
+      3.126572,
+      4.09494,
+      4.994934,
+      5.894929,
+      6.494925,
+      7.09492,
+      7.694918,
+      8.294914,
+      8.89491,
+      9.494908,
+      10.094903,
+      10.694899,
+      11.294897,
+      11.894893,
+      12.494888,
+      13.094886,
+      13.694882,
+      14.294878,
+      14.897282,
+      15.502126,
+      16.109439,
+      16.719251,
+      17.331592,
+      17.946496,
+      18.563994,
+      19.184118,
+      19.806905,
+      20.432387,
+      21.060599,
+      21.691579,
+      22.325363,
+      22.961987,
+      23.601492,
+      24.243916,
+      24.889299,
+      25.537684,
+      26.189111,
+      26.843625,
+      27.501268,
+      28.162088,
+      28.826129,
+      29.49344,
+      30.16407,
+      30.838067,
+      31.515483,
+      32.196372,
+      32.880785,
+      33.56878,
+      34.260412,
+      34.955741,
+      35.654824,
+      36.65482,
+      37.394742,
+      38.294736,
+      39.194731,
+      40.094726,
+      40.99472,
+      41.894715,
+      42.79471,
+      43.694704,
+      44.594699,
+      45.494694,
+      46.394688,
+      47.294682,
+      48.194677,
+      49.094671,
+      49.994666,
+      50.894661,
+      51.794655,
+      52.69465,
+      53.594645,
+      54.494639,
+      55.394634
+     ]
+    },
+    "atrial_senses": {
+     "count": 112,
+     "at_s": [
+      0.344962,
+      1.244956,
+      2.144951,
+      3.044946,
+      3.94494,
+      4.844935,
+      5.744929,
+      6.044927,
+      6.344925,
+      6.644925,
+      6.944922,
+      7.24492,
+      7.544919,
+      7.844916,
+      8.144914,
+      8.444914,
+      8.744911,
+      9.044909,
+      9.344908,
+      9.644905,
+      9.944904,
+      10.244903,
+      10.5449,
+      10.844898,
+      11.144898,
+      11.444895,
+      11.744893,
+      12.044892,
+      12.344889,
+      12.644888,
+      12.944887,
+      13.244884,
+      13.544882,
+      13.844882,
+      14.144879,
+      14.444877,
+      14.744876,
+      15.044873,
+      15.344871,
+      15.644871,
+      15.944868,
+      16.244866,
+      16.544866,
+      16.844863,
+      17.144861,
+      17.44486,
+      17.744857,
+      18.044855,
+      18.344855,
+      18.644852,
+      18.94485,
+      19.244849,
+      19.544846,
+      19.844845,
+      20.144844,
+      20.444841,
+      20.744839,
+      21.044839,
+      21.344836,
+      21.644834,
+      21.944833,
+      22.24483,
+      22.544829,
+      22.844828,
+      23.144825,
+      23.444823,
+      23.744823,
+      24.04482,
+      24.344818,
+      24.644817,
+      24.944814,
+      25.244812,
+      25.544812,
+      25.844809,
+      26.144807,
+      26.444807,
+      26.744804,
+      27.044802,
+      27.344801,
+      27.644798,
+      27.944796,
+      28.244795,
+      29.14479,
+      30.044785,
+      30.944779,
+      31.844774,
+      32.744769,
+      33.644763,
+      34.544758,
+      35.444753,
+      36.344747,
+      37.244742,
+      38.144737,
+      39.044731,
+      39.944726,
+      40.84472,
+      41.744715,
+      42.64471,
+      43.544704,
+      44.444699,
+      45.344694,
+      46.244688,
+      47.144683,
+      48.044678,
+      48.944672,
+      49.844667,
+      50.744662,
+      51.644656,
+      52.544651,
+      53.444646,
+      54.34464,
+      55.244635
+     ]
+    },
+    "ventricular_senses": {
+     "count": 0,
+     "at_s": []
+    }
+   },
+   "checks": [
+    {
+     "check": "every operation of the stub succeeded",
+     "ok": true,
+     "detail": []
+    },
+    {
+     "check": "the counter of PM14.1, run over the capture's atrial events, reaches 8 and later returns to 0",
+     "ok": true,
+     "detail": {
+      "onset_s": 8.144914,
+      "cessation_s": 35.444753
+     }
+    },
+    {
+     "check": "Fallback begins at the tenth ventricular event after the onset: from that event every pace interval is on the Fallback line (from the rate of the cycle at which Fallback began to the LRL over 1 min) within PM-PAR-01",
+     "ok": true,
+     "detail": {
+      "fallback_begins_at_ventricular_event": 19,
+      "at_s": 13.694882,
+      "cycle_it_began_at_us": 599996,
+      "intervals_on_the_line": 34,
+      "error_us": {
+       "count": 34,
+       "min": -2,
+       "max": 0
+      },
+      "first_and_last_interval_us": [
+       599996,
+       699083
+      ]
+     }
+    },
+    {
+     "check": "from the ventricular event after that the Mode is VVIR: the atrium is not paced, and the Paces do not follow the atrial events",
+     "ok": true,
+     "detail": {
+      "atrial_paces": [],
+      "ventricular_paces": 33,
+      "of_them_not_one_av_delay_after_an_atrial_event": 29
+     }
+    },
+    {
+     "check": "the cycle between Fallback's beginning and the Mode's change is DDD's on the Fallback interval (reported: an atrial Pace in it, and the atrial edge nearest to it)",
+     "ok": true,
+     "detail": {
+      "atrial_paces": [
+       {
+        "after_the_ventricular_event_us": 449996,
+        "before_the_next_ventricular_pace_us": 150000,
+        "nearest_atrial_edge_us_before": 299996
+       }
+      ]
+     }
+    },
+    {
+     "check": "until Fallback begins the pacing is DDD's (the judge of stage E2 on the capture up to that ventricular event)",
+     "ok": true,
+     "detail": {
+      "judged_paces": 18,
+      "unjudged_stretches": 0,
+      "errors_us": {
+       "atrial_escape": {
+        "count": 1,
+        "min": -3.0,
+        "max": -3.0
+       },
+       "paced_av": {
+        "count": 1,
+        "min": -1.0,
+        "max": -1.0
+       },
+       "sensed_av": {
+        "count": 16,
+        "min": -2.0,
+        "max": 0.0
+       }
+      },
+      "counts": {
+       "atrial_senses_in_the_pvarp": 16,
+       "atrial_senses_in_an_av_delay": 1,
+       "atrial_senses_effective": 16,
+       "tracked": 16
+      },
+      "violations": []
+     }
+    },
+    {
+     "check": "Fallback ends at the ventricular event after the counter returns to 0 (the interval from it is the LRL interval), and the Mode is DDD again from the ventricular event after that (the judge of stage E2 from there to the end)",
+     "ok": true,
+     "detail": {
+      "fallback_ends_at_ventricular_event": 53,
+      "at_s": 35.654824,
+      "interval_from_it_us": 999996,
+      "first_pace_after_an_atrial_event_is_event": 55,
+      "judged_paces": 21,
+      "unjudged_stretches": 0,
+      "errors_us": {
+       "sensed_av": {
+        "count": 21,
+        "min": -1.0,
+        "max": 0.0
+       }
+      },
+      "counts": {
+       "atrial_senses_effective": 21,
+       "tracked": 21
+      },
+      "violations": []
+     }
+    },
+    {
+     "check": "the status reports DDD before, VVIR in Fallback and DDD after",
+     "ok": true,
+     "detail": {
+      "modes_told": [
+       63,
+       63,
+       63,
+       63,
+       63,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       106,
+       63,
+       63,
+       63,
+       63,
+       63,
+       63,
+       63,
+       63
+      ],
+      "against_the_capture": []
+     }
+    }
+   ],
+   "verdict": "PASS",
+   "task": "20.2"
+  },
+  "storm": {
+   "vvi": {
+    "PM_SET": "0=8,1=60",
+    "heart": "env 0,0,0,0,0,2,25000,33000,1,3,33000,41000,1",
+    "binaries": {
+     "pacemaker": "sha256:5f6bea12ae12efb44d8e0a084df228bb9a8febfddd3a18621e06c81138723c90",
+     "heart-sim": "sha256:b166621659db26b72751692633eb83fa95d39fac862a5b19199b192f5cf4dea1"
+    },
+    "kernel_events": [
+     {
+      "event": "operating_end",
+      "partition": null,
+      "task": 255,
+      "instant_s": 45.0
+     },
+     {
+      "event": "safe_state",
+      "partition": null,
+      "task": 255,
+      "instant_s": 45.0
+     }
+    ],
+    "counts": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 147,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 115,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "checks": [
+     {
+      "check": "the storm is on the wire: an edge a millisecond on the first line for 8 s, then on both for 8 s",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "first_s": 32.958284,
+        "last_s": 40.957237,
+        "edges": 8000
+       },
+       "ventricular": {
+        "first_s": 24.958331,
+        "last_s": 40.957237,
+        "edges": 16000
+       }
+      }
+     },
+     {
+      "check": "in the storm every pace interval is the LRL interval within PM-PAR-01: pacing is asynchronous",
+      "ok": true,
+      "detail": {
+       "intervals": {
+        "count": 14,
+        "min": 999996,
+        "max": 999997
+       },
+       "cycles_left_out_at_a_storms_first_edge": 2
+      }
+     },
+     {
+      "check": "before and after the storm every pace interval is the LRL interval",
+      "ok": true,
+      "detail": {
+       "count": 27,
+       "min": 999996,
+       "max": 999997
+      }
+     },
+     {
+      "check": "no Pace is missing in the storm",
+      "ok": true,
+      "detail": {
+       "paces": 16,
+       "storm_s": 15.998906
+      }
+     },
+     {
+      "check": "the atrium is not paced",
+      "ok": true,
+      "detail": 0
+     },
+     {
+      "check": "the Kernel's log holds the end of the Operating_Duration and the safe state and nothing else: no restart, no MIT violation, no Overrun, no deadline miss",
+      "ok": true,
+      "detail": [
+       {
+        "event": "operating_end",
+        "partition": null,
+        "task": 255,
+        "instant_s": 45.0
+       },
+       {
+        "event": "safe_state",
+        "partition": null,
+        "task": 255,
+        "instant_s": 45.0
+       }
+      ]
+     },
+     {
+      "check": "the driver's counts were read and show no forced or late arming",
+      "ok": true,
+      "detail": {
+       "started": 1,
+       "hw_fault": 0,
+       "records": 147,
+       "too_late": 0,
+       "moved": 0,
+       "forced": 0,
+       "dropped": 115,
+       "late_arms": 0,
+       "untimed": 0
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 45,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "ddd": {
+    "PM_SET": "0=1,1=60",
+    "heart": "env 0,0,0,0,0,1,25000,33000,1,3,33000,41000,1",
+    "binaries": {
+     "pacemaker": "sha256:964969885ff952f1edef3e82f819293eb3efea570672f21ce6d33e9ab93ac66c",
+     "heart-sim": "sha256:7af65e0290b618851aa6ac693741c72b3118bd94dfd81f9922f786f792012edf"
+    },
+    "kernel_events": [
+     {
+      "event": "operating_end",
+      "partition": null,
+      "task": 255,
+      "instant_s": 45.0
+     },
+     {
+      "event": "safe_state",
+      "partition": null,
+      "task": 255,
+      "instant_s": 45.0
+     }
+    ],
+    "counts": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 270,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 238,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "checks": [
+     {
+      "check": "the storm is on the wire: an edge a millisecond on the first line for 8 s, then on both for 8 s",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "first_s": 24.959057,
+        "last_s": 40.957963,
+        "edges": 16000
+       },
+       "ventricular": {
+        "first_s": 32.95901,
+        "last_s": 40.957963,
+        "edges": 8000
+       }
+      }
+     },
+     {
+      "check": "in the storm every pace interval is the LRL interval within PM-PAR-01: pacing is asynchronous",
+      "ok": true,
+      "detail": {
+       "intervals": {
+        "count": 14,
+        "min": 999996,
+        "max": 999997
+       },
+       "cycles_left_out_at_a_storms_first_edge": 2
+      }
+     },
+     {
+      "check": "before and after the storm every pace interval is the LRL interval",
+      "ok": true,
+      "detail": {
+       "count": 27,
+       "min": 999996,
+       "max": 999997
+      }
+     },
+     {
+      "check": "no Pace is missing in the storm",
+      "ok": true,
+      "detail": {
+       "paces": 16,
+       "storm_s": 15.998906
+      }
+     },
+     {
+      "check": "in the storm the atrium is paced before every ventricular Pace by the AV delay",
+      "ok": true,
+      "detail": {
+       "count": 16,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "the Kernel's log holds the end of the Operating_Duration and the safe state and nothing else: no restart, no MIT violation, no Overrun, no deadline miss",
+      "ok": true,
+      "detail": [
+       {
+        "event": "operating_end",
+        "partition": null,
+        "task": 255,
+        "instant_s": 45.0
+       },
+       {
+        "event": "safe_state",
+        "partition": null,
+        "task": 255,
+        "instant_s": 45.0
+       }
+      ]
+     },
+     {
+      "check": "the driver's counts were read and show no forced or late arming",
+      "ok": true,
+      "detail": {
+       "started": 1,
+       "hw_fault": 0,
+       "records": 270,
+       "too_late": 0,
+       "moved": 0,
+       "forced": 0,
+       "dropped": 238,
+       "late_arms": 0,
+       "untimed": 0
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 90,
+       "min": 400,
+       "max": 401
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "verdict": "PASS",
+   "task": "20.3"
+  },
+  "modes": {
+   "Off": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621621.502646,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621621.250624,
+      "started": 1795621621.250624
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621622.30259,
+      "ok": true,
+      "op": "set:0=0,1=60",
+      "sent": 1795621621.502774,
+      "started": 1795621621.502757
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 0,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621622.452667,
+      "ok": true,
+      "op": "wait:mode=0",
+      "sent": 1795621622.302674,
+      "started": 1795621622.302674
+     },
+     {
+      "detail": null,
+      "done": 1795621629.50262,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621622.452763,
+      "started": 1795621622.452763
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 0,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621629.652658,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621629.502673,
+      "started": 1795621629.502673
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 0,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces no Chamber, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DDD": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621636.864723,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621636.612708,
+      "started": 1795621636.612708
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621637.665711,
+      "ok": true,
+      "op": "set:0=1,1=60",
+      "sent": 1795621636.864851,
+      "started": 1795621636.864834
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 63,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621637.815729,
+      "ok": true,
+      "op": "wait:mode=63",
+      "sent": 1795621637.665836,
+      "started": 1795621637.665836
+     },
+     {
+      "detail": null,
+      "done": 1795621644.864718,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621637.815827,
+      "started": 1795621637.815827
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 63,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621645.015738,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621644.864771,
+      "started": 1795621644.864771
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 63,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VDD": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621652.195806,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621651.943774,
+      "started": 1795621651.943774
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621652.995795,
+      "ok": true,
+      "op": "set:0=2,1=60",
+      "sent": 1795621652.195934,
+      "started": 1795621652.195916
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 62,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621653.145853,
+      "ok": true,
+      "op": "wait:mode=62",
+      "sent": 1795621652.995912,
+      "started": 1795621652.995912
+     },
+     {
+      "detail": null,
+      "done": 1795621660.195796,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621653.145956,
+      "started": 1795621653.145956
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 62,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621660.345819,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621660.195851,
+      "started": 1795621660.195851
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 62,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DDI": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621667.555867,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621667.303843,
+      "started": 1795621667.303843
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621668.355859,
+      "ok": true,
+      "op": "set:0=3,1=60",
+      "sent": 1795621667.555992,
+      "started": 1795621667.555976
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 47,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621668.505901,
+      "ok": true,
+      "op": "wait:mode=47",
+      "sent": 1795621668.355984,
+      "started": 1795621668.355984
+     },
+     {
+      "detail": null,
+      "done": 1795621675.555859,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621668.506003,
+      "started": 1795621668.506003
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 47,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621675.705868,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621675.55591,
+      "started": 1795621675.55591
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 47,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DOO": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621682.897931,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621682.645905,
+      "started": 1795621682.645905
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621683.697933,
+      "ok": true,
+      "op": "set:0=4,1=60",
+      "sent": 1795621682.89806,
+      "started": 1795621682.898042
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 3,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621683.847992,
+      "ok": true,
+      "op": "wait:mode=3",
+      "sent": 1795621683.698092,
+      "started": 1795621683.698092
+     },
+     {
+      "detail": null,
+      "done": 1795621690.897886,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621683.848087,
+      "started": 1795621683.848087
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 3,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621691.047972,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621690.898014,
+      "started": 1795621690.898014
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 3,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "AOO": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621698.250031,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621697.99802,
+      "started": 1795621697.99802
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621699.050081,
+      "ok": true,
+      "op": "set:0=5,1=60",
+      "sent": 1795621698.250161,
+      "started": 1795621698.250143
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 1,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621699.200078,
+      "ok": true,
+      "op": "wait:mode=1",
+      "sent": 1795621699.050194,
+      "started": 1795621699.050194
+     },
+     {
+      "detail": null,
+      "done": 1795621706.25002,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621699.200178,
+      "started": 1795621699.200178
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 1,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621706.400065,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621706.250073,
+      "started": 1795621706.250073
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 1,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "AAI": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621713.568061,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621713.315157,
+      "started": 1795621713.315157
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621714.368067,
+      "ok": true,
+      "op": "set:0=6,1=60",
+      "sent": 1795621713.568168,
+      "started": 1795621713.568156
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 37,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621714.518101,
+      "ok": true,
+      "op": "wait:mode=37",
+      "sent": 1795621714.368152,
+      "started": 1795621714.368152
+     },
+     {
+      "detail": null,
+      "done": 1795621721.5681,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621714.518152,
+      "started": 1795621714.518152
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 37,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621721.71814,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621721.568155,
+      "started": 1795621721.568155
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 37,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VOO": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621728.919188,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621728.667186,
+      "started": 1795621728.667186
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621729.720198,
+      "ok": true,
+      "op": "set:0=7,1=60",
+      "sent": 1795621728.919312,
+      "started": 1795621728.919296
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 2,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621729.870235,
+      "ok": true,
+      "op": "wait:mode=2",
+      "sent": 1795621729.720322,
+      "started": 1795621729.720322
+     },
+     {
+      "detail": null,
+      "done": 1795621736.919196,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621729.870331,
+      "started": 1795621729.870331
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 2,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621737.070232,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621736.91925,
+      "started": 1795621736.91925
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 2,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VVI": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621744.187267,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621743.935261,
+      "started": 1795621743.935261
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621744.987295,
+      "ok": true,
+      "op": "set:0=8,1=60",
+      "sent": 1795621744.187375,
+      "started": 1795621744.18736
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 42,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621745.137357,
+      "ok": true,
+      "op": "wait:mode=42",
+      "sent": 1795621744.987427,
+      "started": 1795621744.987427
+     },
+     {
+      "detail": null,
+      "done": 1795621752.187259,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621745.137456,
+      "started": 1795621745.137456
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 42,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621752.337312,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621752.1873,
+      "started": 1795621752.1873
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 42,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "AAT": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621759.543351,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621759.291339,
+      "started": 1795621759.291339
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621760.34339,
+      "ok": true,
+      "op": "set:0=9,1=60",
+      "sent": 1795621759.54348,
+      "started": 1795621759.543463
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 21,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621760.493443,
+      "ok": true,
+      "op": "wait:mode=21",
+      "sent": 1795621760.343512,
+      "started": 1795621760.343512
+     },
+     {
+      "detail": null,
+      "done": 1795621767.543308,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621760.493541,
+      "started": 1795621760.493541
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 21,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621767.693314,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621767.543322,
+      "started": 1795621767.543322
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 21,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VVT": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621774.79935,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621774.546464,
+      "started": 1795621774.546464
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621775.599342,
+      "ok": true,
+      "op": "set:0=10,1=60",
+      "sent": 1795621774.79938,
+      "started": 1795621774.799375
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 26,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621775.748369,
+      "ok": true,
+      "op": "wait:mode=26",
+      "sent": 1795621775.599382,
+      "started": 1795621775.599382
+     },
+     {
+      "detail": null,
+      "done": 1795621782.748403,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621775.748394,
+      "started": 1795621775.748394
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 26,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621782.899401,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621782.748418,
+      "started": 1795621782.748418
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 26,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DDDR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621790.106451,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621789.854437,
+      "started": 1795621789.854437
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621790.906453,
+      "ok": true,
+      "op": "set:0=11,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621790.106484,
+      "started": 1795621790.106478
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 127,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621791.05644,
+      "ok": true,
+      "op": "wait:mode=127",
+      "sent": 1795621790.90648,
+      "started": 1795621790.90648
+     },
+     {
+      "detail": null,
+      "done": 1795621798.106449,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621791.056463,
+      "started": 1795621791.056463
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 127,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621798.256457,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621798.106464,
+      "started": 1795621798.106464
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 127,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621798.456455,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621798.256479,
+      "started": 1795621798.256478
+     },
+     {
+      "detail": null,
+      "done": 1795621811.456507,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621798.456479,
+      "started": 1795621798.456479
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 127,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621811.606524,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621811.456521,
+      "started": 1795621811.456521
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 127,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VDDR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621819.478553,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621819.225658,
+      "started": 1795621819.225658
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621820.278552,
+      "ok": true,
+      "op": "set:0=12,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621819.478583,
+      "started": 1795621819.478577
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 126,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621820.428555,
+      "ok": true,
+      "op": "wait:mode=126",
+      "sent": 1795621820.278575,
+      "started": 1795621820.278575
+     },
+     {
+      "detail": null,
+      "done": 1795621827.47857,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621820.428573,
+      "started": 1795621820.428573
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 126,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621827.628584,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621827.478584,
+      "started": 1795621827.478584
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 126,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621827.828592,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621827.628606,
+      "started": 1795621827.628605
+     },
+     {
+      "detail": null,
+      "done": 1795621840.828633,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621827.828613,
+      "started": 1795621827.828613
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 126,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621840.978666,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621840.828646,
+      "started": 1795621840.828646
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 126,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DDIR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621848.83968,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621848.586672,
+      "started": 1795621848.586672
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621849.639682,
+      "ok": true,
+      "op": "set:0=13,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621848.839713,
+      "started": 1795621848.839707
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 111,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621849.788684,
+      "ok": true,
+      "op": "wait:mode=111",
+      "sent": 1795621849.639709,
+      "started": 1795621849.639709
+     },
+     {
+      "detail": null,
+      "done": 1795621856.839696,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621849.788707,
+      "started": 1795621849.788707
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 111,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621856.988709,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621856.839709,
+      "started": 1795621856.839709
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 111,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621857.188712,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621856.988731,
+      "started": 1795621856.988731
+     },
+     {
+      "detail": null,
+      "done": 1795621870.188751,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621857.18873,
+      "started": 1795621857.18873
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 111,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621870.339759,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621870.188763,
+      "started": 1795621870.188763
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 111,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "DOOR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621878.196806,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621877.94289,
+      "started": 1795621877.94289
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621878.99681,
+      "ok": true,
+      "op": "set:0=14,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621878.19684,
+      "started": 1795621878.196835
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 67,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621879.145898,
+      "ok": true,
+      "op": "wait:mode=67",
+      "sent": 1795621878.996838,
+      "started": 1795621878.996838
+     },
+     {
+      "detail": null,
+      "done": 1795621886.196834,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621879.145916,
+      "started": 1795621879.145916
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 67,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621886.345846,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621886.196847,
+      "started": 1795621886.196847
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 67,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621886.545933,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621886.345868,
+      "started": 1795621886.345868
+     },
+     {
+      "detail": null,
+      "done": 1795621899.596898,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621886.545972,
+      "started": 1795621886.545972
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 67,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621899.7459,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621899.59691,
+      "started": 1795621899.59691
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 67,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium and the ventricle, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "the ventricular Pace follows the atrial one by the AV delay (150 ms)",
+      "ok": true,
+      "detail": {
+       "count": 5,
+       "min": 149999,
+       "max": 150000
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 12,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "AOOR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621907.568024,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621907.315002,
+      "started": 1795621907.315002
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621908.368026,
+      "ok": true,
+      "op": "set:0=15,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621907.568055,
+      "started": 1795621907.56805
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 65,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621908.517951,
+      "ok": true,
+      "op": "wait:mode=65",
+      "sent": 1795621908.368055,
+      "started": 1795621908.368055
+     },
+     {
+      "detail": null,
+      "done": 1795621915.568924,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621908.517972,
+      "started": 1795621908.517972
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 65,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621915.717947,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621915.568936,
+      "started": 1795621915.568936
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 65,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621915.917958,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621915.717965,
+      "started": 1795621915.717965
+     },
+     {
+      "detail": null,
+      "done": 1795621928.968062,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621915.917979,
+      "started": 1795621915.917979
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 65,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621929.117992,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621928.968074,
+      "started": 1795621928.968074
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 65,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "AAIR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621936.932031,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621936.678113,
+      "started": 1795621936.678113
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621937.732029,
+      "ok": true,
+      "op": "set:0=16,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621936.932064,
+      "started": 1795621936.932058
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 101,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621937.881031,
+      "ok": true,
+      "op": "wait:mode=101",
+      "sent": 1795621937.732059,
+      "started": 1795621937.732059
+     },
+     {
+      "detail": null,
+      "done": 1795621944.932054,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621937.88105,
+      "started": 1795621937.88105
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 101,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621945.081065,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621944.932066,
+      "started": 1795621944.932066
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 101,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621945.281067,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621945.081085,
+      "started": 1795621945.081084
+     },
+     {
+      "detail": null,
+      "done": 1795621958.2811,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621945.281088,
+      "started": 1795621945.281088
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 101,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621958.432107,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621958.281114,
+      "started": 1795621958.281114
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 101,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the atrium alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       },
+       "ventricular": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       }
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VOOR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621966.917241,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621966.665206,
+      "started": 1795621966.665206
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621967.717243,
+      "ok": true,
+      "op": "set:0=17,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621966.91737,
+      "started": 1795621966.917347
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 66,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621967.867295,
+      "ok": true,
+      "op": "wait:mode=66",
+      "sent": 1795621967.717369,
+      "started": 1795621967.717369
+     },
+     {
+      "detail": null,
+      "done": 1795621974.916274,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621967.867395,
+      "started": 1795621967.867395
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 66,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795621975.067292,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621974.916325,
+      "started": 1795621974.916325
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 66,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795621975.26728,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795621975.06739,
+      "started": 1795621975.067388
+     },
+     {
+      "detail": null,
+      "done": 1795621988.268569,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795621975.26738,
+      "started": 1795621975.26738
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 66,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795621988.417638,
+      "ok": true,
+      "op": "status",
+      "sent": 1795621988.268622,
+      "started": 1795621988.268622
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 66,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "VVIR": {
+    "heart": "env 0,0,0,0,0",
+    "heart_binary": "sha256:1b48142d2982c49116895366fee32cd3d1a0f9c5cb48ed087d657762779757e8",
+    "ops": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795621996.343453,
+      "ok": true,
+      "op": "up",
+      "sent": 1795621996.091414,
+      "started": 1795621996.091414
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 5,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795621997.143504,
+      "ok": true,
+      "op": "set:0=18,1=60,3=120,24=3,25=10,26=16,27=2",
+      "sent": 1795621996.343586,
+      "started": 1795621996.343564
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 106,
+        "of": 6,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       },
+       "transfers": 3
+      },
+      "done": 1795621997.293556,
+      "ok": true,
+      "op": "wait:mode=106",
+      "sent": 1795621997.143632,
+      "started": 1795621997.143632
+     },
+     {
+      "detail": null,
+      "done": 1795622004.293928,
+      "ok": true,
+      "op": "hold:7",
+      "sent": 1795621997.293656,
+      "started": 1795621997.293656
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 106,
+       "of": 7,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 1
+      },
+      "done": 1795622004.44397,
+      "ok": true,
+      "op": "status",
+      "sent": 1795622004.29398,
+      "started": 1795622004.29398
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 0,
+        "code": 6,
+        "link_up": true,
+        "mode": 106,
+        "of": 8,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       }
+      },
+      "done": 1795622004.643976,
+      "ok": true,
+      "op": "activity:255",
+      "sent": 1795622004.444067,
+      "started": 1795622004.444065
+     },
+     {
+      "detail": null,
+      "done": 1795622017.64438,
+      "ok": true,
+      "op": "hold:13",
+      "sent": 1795622004.644074,
+      "started": 1795622004.644074
+     },
+     {
+      "detail": {
+       "battery": 0,
+       "code": 4,
+       "link_up": true,
+       "mode": 106,
+       "of": 9,
+       "refused": 0,
+       "state": 1,
+       "verdicts": 2
+      },
+      "done": 1795622017.794415,
+      "ok": true,
+      "op": "status",
+      "sent": 1795622017.644434,
+      "started": 1795622017.644434
+     }
+    ],
+    "checks": [
+     {
+      "check": "the set is accepted and the status reports the Mode in force, in the Permanent State",
+      "ok": true,
+      "detail": {
+       "failed": [],
+       "status": {
+        "battery": 0,
+        "code": 4,
+        "link_up": true,
+        "mode": 106,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 1
+       }
+      }
+     },
+     {
+      "check": "at the LRL the Mode paces the ventricle alone, every interval the LRL interval within PM-PAR-01",
+      "ok": true,
+      "detail": {
+       "atrial": {
+        "paces": 0,
+        "intervals_us": {
+         "count": 0,
+         "min": null,
+         "max": null
+        }
+       },
+       "ventricular": {
+        "paces": 6,
+        "intervals_us": {
+         "count": 5,
+         "min": 999996,
+         "max": 999997
+        }
+       }
+      }
+     },
+     {
+      "check": "after 13 s of the activity value 255 the intervals are the MSR interval within PM-PAR-02",
+      "ok": true,
+      "detail": {
+       "count": 3,
+       "min": 499998,
+       "max": 499999
+      }
+     },
+     {
+      "check": "every pulse is 0.40 ms wide",
+      "ok": true,
+      "detail": {
+       "count": 6,
+       "min": 400,
+       "max": 400
+      }
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "modes_run": 19,
+   "verdict": "PASS",
+   "task": "21"
+  }
+ },
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "B": "1366:1061:001050279833",
+  "C": "1366:1061:001050211852"
+ },
+ "binaries": {
+  "pacemaker": "sha256:c8105bac8172150517366370c887dab75010aacc39ceab9c08006bbf2ab39a27",
+  "pm-bridge": "sha256:7ca34f5263cbc05b8645acb733981c6bf1496ef0928c2737c997112558dad89d"
+ },
+ "capture": {
+  "rate_hz": 1000000,
+  "pins": "D0 the atrial pace pin, D1 the ventricular, D6 and D7 the Heart_Simulator's sense mirrors",
+  "tolerances_us": {
+   "PM-PAR-01": 8000,
+   "PM-PAR-02": 4000,
+   "width": 20
+  }
+ }
+}

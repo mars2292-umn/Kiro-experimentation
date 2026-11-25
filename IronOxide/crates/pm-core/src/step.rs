@@ -373,6 +373,11 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
         st.pvarp_extended = extend;
         let pvarp = if extend { p.pvarp.saturating_add(p.pvarp_extension) } else { p.pvarp };
         st.chamber[Chamber::A.index()].refractory_until = v.plus(pvarp);
+        // The atrium's cycle begins here too: noisy until a service after
+        // the PVARP is not (PM13.1). Without this an atrial line with
+        // continuous edges was tracked at the URL (finding B42, the rig's
+        // storm on the atrial line in DDD).
+        st.chamber[Chamber::A.index()].noisy = true;
         if p.mode.paces(Chamber::A) {
             let escape = atrial_escape(p, st, v);
             st.chamber[Chamber::A.index()].pending = Pending::at(v.plus(escape));
