@@ -19,9 +19,13 @@
 //! **Toward `therapy`** (task 16.1). For every frame of the DCM's it hears,
 //! `link` has one message for the Endpoint `program` ([`take_forward`]):
 //! the command, or the mark that a frame was heard, by which `control`
-//! knows the link is up (PM20.2). `link` does not judge a parameter set:
-//! `therapy`'s validation function does (PM19.3), and a set it refuses is
-//! this Partition's fault by the Kernel's rule (R42.4).
+//! knows the link is up (PM20.2). `therapy`'s validation function is the
+//! judge of a command (PM19.3), and a message it refuses is this
+//! Partition's fault by the Kernel's rule (R42.4). So `link` asks the same
+//! function first (`pm_core::wire::admitted`) and answers a command it
+//! would refuse with STATUS REFUSED, naming the frame, without forwarding
+//! it: a DCM's mistake is then no fault of anyone's (decided 2026-11-24).
+//! The battery level is kept and sent again when `therapy` has restarted.
 //!
 //! **From `therapy`.** `control`'s status ([`status_in`]) fills the State,
 //! the Mode and the battery level of every STATUS frame. When it differs
@@ -59,7 +63,9 @@ pub mod code {
     /// command with a value whose length is not the value's.
     pub const BAD_PART: u8 = 5;
     /// `control`'s verdicts, which come with its status: 6 accepted, 7
-    /// refused by the validation function, 8 declined by the State.
+    /// refused by the validation function, 8 declined by the State. `link`
+    /// answers 7 itself, naming the frame, for a command the validation
+    /// function would refuse.
     pub use pm_core::wire::verdict::{ACCEPTED, DECLINED, REFUSED};
     /// The command was handed to `therapy`; its verdict follows.
     pub const FORWARDED: u8 = 9;
@@ -106,12 +112,16 @@ pub struct Link {
     pub have_status: u32,
     pub status: [u32; STATUS_WORDS],
     pub told: [u32; 3],
+    /// The battery level the DCM last set (0, the value at start, is BOL),
+    /// and 1 when it is to be sent to `therapy` again.
+    pub battery: u32,
+    pub resend_battery: u32,
 }
 
 impl Link {
     #[must_use]
     pub const fn new() -> Link {
-        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS], forward_ready: 0, unforwarded: 0, forward: [0; PROGRAM_WORDS], have_status: 0, status: [0; STATUS_WORDS], told: [0; 3] }
+        Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; WORDS], forward_ready: 0, unforwarded: 0, forward: [0; PROGRAM_WORDS], have_status: 0, status: [0; STATUS_WORDS], told: [0; 3], battery: 0, resend_battery: 0 }
     }
 }
 
@@ -132,6 +142,29 @@ pub fn status_in(l: &mut Link, w: &[u32; STATUS_WORDS]) {
 pub fn peer_changed(l: &mut Link) {
     l.have_status = 0;
     l.told = [0; 3];
+    // `therapy` has the level as BOL again: a lower one is sent anew.
+    if l.battery != 0 {
+        l.resend_battery = 1;
+    }
+}
+
+/// The battery level for a `therapy` that has started again, once: a
+/// message as the DCM's SET_BATTERY gave, numbered 0. `control` answers it
+/// like any command, so a verdict naming frame 0 may follow a restart.
+#[must_use]
+pub fn take_resend(l: &mut Link) -> Option<[u32; PROGRAM_WORDS]> {
+    if l.resend_battery == 1 {
+        l.resend_battery = 0;
+        Some(wire::message_with_value(wire::code::BATTERY, 0, l.battery))
+    } else {
+        None
+    }
+}
+
+/// The Endpoint did not take the message [`take_resend`] gave: it is
+/// offered again in the next period.
+pub fn not_resent(l: &mut Link) {
+    l.resend_battery = 1;
 }
 
 /// The message for the Endpoint `program`, once.
@@ -250,12 +283,18 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
         }
         return match l.assembly.accept(f) {
             Some(words) => {
+                // The frame's kind is the message's code (0x10, 0x11). A
+                // set `therapy` would refuse is refused here and goes no
+                // further (decided 2026-11-24).
+                let m = wire::message_with_set(f.kind, f.seq, &words);
+                if !wire::admitted(&m) {
+                    return status(l, seq, f.seq, code::REFUSED);
+                }
                 l.set = words;
                 l.set_kind = f.kind as u32;
                 l.have_set = 1;
                 l.sets = l.sets.wrapping_add(1);
-                // The frame's kind is the message's code (0x10, 0x11).
-                l.forward = wire::message_with_set(f.kind, f.seq, &words);
+                l.forward = m;
                 status(l, seq, f.seq, code::SET_COMPLETE)
             }
             None => status(l, seq, f.seq, code::RECEIVED),
@@ -275,13 +314,23 @@ pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
         l.forward = wire::message(f.kind, f.seq);
         return status(l, seq, f.seq, code::FORWARDED);
     }
-    // The battery level and the magnet response: one byte, which `control`
-    // judges (the frame's kind is the message's code).
+    // The battery level and the magnet response: one byte (the frame's
+    // kind is the message's code). A value `therapy` would refuse is
+    // refused here. The level is kept, to be sent again if `therapy`
+    // starts again (decided 2026-11-24).
     if f.kind == kind::SET_BATTERY || f.kind == kind::SET_MAGNET_RESPONSE {
         if f.len != 1 {
             return status(l, seq, f.seq, code::BAD_PART);
         }
-        l.forward = wire::message_with_value(f.kind, f.seq, f.payload[0] as u32);
+        let m = wire::message_with_value(f.kind, f.seq, f.payload[0] as u32);
+        if !wire::admitted(&m) {
+            return status(l, seq, f.seq, code::REFUSED);
+        }
+        if f.kind == kind::SET_BATTERY {
+            l.battery = f.payload[0] as u32;
+            l.resend_battery = 0;
+        }
+        l.forward = m;
         return status(l, seq, f.seq, code::FORWARDED);
     }
     status(l, seq, f.seq, code::NOT_SERVED)

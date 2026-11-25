@@ -7,7 +7,8 @@
 //! to wait for). Senses come from a table that `control` plays. This is
 //! for the logic and the Analyzer's inputs, not for timing claims.
 
-use pm_core::{Chamber, Micros};
+use pm_core::Chamber;
+use pm_hw::Count;
 use pm_hw::{HwFault, Reg};
 
 const DUALTIMER: u32 = 0x4000_2000;
@@ -88,8 +89,8 @@ pub struct Board<'a> {
     pub words: &'a mut Words,
 }
 
-fn micros() -> Micros {
-    Micros((rsk::now() / TICKS_PER_MICRO) as u32)
+fn micros() -> Count {
+    Count((rsk::now() / TICKS_PER_MICRO) as u32)
 }
 
 impl Board<'_> {
@@ -103,7 +104,7 @@ impl Board<'_> {
         let mut k = 0;
         while k < 2 {
             if self.words.armed[k] {
-                let ahead = Micros(self.words.start[k]).since(now);
+                let ahead = Count(self.words.start[k]).since(now);
                 if ahead <= 0 {
                     self.words.armed[k] = false;
                     self.words.start_event[k] = true;
@@ -137,7 +138,7 @@ impl Board<'_> {
         let mut k = 0;
         while k < SCRIPT.len() {
             let next = self.words.next_sense as usize;
-            if next < SCRIPT.len() && now.is_at_or_after(Micros(SCRIPT[next].at)) {
+            if next < SCRIPT.len() && now.is_at_or_after(Count(SCRIPT[next].at)) {
                 let c: usize = if SCRIPT[next].chamber == 0 { 0 } else { 1 };
                 self.words.count[c] = self.words.count[c].wrapping_add(1);
                 self.words.sense_instant[c] = SCRIPT[next].at;
@@ -177,7 +178,7 @@ impl pm_hw::Board for Board<'_> {
         self.poll();
         match reg {
             Reg::StartCompare(c) => {
-                let ahead = Micros(value).since(micros());
+                let ahead = Count(value).since(micros());
                 self.words.start[c.index()] = value;
                 // On the far side of the present, or behind it: not armed.
                 self.words.armed[c.index()] = ahead > 0 && ahead < (1 << 29);
@@ -193,7 +194,7 @@ impl pm_hw::Board for Board<'_> {
         }
     }
 
-    fn now(&mut self) -> Micros {
+    fn now(&mut self) -> Count {
         micros()
     }
 }

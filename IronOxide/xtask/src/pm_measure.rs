@@ -65,7 +65,10 @@ fn set_feature(set: &str) -> String {
 /// The Operating_Duration of the declaration variant `nrf52840_measure`.
 pub const DURATION_SECS: u64 = 300;
 /// The wait beyond it before the record is read.
-pub const GRACE_SECS: u64 = 8;
+// 8 s until 2026-11-24: with `comms` in the binary the flashing took over
+// 10 s of the run's time, the probe was detached 2 s before the
+// Operating_Duration ended, and the halt was recorded as a deadline miss.
+pub const GRACE_SECS: u64 = 25;
 pub const TOOL_TIMING: &str = "xtask pm-measure: the Kernel's release-timing and entry record";
 pub const TOOL_WCET: &str = "xtask pm-measure: the Kernel's Budget accounting";
 const INSTRUMENTED: &str = "HIL build (trace-ram): the instrumentation's cost is included (R34.7)";
@@ -240,6 +243,14 @@ pub fn measure(ws: &Workspace, rig: &rsk_hil::config::Rig, set: &str, scenario: 
             // the attached debugger is a finding.
             if kind == Kind::Records && ev.counts().iter().any(|((kind, _), _)| !["operating_end", "safe_state", "debugger"].contains(&rsk_hil::events::kind_name(*kind))) {
                 ok = false;
+            }
+            // The Kernel's trace stopped at the first such event: its last
+            // entries are what led to it (added 2026-11-24, task 17.2).
+            if ev.frozen_in_run().is_some() {
+                if let Ok(Some(trace)) = target.read_trace(&build.elf, &scratch) {
+                    let from = trace.len().saturating_sub(48);
+                    text.push_str(&format!("\nThe trace's last {} entries before it froze:\n\n```\n{}```\n", trace.len() - from, rsk_hil::trace::render(&trace[from..], tick_hz)));
+                }
             }
         }
         None => text.push_str("\nEvents: the event mirror could not be read.\n"),

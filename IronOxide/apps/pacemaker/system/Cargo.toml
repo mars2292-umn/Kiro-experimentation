@@ -40,6 +40,10 @@ inject = ["pacemaker-therapy/inject"]
 # counters at instant 0; `cargo xtask pm-measure --coverage` builds it.
 coverage = ["rsk-kernel/coverage", "pacemaker-therapy/coverage"]
 set-env = ["pacemaker-therapy/set-env"]
+# Task 17: the injections of the fault-response runs (see the Partition crates).
+inject-once = ["pacemaker-therapy/inject-once"]
+misbehave = ["pacemaker-comms?/misbehave"]
+rig-stop = ["pacemaker-therapy/rig-stop"]
 
 [dependencies]
 pacemaker-decl = { path = "../decl" }

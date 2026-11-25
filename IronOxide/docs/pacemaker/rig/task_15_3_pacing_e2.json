@@ -6,13 +6,13 @@
    "PM_SET": "0=1,1=60",
    "heart": "silent",
    "binaries": {
-    "pacemaker": "sha256:ca97bc22a8133e1d8c57650dd1edf821c58e3ea66afdf7b7513fd32e272b5f56",
+    "pacemaker": "sha256:5cc731e306c3c3c64a3fe38b5c2d72ce90fcd5905aa6f1c1cb490b5fdfeae224",
     "heart-sim": "sha256:6e6d8f26f29a6b8359d9887627d8e8f8e184ce0c6e11672676fa81538b3eda48"
    },
    "capture": {
     "rate_hz": 1000000,
     "seconds": 30,
-    "sha256": "sha256:73abedeb3b45c808e7bdf2a822f5774f634af5ce31c437036f52b006896303cf"
+    "sha256": "sha256:33545e8041b3b15348a394cd30c3fde5ce7a488eec7a411fc1bb4470c95f7b2d"
    },
    "counts": {
     "started": 1,
@@ -54,8 +54,8 @@
     "errors_us": {
      "atrial_escape": {
       "count": 27,
-      "min": -3.0,
-      "max": -2.0
+      "min": -4.0,
+      "max": -3.0
      },
      "paced_av": {
       "count": 27,
@@ -71,13 +71,13 @@
    "PM_SET": "0=1,1=60",
    "heart": "env 600,900,0,0,0",
    "binaries": {
-    "pacemaker": "sha256:ca97bc22a8133e1d8c57650dd1edf821c58e3ea66afdf7b7513fd32e272b5f56",
+    "pacemaker": "sha256:5cc731e306c3c3c64a3fe38b5c2d72ce90fcd5905aa6f1c1cb490b5fdfeae224",
     "heart-sim": "sha256:5fa038dde877db101bfa4d0a1482577da222f07320675e052e0f6a36f68bb340"
    },
    "capture": {
     "rate_hz": 1000000,
     "seconds": 30,
-    "sha256": "sha256:bc048deb63ac56f05739b1cacb2270ddc7c5df8805ba57334b9ee4959af764b6"
+    "sha256": "sha256:cc193f92fec250f76320d32dd1ac2edcfe8cc79581c91df2fb7bc06a11df0d92"
    },
    "counts": {
     "started": 1,

@@ -3060,8 +3060,28 @@ package = "pm-core-proof"
 prover = "creusot"
 
 [[mutation]]
+id = "pm-step-p2-tick-moves-a-pending-pace"
+kills = "Property P2's \"no later\" on the step (64-bit instants, 2026-11-24): a ventricular Pace that is pending is no later after a tick than it was; a tick that puts it one escape interval and a microsecond from now breaks tick's contract"
+file = "crates/pm-core/src/step.rs"
+find = "        if !st.chamber[Chamber::V.index()].pending.armed {\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)));\n"
+replace = "        if true {\n            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)).plus(1));\n"
+expect = ["proof failed", "vc_tick"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-p2-ventricular-pace-a-microsecond-late"
+kills = "Property P2's \"no later\" on the step (64-bit instants, 2026-11-24): after a ventricular event the Pace pending is no later than the event plus the escape interval; one microsecond later breaks ventricular_event's contract"
+file = "crates/pm-core/src/step.rs"
+find = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };\n"
+replace = "    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p)).plus(1)) } else { Pending::NONE };\n"
+expect = ["proof failed", "vc_ventricular_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
 id = "pm-step-p1-url-floor-dropped"
-kills = "Property P1 on the atrial path (the ventricular Pace an atrial event leaves pending is the one that was pending or is not before the last ventricular event plus the URL interval): without the delay to the URL the contract of atrial_event fails"
+kills = "Property P1 as an invariant of the state (64-bit instants, 2026-11-24: a pending ventricular Pace is no earlier than the last ventricular event plus the URL interval, kept by every event): without the delay to the URL the contract of atrial_event fails"
 file = "crates/pm-core/src/step.rs"
 find = "                if end.is_before(earliest) {\n                    end = earliest;\n                }\n"
 replace = "                let _ = earliest;\n"

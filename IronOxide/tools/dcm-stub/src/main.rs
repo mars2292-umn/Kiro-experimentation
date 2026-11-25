@@ -233,21 +233,21 @@ fn program(device: &str) -> std::io::Result<(bool, Value)> {
         _ => 0,
     };
 
-    // 3. A set predicted invalid: refused, counted, and `comms` restarted.
+    // 3. A set predicted invalid: refused by `link`, naming the frame of
+    // its last part; `comms` is not restarted, `control` has refused
+    // nothing, and the link stays up. (Until 2026-11-24 the set went to
+    // `therapy`, whose refusal restarted `comms`.)
     let mut bad_set = good_set;
     bad_set[pm_core::word::LRL] = 31;
     let predicted = predict(&bad_set);
     let from = s.log.len();
-    let _ = s.send_set(&bad_set, false, 20)?;
-    let v = s.verdict(40)?;
-    let refused = matches!(v.as_ref().map(|a| &a.reply), Some(Reply::Status { code: 7, refused, .. }) if *refused == refused_before.wrapping_add(1));
-    // The link numbers its frames from 0 after a restart.
+    let parts = s.send_set(&bad_set, false, 20)?;
+    let last = parts.last().and_then(|a| a.as_ref()).map(|a| a.reply.clone());
+    let refused = matches!(last, Some(Reply::Status { code: 7, refused, link_up: true, .. }) if refused == refused_before);
     let numbers: Vec<u8> = s.log[from..].iter().filter(|r| reply(&r.bytes).is_some()).map(|r| r.bytes[0]).collect();
     let restarted = numbers.windows(2).any(|w| w[1] < w[0] && w[1] < 4);
-    step("a set predicted invalid (LRL 31) is refused and comms is restarted", !predicted && refused && restarted,
-         json!({ "predicted_valid": predicted, "verdict": v.as_ref().map(|a| told(&a.reply)), "link_numbering_restarted": restarted }));
-    let a = s.wait(40, up)?;
-    step("the link is up again after the restart", a.is_some(), json!(a.as_ref().map(|a| a.transfers)));
+    step("a set predicted invalid (LRL 31) is refused by link, and nothing restarts", !predicted && refused && !restarted,
+         json!({ "predicted_valid": predicted, "answer_to_the_last_part": last.as_ref().map(told), "link_numbering_restarted": restarted }));
 
     // 4. Temporary pacing, ended by command.
     let mut temp = good_set;

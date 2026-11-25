@@ -2,21 +2,22 @@
 <!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
 <nta>
 <declaration>// rsk UPPAAL export (rsk-uppaal/4). Times in CPU cycles.
-const int N = 4;
+const int N = 5;
 typedef int[0,N-1] task_t;
-const int PRIO[N] = { 7, 6, 5, 4 };
-const int PERIOD[N] = { 1280000, 3200000, 3200000, 1280000 };
-const int DEADLINE[N] = { 128000, 192000, 256000, 1280000 };
-const int EXEC[N] = { 91502, 91829, 90094, 379237 };
-const int OWN[N] = { 68707, 68707, 68707, 356723 };
-const int JITTER[N] = { 7987, 7987, 7987, 7987 };
-const int BLOCK[N] = { 12460, 11852, 11852, 7107 };
-const bool SPORADIC[N] = { true, true, true, false };
+const int PRIO[N] = { 7, 6, 5, 4, 2 };
+const int PERIOD[N] = { 1280000, 3200000, 3200000, 1280000, 3200000 };
+const int DEADLINE[N] = { 128000, 192000, 256000, 1280000, 3200000 };
+const int EXEC[N] = { 99344, 98816, 100482, 407509, 188389 };
+const int OWN[N] = { 70211, 70211, 70211, 370851, 172699 };
+const int JITTER[N] = { 6713, 6713, 6713, 6713, 6713 };
+const int BLOCK[N] = { 24272, 24272, 24272, 8479, 8479 };
+const bool SPORADIC[N] = { true, true, true, false, false };
 // Task_Model identifiers, by index (R31.7):
 // 0: therapy.pace
 // 1: therapy.sense_v
 // 2: therapy.sense_a
 // 3: therapy.control
+// 4: comms.link
 int ceiling = 0;          // System_Ceiling (SRP); Critical_Sections are approximated by BLOCK
 int running = -1;         // the executing Task, -1 when idle
 bool pending[N];          // released, not started
@@ -62,6 +63,7 @@ int resume() { int best = -1; for (k : task_t) { if (started[k] &amp;&amp; (best
 G1 = Gen(1); T1 = Task(1);
 G2 = Gen(2); T2 = Task(2);
 G3 = Gen(3); T3 = Task(3);
-system G0, T0, G1, T1, G2, T2, G3, T3;
+G4 = Gen(4); T4 = Task(4);
+system G0, T0, G1, T1, G2, T2, G3, T3, G4, T4;
 </system>
 </nta>

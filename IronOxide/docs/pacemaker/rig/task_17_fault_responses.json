@@ -1,0 +1,1099 @@
+{
+ "runs": {
+  "restart": {
+   "fault": {
+    "binary": "sha256:da7602b50728c09fa0516de47022872e43af45a02531ef66e7778cd2a14a596c",
+    "programmed_over_the_link": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795578275.919226,
+      "ok": true,
+      "op": "up",
+      "sent": 1795578275.716345,
+      "started": 1795578275.716345
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 1,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795578276.119186,
+      "ok": true,
+      "op": "battery:1",
+      "sent": 1795578275.919248,
+      "started": 1795578275.919248
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 6,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 2
+       }
+      },
+      "done": 1795578276.919215,
+      "ok": true,
+      "op": "set:0=7,1=71",
+      "sent": 1795578276.119214,
+      "started": 1795578276.119209
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 1,
+        "code": 4,
+        "link_up": true,
+        "mode": 2,
+        "of": 7,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       },
+       "transfers": 3
+      },
+      "done": 1795578277.069233,
+      "ok": true,
+      "op": "wait:state=1",
+      "sent": 1795578276.919238,
+      "started": 1795578276.919238
+     }
+    ],
+    "status_after_the_restart": {
+     "battery": 1,
+     "code": 4,
+     "link_up": true,
+     "mode": 42,
+     "of": 2,
+     "refused": 0,
+     "state": 0,
+     "verdicts": 1
+    },
+    "pause_us": 1412824,
+    "bound_us": 1796147,
+    "paces_before": 8,
+    "paces_after": 38,
+    "intervals_before_us": {
+     "count": 7,
+     "min": 845066,
+     "max": 845067
+    },
+    "intervals_after_us": {
+     "count": 37,
+     "min": 923072,
+     "max": 923073
+    },
+    "longest_high_us": {
+     "ventricular": 500,
+     "atrial": 0
+    },
+    "last_pace_before_s_into_the_capture": 19.762345,
+    "kernel_events": [
+     {
+      "event": "memmanage",
+      "partition": "therapy",
+      "task": 3,
+      "instant_s": 10.0000095625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "overrun": {
+    "binary": "sha256:191b49767ecf9b820d927b082c4ed75b5f43f79a624f1a591351df380eb6cb63",
+    "programmed_over_the_link": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795578342.405214,
+      "ok": true,
+      "op": "up",
+      "sent": 1795578342.204227,
+      "started": 1795578342.204227
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 1,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795578342.605218,
+      "ok": true,
+      "op": "battery:1",
+      "sent": 1795578342.405238,
+      "started": 1795578342.405237
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 6,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 2
+       }
+      },
+      "done": 1795578343.405224,
+      "ok": true,
+      "op": "set:0=7,1=71",
+      "sent": 1795578342.605242,
+      "started": 1795578342.605238
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 1,
+        "code": 0,
+        "link_up": true,
+        "mode": 2,
+        "of": 0,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       },
+       "transfers": 11
+      },
+      "done": 1795578344.105235,
+      "ok": true,
+      "op": "wait:state=1",
+      "sent": 1795578343.405246,
+      "started": 1795578343.405246
+     }
+    ],
+    "status_after_the_restart": {
+     "battery": 1,
+     "code": 4,
+     "link_up": true,
+     "mode": 42,
+     "of": 2,
+     "refused": 0,
+     "state": 0,
+     "verdicts": 1
+    },
+    "pause_us": 1490831,
+    "bound_us": 1796147,
+    "paces_before": 9,
+    "paces_after": 38,
+    "intervals_before_us": {
+     "count": 8,
+     "min": 845066,
+     "max": 845067
+    },
+    "intervals_after_us": {
+     "count": 37,
+     "min": 923072,
+     "max": 923073
+    },
+    "longest_high_us": {
+     "ventricular": 500,
+     "atrial": 0
+    },
+    "last_pace_before_s_into_the_capture": 21.028625,
+    "kernel_events": [
+     {
+      "event": "overrun",
+      "partition": "therapy",
+      "task": 3,
+      "instant_s": 10.005089125
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "deadline": {
+    "binary": "sha256:e69cbcd54bd0b3ca3f6557e39bb418a7e28fe7608923d1b4291535b252e9d9c6",
+    "programmed_over_the_link": [
+     {
+      "detail": {
+       "battery": 0,
+       "code": 0,
+       "link_up": true,
+       "mode": 42,
+       "of": 0,
+       "refused": 0,
+       "state": 0,
+       "verdicts": 0
+      },
+      "done": 1795578405.68723,
+      "ok": true,
+      "op": "up",
+      "sent": 1795578405.48424,
+      "started": 1795578405.48424
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 1,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 1
+       }
+      },
+      "done": 1795578405.887252,
+      "ok": true,
+      "op": "battery:1",
+      "sent": 1795578405.687254,
+      "started": 1795578405.687253
+     },
+     {
+      "detail": {
+       "accepted": true,
+       "predicted_valid": true,
+       "verdict": {
+        "battery": 1,
+        "code": 6,
+        "link_up": true,
+        "mode": 42,
+        "of": 6,
+        "refused": 0,
+        "state": 0,
+        "verdicts": 2
+       }
+      },
+      "done": 1795578406.687238,
+      "ok": true,
+      "op": "set:0=7,1=71",
+      "sent": 1795578405.887278,
+      "started": 1795578405.887273
+     },
+     {
+      "detail": {
+       "status": {
+        "battery": 1,
+        "code": 0,
+        "link_up": true,
+        "mode": 2,
+        "of": 0,
+        "refused": 0,
+        "state": 1,
+        "verdicts": 2
+       },
+       "transfers": 12
+      },
+      "done": 1795578407.437293,
+      "ok": true,
+      "op": "wait:state=1",
+      "sent": 1795578406.687261,
+      "started": 1795578406.687261
+     }
+    ],
+    "status_after_the_restart": null,
+    "pause_us": 942664,
+    "bound_us": 1796147,
+    "paces_before": 10,
+    "paces_after": 37,
+    "intervals_before_us": {
+     "count": 9,
+     "min": 845066,
+     "max": 845067
+    },
+    "intervals_after_us": {
+     "count": 36,
+     "min": 923072,
+     "max": 923073
+    },
+    "longest_high_us": {
+     "ventricular": 500,
+     "atrial": 0
+    },
+    "last_pace_before_s_into_the_capture": 21.925843,
+    "kernel_events": [
+     {
+      "event": "deadline_miss",
+      "partition": "therapy",
+      "task": 0,
+      "instant_s": 11.223187625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "verdict": "PASS",
+   "task": "17.1"
+  },
+  "lower": {
+   "fault": {
+    "binary": "sha256:a8a78e84218fda5c4a4bf31af636e81cdc01b054ec5da4a49735e6bf2e6d3843",
+    "declaration": "nrf52840_rig",
+    "misbehaviour": "fault",
+    "capture": "30 s, begun some seconds before the onset at 10 s of the run",
+    "judge": {
+     "atrial": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 0
+      },
+      "paces": 0,
+      "pulse_widths": {
+       "count": 0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 0,
+      "senses_refractory": 0
+     },
+     "av_delays_measured_not_judged": {
+      "count": 37,
+      "max_us": 159998.0,
+      "min_us": 26666.0
+     },
+     "binaries": {
+      "heart-sim": {
+       "path": "target/heart-sim-fixed/thumbv7em-none-eabihf/release/heart-sim",
+       "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+      },
+      "pacemaker": {
+       "path": "target/pacemaker-misbehave/thumbv7em-none-eabihf/release/pacemaker",
+       "sha256": "sha256:a8a78e84218fda5c4a4bf31af636e81cdc01b054ec5da4a49735e6bf2e6d3843"
+      }
+     },
+     "capture": {
+      "file": "capture.bin",
+      "length_us": 30000000.0,
+      "rate_hz": 1000000,
+      "sha256": "sha256:87e7de9aecf17d3361f6b0aa2784247d0f35fe9837af9495f7a768d393bb8b65"
+     },
+     "escape_interval_us": 666666.0,
+     "mode": "VVI",
+     "parameter_words": [
+      8,
+      90,
+      120,
+      120,
+      150,
+      0,
+      50,
+      0,
+      35,
+      35,
+      400,
+      400,
+      75,
+      250,
+      320,
+      250,
+      250,
+      0,
+      0,
+      0,
+      0,
+      20,
+      1,
+      40,
+      3,
+      30,
+      8,
+      5
+     ],
+     "scenario": {
+      "atrial_beats": 37,
+      "atrial_intervals": {
+       "count": 36,
+       "max_us": 799996.0,
+       "min_us": 799995.0
+      },
+      "checked_against_its_table": true,
+      "conduction": {
+       "count": 37,
+       "max_us": 159998.0,
+       "min_us": 159997.0
+      },
+      "mismatches": [],
+      "name": "fixed",
+      "ventricular_beats": 37
+     },
+     "tolerances_us": {
+      "inhibition_window": 4000.0,
+      "interval": 8000.0,
+      "pulse_width": 200.0
+     },
+     "ventricular": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 37,
+       "max_us": 666664.0,
+       "min_us": 666663.0
+      },
+      "paces": 38,
+      "pulse_widths": {
+       "count": 38,
+       "max_us": 400.0,
+       "min_us": 400.0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 12,
+      "senses_refractory": 25
+     },
+     "verdict": "PASS",
+     "violations": []
+    },
+    "therapy_counts_at_the_end": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 111,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 79,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "kernel_events": [
+     {
+      "event": "memmanage",
+      "partition": "comms",
+      "task": 4,
+      "instant_s": 10.0000095625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "overrun": {
+    "binary": "sha256:90a6ffcbb289e0f3836130bdcce301b9ca052b06c1dc9ea3bb769d80a5281d7d",
+    "declaration": "nrf52840_rig",
+    "misbehaviour": "overrun",
+    "capture": "30 s, begun some seconds before the onset at 10 s of the run",
+    "judge": {
+     "atrial": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 0
+      },
+      "paces": 0,
+      "pulse_widths": {
+       "count": 0
+      },
+      "senses": 38,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 0,
+      "senses_refractory": 0
+     },
+     "av_delays_measured_not_judged": {
+      "count": 38,
+      "max_us": 159998.0,
+      "min_us": 26665.0
+     },
+     "binaries": {
+      "heart-sim": {
+       "path": "target/heart-sim-fixed/thumbv7em-none-eabihf/release/heart-sim",
+       "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+      },
+      "pacemaker": {
+       "path": "target/pacemaker-misbehave/thumbv7em-none-eabihf/release/pacemaker",
+       "sha256": "sha256:90a6ffcbb289e0f3836130bdcce301b9ca052b06c1dc9ea3bb769d80a5281d7d"
+      }
+     },
+     "capture": {
+      "file": "capture.bin",
+      "length_us": 30000000.0,
+      "rate_hz": 1000000,
+      "sha256": "sha256:653ab121af7b1d252a2bd7460242c732a844045d91f481d519c63e896edca91b"
+     },
+     "escape_interval_us": 666666.0,
+     "mode": "VVI",
+     "parameter_words": [
+      8,
+      90,
+      120,
+      120,
+      150,
+      0,
+      50,
+      0,
+      35,
+      35,
+      400,
+      400,
+      75,
+      250,
+      320,
+      250,
+      250,
+      0,
+      0,
+      0,
+      0,
+      20,
+      1,
+      40,
+      3,
+      30,
+      8,
+      5
+     ],
+     "scenario": {
+      "atrial_beats": 38,
+      "atrial_intervals": {
+       "count": 37,
+       "max_us": 799996.0,
+       "min_us": 799994.0
+      },
+      "checked_against_its_table": true,
+      "conduction": {
+       "count": 37,
+       "max_us": 159998.0,
+       "min_us": 159997.0
+      },
+      "mismatches": [],
+      "name": "fixed",
+      "ventricular_beats": 37
+     },
+     "tolerances_us": {
+      "inhibition_window": 4000.0,
+      "interval": 8000.0,
+      "pulse_width": 200.0
+     },
+     "ventricular": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 37,
+       "max_us": 666664.0,
+       "min_us": 666663.0
+      },
+      "paces": 38,
+      "pulse_widths": {
+       "count": 38,
+       "max_us": 400.0,
+       "min_us": 400.0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 13,
+      "senses_refractory": 24
+     },
+     "verdict": "PASS",
+     "violations": []
+    },
+    "therapy_counts_at_the_end": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 113,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 81,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "kernel_events": [
+     {
+      "event": "overrun",
+      "partition": "comms",
+      "task": 4,
+      "instant_s": 10.0024891875
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "invalid set": {
+    "binary": "sha256:d60a4d76a22a1f8455ffae8b3cda05fd19d3edec11c156ade54371bb7b0f7362",
+    "declaration": "nrf52840_rig",
+    "misbehaviour": "invalid",
+    "capture": "30 s, begun some seconds before the onset at 10 s of the run",
+    "judge": {
+     "atrial": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 0
+      },
+      "paces": 0,
+      "pulse_widths": {
+       "count": 0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 0,
+      "senses_refractory": 0
+     },
+     "av_delays_measured_not_judged": {
+      "count": 37,
+      "max_us": 159998.0,
+      "min_us": 26665.0
+     },
+     "binaries": {
+      "heart-sim": {
+       "path": "target/heart-sim-fixed/thumbv7em-none-eabihf/release/heart-sim",
+       "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+      },
+      "pacemaker": {
+       "path": "target/pacemaker-misbehave/thumbv7em-none-eabihf/release/pacemaker",
+       "sha256": "sha256:d60a4d76a22a1f8455ffae8b3cda05fd19d3edec11c156ade54371bb7b0f7362"
+      }
+     },
+     "capture": {
+      "file": "capture.bin",
+      "length_us": 30000000.0,
+      "rate_hz": 1000000,
+      "sha256": "sha256:6b1bd61f7cdfbaa7689afa15c58f00ad8348ab4f35fc1056b667309d378edce8"
+     },
+     "escape_interval_us": 666666.0,
+     "mode": "VVI",
+     "parameter_words": [
+      8,
+      90,
+      120,
+      120,
+      150,
+      0,
+      50,
+      0,
+      35,
+      35,
+      400,
+      400,
+      75,
+      250,
+      320,
+      250,
+      250,
+      0,
+      0,
+      0,
+      0,
+      20,
+      1,
+      40,
+      3,
+      30,
+      8,
+      5
+     ],
+     "scenario": {
+      "atrial_beats": 37,
+      "atrial_intervals": {
+       "count": 36,
+       "max_us": 799996.0,
+       "min_us": 799995.0
+      },
+      "checked_against_its_table": true,
+      "conduction": {
+       "count": 37,
+       "max_us": 159998.0,
+       "min_us": 159997.0
+      },
+      "mismatches": [],
+      "name": "fixed",
+      "ventricular_beats": 37
+     },
+     "tolerances_us": {
+      "inhibition_window": 4000.0,
+      "interval": 8000.0,
+      "pulse_width": 200.0
+     },
+     "ventricular": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 37,
+       "max_us": 666664.0,
+       "min_us": 666663.0
+      },
+      "paces": 38,
+      "pulse_widths": {
+       "count": 38,
+       "max_us": 400.0,
+       "min_us": 400.0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 12,
+      "senses_refractory": 25
+     },
+     "verdict": "PASS",
+     "violations": []
+    },
+    "therapy_counts_at_the_end": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 111,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 79,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "kernel_events": [
+     {
+      "event": "message_rejected",
+      "partition": "comms",
+      "task": 4,
+      "instant_s": 10.0200095625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "flood": {
+    "binary": "sha256:6d9e8b2fd5217264f3494ed94746c4a8351eb09916e2b72ae92915db54c218e6",
+    "declaration": "nrf52840_rig",
+    "misbehaviour": "mflood",
+    "capture": "30 s, begun some seconds before the onset at 10 s of the run",
+    "judge": {
+     "atrial": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 0
+      },
+      "paces": 0,
+      "pulse_widths": {
+       "count": 0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 0,
+      "senses_refractory": 0
+     },
+     "av_delays_measured_not_judged": {
+      "count": 37,
+      "max_us": 159998.0,
+      "min_us": 26665.0
+     },
+     "binaries": {
+      "heart-sim": {
+       "path": "target/heart-sim-fixed/thumbv7em-none-eabihf/release/heart-sim",
+       "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+      },
+      "pacemaker": {
+       "path": "target/pacemaker-misbehave/thumbv7em-none-eabihf/release/pacemaker",
+       "sha256": "sha256:6d9e8b2fd5217264f3494ed94746c4a8351eb09916e2b72ae92915db54c218e6"
+      }
+     },
+     "capture": {
+      "file": "capture.bin",
+      "length_us": 30000000.0,
+      "rate_hz": 1000000,
+      "sha256": "sha256:a94f217ab5cf9410d97de0906292d3d0a78edf9198f9a520ff8bc87e1451bd14"
+     },
+     "escape_interval_us": 666666.0,
+     "mode": "VVI",
+     "parameter_words": [
+      8,
+      90,
+      120,
+      120,
+      150,
+      0,
+      50,
+      0,
+      35,
+      35,
+      400,
+      400,
+      75,
+      250,
+      320,
+      250,
+      250,
+      0,
+      0,
+      0,
+      0,
+      20,
+      1,
+      40,
+      3,
+      30,
+      8,
+      5
+     ],
+     "scenario": {
+      "atrial_beats": 37,
+      "atrial_intervals": {
+       "count": 36,
+       "max_us": 799996.0,
+       "min_us": 799995.0
+      },
+      "checked_against_its_table": true,
+      "conduction": {
+       "count": 37,
+       "max_us": 159998.0,
+       "min_us": 159997.0
+      },
+      "mismatches": [],
+      "name": "fixed",
+      "ventricular_beats": 37
+     },
+     "tolerances_us": {
+      "inhibition_window": 4000.0,
+      "interval": 8000.0,
+      "pulse_width": 200.0
+     },
+     "ventricular": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 36,
+       "max_us": 666664.0,
+       "min_us": 666663.0
+      },
+      "paces": 37,
+      "pulse_widths": {
+       "count": 37,
+       "max_us": 400.0,
+       "min_us": 400.0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 13,
+      "senses_refractory": 24
+     },
+     "verdict": "PASS",
+     "violations": []
+    },
+    "therapy_counts_at_the_end": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 112,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 80,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "kernel_events": [
+     {
+      "event": "endpoint_full",
+      "partition": "comms",
+      "task": 4,
+      "instant_s": 10.0000095625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "stopped": {
+    "binary": "sha256:44b75ddd71ab2bd859bc7d536112864b7a76b6b25543708169f429c31390e558",
+    "declaration": "nrf52840_rig_stop",
+    "misbehaviour": "fault",
+    "capture": "30 s, begun some seconds before the onset at 10 s of the run",
+    "judge": {
+     "atrial": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 0
+      },
+      "paces": 0,
+      "pulse_widths": {
+       "count": 0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 0,
+      "senses_refractory": 0
+     },
+     "av_delays_measured_not_judged": {
+      "count": 37,
+      "max_us": 159998.0,
+      "min_us": 26665.0
+     },
+     "binaries": {
+      "heart-sim": {
+       "path": "target/heart-sim-fixed/thumbv7em-none-eabihf/release/heart-sim",
+       "sha256": "sha256:2cb21fa6223e37825d1648e23cc18510a712cecd5f5abb910e40fb9e2b67976c"
+      },
+      "pacemaker": {
+       "path": "target/pacemaker-misbehave/thumbv7em-none-eabihf/release/pacemaker",
+       "sha256": "sha256:44b75ddd71ab2bd859bc7d536112864b7a76b6b25543708169f429c31390e558"
+      }
+     },
+     "capture": {
+      "file": "capture.bin",
+      "length_us": 30000000.0,
+      "rate_hz": 1000000,
+      "sha256": "sha256:61f2b7b0352023d10372428cee0c33aba2d313a1085f08e9e966bb5530c8c512"
+     },
+     "escape_interval_us": 666666.0,
+     "mode": "VVI",
+     "parameter_words": [
+      8,
+      90,
+      120,
+      120,
+      150,
+      0,
+      50,
+      0,
+      35,
+      35,
+      400,
+      400,
+      75,
+      250,
+      320,
+      250,
+      250,
+      0,
+      0,
+      0,
+      0,
+      20,
+      1,
+      40,
+      3,
+      30,
+      8,
+      5
+     ],
+     "scenario": {
+      "atrial_beats": 37,
+      "atrial_intervals": {
+       "count": 36,
+       "max_us": 799996.0,
+       "min_us": 799995.0
+      },
+      "checked_against_its_table": true,
+      "conduction": {
+       "count": 37,
+       "max_us": 159998.0,
+       "min_us": 159997.0
+      },
+      "mismatches": [],
+      "name": "fixed",
+      "ventricular_beats": 37
+     },
+     "tolerances_us": {
+      "inhibition_window": 4000.0,
+      "interval": 8000.0,
+      "pulse_width": 200.0
+     },
+     "ventricular": {
+      "fusions": 0,
+      "pace_intervals": {
+       "count": 37,
+       "max_us": 666664.0,
+       "min_us": 666663.0
+      },
+      "paces": 38,
+      "pulse_widths": {
+       "count": 38,
+       "max_us": 400.0,
+       "min_us": 400.0
+      },
+      "senses": 37,
+      "senses_at_the_refractory_boundary": 0,
+      "senses_effective": 12,
+      "senses_refractory": 25
+     },
+     "verdict": "PASS",
+     "violations": []
+    },
+    "therapy_counts_at_the_end": {
+     "started": 1,
+     "hw_fault": 0,
+     "records": 112,
+     "too_late": 0,
+     "moved": 0,
+     "forced": 0,
+     "dropped": 80,
+     "late_arms": 0,
+     "untimed": 0
+    },
+    "kernel_events": [
+     {
+      "event": "memmanage",
+      "partition": "comms",
+      "task": 4,
+      "instant_s": 10.0000095625
+     }
+    ],
+    "verdict": "PASS"
+   },
+   "verdict": "PASS",
+   "task": "17.2"
+  },
+  "safe_state": {
+   "binary": "sha256:b5370f4c728b411f355d19f365959c133749cf17f6a76b7b5e257f4204ce0f7f",
+   "paces": 90,
+   "from_the_first_pace_to_the_last_s": 44.499832,
+   "seconds_without_a_pulse_to_the_end_of_the_capture": 8.554968,
+   "widths_us": {
+    "count": 90,
+    "min": 1899,
+    "max": 1900
+   },
+   "intervals_us": {
+    "count": 89,
+    "min": 499998,
+    "max": 499999
+   },
+   "atrial_pulses": 0,
+   "pin_levels_at_the_end_of_the_capture": {
+    "atrial": 0,
+    "ventricular": 0
+   },
+   "kernel_events": [
+    {
+     "event": "operating_end",
+     "partition": null,
+     "task": 255,
+     "instant_s": 45.0
+    },
+    {
+     "event": "safe_state",
+     "partition": null,
+     "task": 255,
+     "instant_s": 45.0
+    }
+   ],
+   "verdict": "PASS",
+   "task": "17.3"
+  }
+ },
+ "boards": {
+  "A": "1366:1060:001050217737",
+  "B": "1366:1061:001050279833",
+  "C": "1366:1061:001050211852"
+ },
+ "capture": {
+  "rate_hz": 1000000,
+  "pins": "D0 the atrial pace pin, D1 the ventricular",
+  "width_tolerance_us": 20,
+  "interval_tolerance_us": 8000
+ }
+}

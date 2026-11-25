@@ -59,6 +59,30 @@ mod spim {
     pub const TX: usize = 1;
 }
 
+/// The misbehaviour of task 17.2 (feature `misbehave`): from 10 s into the
+/// run every Job of `link` faults, overruns its Budget, sends a parameter
+/// set the validation function refuses, or floods the Endpoint `program`,
+/// as the first letter of `PM_LINK_FAULT` says (`f`, `o`, `i`, `m`).
+#[cfg(feature = "misbehave")]
+mod misbehave {
+    pub const KIND: u8 = env!("PM_LINK_FAULT").as_bytes()[0];
+    pub const FROM_MS: u64 = 10_000;
+    /// The messages of a flood: 16 times the Endpoint's capacity.
+    pub const FLOOD: usize = 64;
+
+    /// A busy wait of `ms` milliseconds by the time base, bounded in
+    /// iterations too (PR-16).
+    #[allow(unused_labels)]
+    pub fn spin_ms(ms: u64) -> u32 {
+        let start = rsk::now();
+        let mut i = 0u32;
+        'spin: while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+            i += 1;
+        }
+        i
+    }
+}
+
 /// The messages `link` takes from the Endpoint `status` in a Job (its `ops`).
 #[cfg(feature = "nrf52840")]
 const STATUS_OPS: usize = 2;
@@ -85,6 +109,32 @@ fn take_back(buf: &mut rsk::PerTask<'static, rsk::DmaBuf<32>>, held: &mut rsk::P
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::link_pre(&cx)))]
 pub fn link(mut cx: rsk_ctx::Link) {
     use spim::*;
+    #[cfg(feature = "misbehave")]
+    if rsk::now() >= rsk_target::ms(misbehave::FROM_MS) {
+        if misbehave::KIND == b'f' {
+            // A write into the Kernel's RAM: a fault of this Partition.
+            rsk::mmio::write(0x2000_0000, 1);
+        } else if misbehave::KIND == b'o' {
+            // 3 ms on a Budget of 2 ms.
+            let _ = misbehave::spin_ms(3);
+        } else if misbehave::KIND == b'i' {
+            // A parameter set the validation function refuses (an LRL of
+            // 31 ppm), as a `link` that did not check it would send: the
+            // Kernel reports it against this Partition (R42.4).
+            let mut set = pm_core::NOMINAL_WORDS;
+            set[pm_core::word::LRL] = 31;
+            let _ = cx.program.send(&pm_core::wire::message_with_set(pm_core::wire::code::PROGRAM, 0, &set));
+        } else {
+            // Messages the validation function admits, far more than the
+            // Endpoint holds or `control` takes.
+            let m = pm_core::wire::message(pm_core::wire::code::HEARD, 0);
+            let mut k = 0;
+            while k < misbehave::FLOOD {
+                let _ = cx.program.send(&m);
+                k += 1;
+            }
+        }
+    }
     let ch = rsk_target::DMA[RX].index();
     // The first Job of an incarnation: the peripheral as this Task needs
     // it, whatever an incarnation before left running.
@@ -142,8 +192,19 @@ pub fn link(mut cx: rsk_ctx::Link) {
     // 3. The answer, and the message to `control` for a frame heard.
     let frame = cx.proto.with(|l| proto::answer(l, got.as_ref()));
     if let Some(m) = cx.proto.with(|l| proto::take_forward(l)) {
+        match cx.program.send(&m) {
+            Ok(()) => {}
+            Err(rsk::SendError::PeerChanged) => cx.proto.with(|l| {
+                proto::not_forwarded(l);
+                proto::peer_changed(l);
+            }),
+            Err(_) => cx.proto.with(|l| proto::not_forwarded(l)),
+        }
+    }
+    // The battery level again, when `therapy` has started again.
+    if let Some(m) = cx.proto.with(|l| proto::take_resend(l)) {
         if cx.program.send(&m).is_err() {
-            cx.proto.with(|l| proto::not_forwarded(l));
+            cx.proto.with(|l| proto::not_resent(l));
         }
     }
     let out = pm_core::frame::encode(&frame);

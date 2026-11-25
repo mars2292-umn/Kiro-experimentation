@@ -16,6 +16,21 @@
 
 use crate::{board, Timing};
 use pm_core::{Chamber, Micros};
+
+/// The low 32 bits of an instant: the therapy timer's count, as the record
+/// keeps it (instants have 64 bits since 2026-11-24).
+fn low(m: Micros) -> u32 {
+    pm_hw::count_of(m).0
+}
+
+/// The instant `d` microseconds from `m`, ahead or behind.
+fn offset(m: Micros, d: i32) -> Micros {
+    if d >= 0 {
+        m.plus(d as u32)
+    } else {
+        m.minus(d.unsigned_abs())
+    }
+}
 use pm_hw::{Armed, Board as _, Disarmed, Driver, Hw};
 
 const WIDTH: u32 = 400;
@@ -105,7 +120,7 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
     let phase = words[PHASE];
     // The trial before is settled only when its pulse, if any, is over: a
     // Job that comes early (two Jobs back to back after a hold) waits.
-    if words[EXPECT] == FIRED_AT && hw.now().since(Micros(words[EXPECT_AT]).plus(WIDTH + 600)) < 0 {
+    if words[EXPECT] == FIRED_AT && pm_hw::count_of(hw.now()).since(pm_hw::Count(words[EXPECT_AT]).plus(WIDTH + 600)) < 0 {
         *driver = hw.state;
         return;
     }
@@ -114,7 +129,7 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
         add(words, phase, REPORTED);
     }
     let missed = match words[EXPECT] {
-        FIRED_AT => !(fired.fired[1] && fired.at[1].0 == words[EXPECT_AT]),
+        FIRED_AT => !(fired.fired[1] && low(fired.at[1]) == words[EXPECT_AT]),
         FIRED => !fired.fired[1],
         _ => false,
     };
@@ -130,7 +145,7 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
             words[MISS + 4] = (fired.fired[1] as u32) | (hw.board.read(pm_hw::Reg::StartEvent(V)) << 1) | (hw.board.read(pm_hw::Reg::EndEvent(V)) << 2);
             words[MISS + 5] = hw.board.read(pm_hw::Reg::StartCompare(V));
             words[MISS + 6] = hw.board.read(pm_hw::Reg::EndCompare(V));
-            words[MISS + 7] = hw.now().0;
+            words[MISS + 7] = low(hw.now());
             // And the trial's own figures, kept when it was made.
             let mut k = 0;
             while k < 6 {
@@ -165,20 +180,20 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
             add(words, phase, OK);
             if moved {
                 add(words, phase, MOVED);
-                let by = at.since(asked).max(0) as u32;
+                let by = at.elapsed_since(asked);
                 if by > words[MOVED_MAX] {
                     words[MOVED_MAX] = by;
                 }
             }
             words[EXPECT] = FIRED_AT;
-            words[EXPECT_AT] = at.0;
+            words[EXPECT_AT] = low(at);
         }
         Armed::TooLate => {
             add(words, phase, TOO_LATE);
             match pending {
                 Some(first) => {
                     words[EXPECT] = FIRED_AT;
-                    words[EXPECT_AT] = first.0;
+                    words[EXPECT_AT] = low(first);
                 }
                 None => words[EXPECT] = FIRED,
             }
@@ -190,20 +205,20 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
     };
     if phase == 0 {
         let before = hw.now();
-        let asked = before.plus(1_500u32.wrapping_sub(trial));
+        let asked = offset(before, 1_500 - trial as i32);
         let armed = hw.arm(V, asked, WIDTH);
         // What this trial did, should it turn out a miss: the present
         // before and after, the instant asked for, the outcome, and the
         // compares as the sequence left them.
-        words[LAST] = before.0;
-        words[LAST + 1] = asked.0;
+        words[LAST] = low(before);
+        words[LAST + 1] = low(asked);
         words[LAST + 2] = match armed {
             Armed::Ok { moved: false, .. } => 1,
             Armed::Ok { moved: true, .. } => 2,
             Armed::TooLate => 3,
             Armed::Late { .. } => 4,
         };
-        words[LAST + 3] = hw.now().0;
+        words[LAST + 3] = low(hw.now());
         words[LAST + 4] = hw.board.read(pm_hw::Reg::StartCompare(V));
         words[LAST + 5] = hw.board.read(pm_hw::Reg::EndCompare(V));
         outcome(words, asked, armed, None);
@@ -213,9 +228,9 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
             // Until the pending Pace is the trial's distance away: from
             // 1.2 ms ahead to 0.6 ms behind. The wait is by the present and
             // bounded in iterations too (PR-16).
-            let when = at.minus(1_200u32.wrapping_sub(trial));
+            let when = offset(at, trial as i32 - 1_200);
             let mut i = 0u32;
-            while hw.now().since(when) < 0 && i < 100_000 {
+            while hw.now().is_before(when) && i < 100_000 {
                 i += 1;
             }
             if phase == 1 {
@@ -231,7 +246,7 @@ pub fn job(t: &mut Timing, words: &mut [u32; 56]) {
                     Disarmed::TooLate => {
                         add(words, phase, TOO_LATE);
                         words[EXPECT] = FIRED_AT;
-                        words[EXPECT_AT] = at.0;
+                        words[EXPECT_AT] = low(at);
                     }
                 }
             }

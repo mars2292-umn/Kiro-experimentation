@@ -3,7 +3,7 @@ Target: nrf52840 (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits
 Profile: 0.6 Ravenscar
 Operating duration: 720000000 ticks
 Safe state: crate::safe_state
-Config checksum (CRC-32): 0x6522a088
+Config checksum (CRC-32): 0x93878505
 Capacities: lock stack 4, timer slots 17, event log 32
 Endpoint program (plain, `[u32;29]`): dcm => comms.link, pg => therapy.control; capacity 4 each way, payload 116 bytes, storage offset 0; dcm performs up to 2 operations per Job, pg validates the payload with crate::validate_program, pg performs up to 4 operations per Job
 Endpoint status (plain, `[u32;4]`): pg => therapy.control, dcm => comms.link; capacity 2 each way, payload 16 bytes, storage offset 1856; pg validates the payload with crate::validate_status, dcm performs up to 2 operations per Job
@@ -25,9 +25,9 @@ Partitions:
     window 0x40004000 (2^12, srd 0x00, read-only): SPIM1
 
 Tasks:
-  therapy.pace (#0, Partition therapy, Priority 7, vector 36): sporadic, MIT 320000 ticks, policy defer, source interrupt TIMER3 (IRQ 26), deadline 32000 ticks, Budget 22400 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 0 deadline 1 budget 2
-  therapy.sense_v (#1, Partition therapy, Priority 6, vector 37): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER2 (IRQ 10), deadline 48000 ticks, Budget 22400 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 3 deadline 4 budget 5
-  therapy.sense_a (#2, Partition therapy, Priority 5, vector 38): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER1 (IRQ 9), deadline 64000 ticks, Budget 22400 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 6 deadline 7 budget 8
+  therapy.pace (#0, Partition therapy, Priority 7, vector 36): sporadic, MIT 320000 ticks, policy defer, source interrupt TIMER3 (IRQ 26), deadline 32000 ticks, Budget 28800 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 0 deadline 1 budget 2
+  therapy.sense_v (#1, Partition therapy, Priority 6, vector 37): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER2 (IRQ 10), deadline 48000 ticks, Budget 28800 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 3 deadline 4 budget 5
+  therapy.sense_a (#2, Partition therapy, Priority 5, vector 38): sporadic, MIT 800000 ticks, policy defer, source interrupt TIMER1 (IRQ 9), deadline 64000 ticks, Budget 28800 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 6 deadline 7 budget 8
   therapy.control (#3, Partition therapy, Priority 4, vector 39): periodic, offset 0 ticks, period 320000 ticks, deadline 320000 ticks, Budget 320000 cycles, fpu false, Resources [timing], state [sweep: [u32 ; 56], status_sent: [u32 ; 4], status_age: u32], nesting depth 1, slots release 9 deadline 10 budget 11
   comms.link (#4, Partition comms, Priority 2, vector 40): periodic, offset 0 ticks, period 800000 ticks, deadline 800000 ticks, Budget 128000 cycles, fpu false, Resources [], state [started: u32, transfers: u32, stuck: u32, proto: crate :: Link, tx: rsk :: DmaBuf < 32 >, tx_held: rsk :: DmaHeld, rx: rsk :: DmaBuf < 32 >, rx_held: rsk :: DmaHeld], nesting depth 0, slots release 12 deadline 13 budget 14
 

@@ -36,6 +36,9 @@ rig = ["rsk-entry/rig"]
 inject = ["rsk-entry/inject"]
 coverage = ["rsk-entry/coverage"]
 set-env = ["rsk-entry/set-env"]
+inject-once = ["rsk-entry/inject-once"]
+misbehave = ["rsk-entry/misbehave"]
+rig-stop = ["rsk-entry/rig-stop"]
 
 [dependencies]
 # rsk-entry bound to this Application's system crate (its `app-*` features

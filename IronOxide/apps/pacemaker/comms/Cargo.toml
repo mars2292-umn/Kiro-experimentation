@@ -11,6 +11,9 @@ publish.workspace = true
 # link's protocol alone (`proto`), for host tests: the QEMU Target has no
 # SPI master a Partition can own, and its declaration has no `comms`.
 nrf52840 = ["pacemaker-decl/nrf52840"]
+# Task 17.2: from 10 s into the run `link` misbehaves in the way the
+# environment variable `PM_LINK_FAULT` names (`fault`, `overrun`, `mflood`).
+misbehave = ["nrf52840"]
 
 [dependencies]
 pacemaker-decl = { path = "../decl" }

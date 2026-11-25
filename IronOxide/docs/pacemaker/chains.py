@@ -248,6 +248,12 @@ def render():
 
 
 def main():
+    # A report that is a rejection has no bounds to build the chains from:
+    # evidence.md stays as the last accepted report gave it, and says so.
+    rep = load("rig/task_9_8_analysis/report.json")
+    if rep.get("result") == "REJECTED":
+        print("the Analyzer rejected the measured records (" + "; ".join(rep.get("rejections", [])) + "): evidence.md is of the last report it accepted and is not regenerated")
+        return
     out = render()
     path = os.path.join(HERE, "evidence.md")
     if "--check" in sys.argv:

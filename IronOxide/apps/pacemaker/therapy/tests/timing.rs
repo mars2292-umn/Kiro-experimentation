@@ -17,7 +17,7 @@ fn the_value_at_start_is_the_power_on_reset_state_with_nothing_armed() {
     let t = Timing::new();
     // `control`'s first Job is recognized by the state alone.
     assert!(!t.started && !t.hw_fault);
-    assert_eq!(t.reserved, [0; 2]);
+    assert_eq!(t.reserved, [0; pacemaker_therapy::SPARE]);
     // The step's state is the Power-On Reset State, and the parameters in
     // force are the Power-On Reset ones (PM7.1): VVI at 65 ppm, 0.5 ms.
     assert_eq!(t.state, State::POWER_ON_RESET);

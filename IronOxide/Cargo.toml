@@ -208,7 +208,7 @@ ppi-probe = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 # (`flight = true`: the Profile_Lint and the Target build cover them), and
 # the Link_Checker and the Config_Checker are run on the binary by
 # `apps/pacemaker/build_checks.py` (task 8.4).
-pacemaker-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_sweep", "nrf52840_measure", "nrf52840_rig", "nrf52840_coverage"] }
+pacemaker-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_sweep", "nrf52840_measure", "nrf52840_rig", "nrf52840_rig_stop", "nrf52840_coverage"] }
 pacemaker-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker-therapy = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 pacemaker-comms = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }

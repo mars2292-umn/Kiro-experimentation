@@ -3,7 +3,7 @@
 //! function through a session.
 #![forbid(unsafe_code)]
 
-use pacemaker_comms::proto::{answer, code, peer_changed, status_in, take_forward, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
+use pacemaker_comms::proto::{answer, code, not_resent, peer_changed, status_in, take_forward, take_resend, Link, IDENTITY_LEN, MODEL, SERIAL, STATUS_LEN, UNKNOWN};
 use pm_core::wire::{self, Status};
 use pm_core::frame::{decode, encode, kind, set_part, Assembly, Frame};
 use pm_core::NOMINAL_WORDS;
@@ -19,10 +19,11 @@ fn the_zero_state_is_the_new_state() {
     assert_eq!(
         Link::new(),
         Link { sent: 0, heard: 0, unheard: 0, silent: 0, sets: 0, have_set: 0, set_kind: 0, assembly_kind: 0, read_next: 0, assembly: Assembly::EMPTY, set: [0; 28],
-               forward_ready: 0, unforwarded: 0, forward: [0; 29], have_status: 0, status: [0; 4], told: [0; 3] }
+               forward_ready: 0, unforwarded: 0, forward: [0; 29], have_status: 0, status: [0; 4], told: [0; 3], battery: 0, resend_battery: 0 }
     );
-    // Task 16.1 added the words of the two Endpoints (2 + 29 + 1 + 4 + 3).
-    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 28 * 4 + 28 * 4 + 39 * 4, "no padding");
+    // Task 16.1 added the words of the two Endpoints (2 + 29 + 1 + 4 + 3);
+    // the battery level kept for a restarted `therapy` two more (2026-11-24).
+    assert_eq!(core::mem::size_of::<Link>(), 9 * 4 + 4 + 28 * 4 + 28 * 4 + 41 * 4, "no padding");
 }
 
 #[test]
@@ -149,20 +150,35 @@ fn every_frame_heard_gives_control_one_message() {
         assert_eq!(status_of(&a), (0x22, code::FORWARDED));
         assert_eq!(take_forward(&mut l), Some(wire::message(k, 0x22)));
     }
-    // The parts of a set are heard; the part that completes it is the command.
+    // The parts of a set are heard; the part that completes it is the
+    // command, if `therapy`'s validation function would admit it. (Until
+    // 2026-11-24 `link` forwarded a set without judging it, and this test
+    // expected an LRL of 31 ppm to go through.)
     let mut words = NOMINAL_WORDS;
-    words[1] = 31; // `link` does not judge the set
-    for (k, code) in [(kind::PROGRAM_PART, wire::code::PROGRAM), (kind::TEMPORARY_PART, wire::code::TEMPORARY)] {
+    words[1] = 90;
+    let mut bad = NOMINAL_WORDS;
+    bad[1] = 31;
+    for (k, code_) in [(kind::PROGRAM_PART, wire::code::PROGRAM), (kind::TEMPORARY_PART, wire::code::TEMPORARY)] {
         for p in 0..5u8 {
             let _ = answer(&mut l, set_part(0x30 + p, k, &words, p).as_ref());
             let m = take_forward(&mut l).expect("a message");
             if p < 4 {
                 assert_eq!(m, wire::message(wire::code::HEARD, 0x30 + p));
             } else {
-                assert_eq!(m, wire::message_with_set(code, 0x34, &words));
-                assert!(!wire::admitted(&m));
+                assert_eq!(m, wire::message_with_set(code_, 0x34, &words));
+                assert!(wire::admitted(&m));
             }
         }
+        // A set the validation function refuses: refused by `link`, naming
+        // the frame; `control` hears of the frame and not of the set, and
+        // the set last accepted stays the one read back.
+        let sets = l.sets;
+        for p in 0..5u8 {
+            let a = answer(&mut l, set_part(0x40 + p, k, &bad, p).as_ref());
+            assert_eq!(status_of(&a), (0x40 + p, if p < 4 { code::RECEIVED } else { code::REFUSED }));
+            assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x40 + p)));
+        }
+        assert_eq!((l.sets, l.set), (sets, words));
     }
     // A message not taken is replaced by the next frame's.
     let _ = answer(&mut l, Some(&Frame::empty(1, kind::PACE_NOW)));
@@ -212,15 +228,23 @@ fn a_new_status_is_told_once_in_place_of_idle() {
 
 #[test]
 fn a_battery_level_and_a_magnet_response_are_forwarded_with_their_byte() {
-    for k in [kind::SET_BATTERY, kind::SET_MAGNET_RESPONSE] {
+    for (k, top) in [(kind::SET_BATTERY, 4u8), (kind::SET_MAGNET_RESPONSE, 1)] {
         let mut l = Link::new();
         let mut f = Frame::empty(0x51, k);
         f.len = 1;
-        f.payload[0] = 3;
-        assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x51, code::FORWARDED));
-        // `link` does not judge the value: `control`'s validation function does.
-        assert_eq!(take_forward(&mut l), Some(wire::message_with_value(k, 0x51, 3)));
-        // Without its byte, or with more, it is no such command; the frame was heard.
+        for v in 0..=top {
+            f.payload[0] = v;
+            assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x51, code::FORWARDED));
+            assert_eq!(take_forward(&mut l), Some(wire::message_with_value(k, 0x51, v as u32)));
+        }
+        // A value the validation function refuses is refused here; the frame was heard.
+        for v in [top + 1, 0xFF] {
+            f.payload[0] = v;
+            assert_eq!(status_of(&answer(&mut l, Some(&f))), (0x51, code::REFUSED), "kind {k:#x} value {v}");
+            assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x51)));
+        }
+        // Without its byte, or with more, it is no such command.
+        f.payload[0] = 1;
         for len in [0, 2] {
             f.len = len;
             f.payload[1] = if len == 2 { 1 } else { 0 };
@@ -228,4 +252,37 @@ fn a_battery_level_and_a_magnet_response_are_forwarded_with_their_byte() {
             assert_eq!(take_forward(&mut l), Some(wire::message(wire::code::HEARD, 0x51)));
         }
     }
+}
+
+/// The battery level is `therapy`'s to lose at a restart and `link`'s to
+/// give again (decided 2026-11-24): once, when the Endpoints report the
+/// restart, and again if the Endpoint did not take it.
+#[test]
+fn the_battery_level_is_sent_again_to_a_restarted_therapy() {
+    let mut l = Link::new();
+    peer_changed(&mut l);
+    assert_eq!(take_resend(&mut l), None, "BOL is what a restarted therapy has");
+    let mut f = Frame::empty(7, kind::SET_BATTERY);
+    f.len = 1;
+    f.payload[0] = 2;
+    let _ = answer(&mut l, Some(&f));
+    let _ = take_forward(&mut l);
+    assert_eq!(take_resend(&mut l), None, "nothing to send again while therapy runs");
+    peer_changed(&mut l);
+    let m = take_resend(&mut l).expect("the level");
+    assert_eq!(m, wire::message_with_value(wire::code::BATTERY, 0, 2));
+    assert!(wire::admitted(&m));
+    assert_eq!(take_resend(&mut l), None, "once");
+    not_resent(&mut l);
+    assert_eq!(take_resend(&mut l), Some(m), "again when the Endpoint did not take it");
+    // A level the DCM sets after the restart is the one that counts.
+    peer_changed(&mut l);
+    f.payload[0] = 1;
+    let _ = answer(&mut l, Some(&f));
+    assert_eq!(take_resend(&mut l), None);
+    // Back at BOL there is nothing to give again.
+    f.payload[0] = 0;
+    let _ = answer(&mut l, Some(&f));
+    peer_changed(&mut l);
+    assert_eq!(take_resend(&mut l), None);
 }

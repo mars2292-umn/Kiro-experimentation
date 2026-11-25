@@ -11,7 +11,7 @@
 #![forbid(unsafe_code)]
 
 use pm_core::{step, Arming, Battery, Chamber, Event, Marker, Micros, Pace, Params, State, NOMINAL_WORDS};
-use pm_hw::{Armed, Board, Disarmed, Driver, Hw, HwFault, Reg, FAR, GUARD, LEAD, STORM_SKIP};
+use pm_hw::{count_of, Armed, Board, Count, Disarmed, Driver, Hw, HwFault, Reg, FAR, GUARD, LEAD, STORM_SKIP};
 
 const CHAMBERS: [Chamber; 2] = [Chamber::A, Chamber::V];
 
@@ -115,13 +115,10 @@ impl Model {
         self.base.wrapping_add(self.t as u32)
     }
 
-    fn micros(&self, t: u64) -> Micros {
-        Micros(self.base.wrapping_add(t as u32))
-    }
-
-    /// The model time of an instant near the present.
+    /// The model time of an instant near the present: by the counter's
+    /// value at the instant (its low 32 bits), as the timer has it.
     fn time_of(&self, m: Micros) -> u64 {
-        (self.t as i64 + i64::from(m.since(Micros(self.counter())))) as u64
+        (self.t as i64 + i64::from(count_of(m).since(Count(self.counter())))) as u64
     }
 
     fn set_pin(&mut self, i: usize, high: bool) {
@@ -248,14 +245,28 @@ impl Board for Model {
         }
     }
 
-    fn now(&mut self) -> Micros {
+    fn now(&mut self) -> Count {
         self.interfere();
-        Micros(self.counter().wrapping_add(self.clock_error as u32))
+        Count(self.counter().wrapping_add(self.clock_error as u32))
     }
 }
 
+/// A driver that has read the counter once, as every Job's first call does:
+/// from then on it has the present, and a counter value has an instant.
 fn driver(seed: u64, interference: Interference) -> Driver<Model> {
-    Driver::new(Model::new(seed, interference))
+    let mut d = Driver::new(Model::new(seed, interference));
+    let _ = d.now();
+    d
+}
+
+/// The instant of the counter's present value, as the driver has it.
+fn present(d: &Driver<Model>) -> Micros {
+    d.extend(Count(d.board.counter()))
+}
+
+/// `a - b` in microseconds.
+fn since(a: Micros, b: Micros) -> i64 {
+    a.0 as i64 - b.0 as i64
 }
 
 /// Property P7 and the pulse itself. A Pace asked for at every distance
@@ -276,7 +287,9 @@ fn arming_swept_toward_the_present() {
                 seed += 1;
                 let mut d = driver(seed, interference);
                 d.board.advance(1_000);
-                let asked = Micros(d.board.counter()).plus(distance as u32);
+                // Ahead of the present, or behind it. (With 32-bit instants a
+                // negative distance was added as it wrapped.)
+                let asked = if distance >= 0 { present(&d).plus(distance as u32) } else { present(&d).minus(distance.unsigned_abs() as u32) };
                 let accesses = d.board.accesses;
                 let armed = d.arm(Chamber::V, asked, width);
                 // The sequence is bounded: three rounds of six accesses and the forced path.
@@ -294,9 +307,9 @@ fn arming_swept_toward_the_present() {
                         assert_eq!(pulses, [(t, u64::from(width))], "{name} seed {seed}");
                         if m {
                             moved += 1;
-                            assert!(at.since(asked) > 0, "{name} seed {seed}: moved to an earlier instant");
+                            assert!(since(at, asked) > 0, "{name} seed {seed}: moved to an earlier instant");
                             if name == "quiet" {
-                                assert!(at.since(asked) <= (LEAD + 300) as i32, "{name} seed {seed}");
+                                assert!(since(at, asked) <= i64::from(LEAD + 300), "{name} seed {seed}");
                             }
                         } else {
                             assert_eq!(at, asked);
@@ -354,13 +367,13 @@ fn moving_and_withdrawing_swept_across_a_pending_pace() {
                     let mut d = driver(seed, interference);
                     d.board.interference = QUIET;
                     d.board.advance(500);
-                    let first = Micros(d.board.counter()).plus(1_000);
+                    let first = present(&d).plus(1_000);
                     assert_eq!(d.arm(Chamber::A, first, width), Armed::Ok { at: first, moved: false });
                     let first_t = d.board.time_of(first);
                     // The Job arrives `wait` µs later: before, at or after the Pace.
                     d.board.advance(wait);
                     d.board.interference = interference;
-                    let later = Micros(d.board.counter()).plus(300_000);
+                    let later = present(&d).plus(300_000);
                     let (too_late, second) = if withdraw {
                         (d.disarm(Chamber::A) == Disarmed::TooLate, None)
                     } else {
@@ -404,7 +417,7 @@ fn moving_and_withdrawing_swept_across_a_pending_pace() {
 fn a_pace_is_reported_only_after_its_pulse() {
     let mut d = driver(7, QUIET);
     d.board.advance(100);
-    let a = Micros(d.board.counter()).plus(1_000);
+    let a = present(&d).plus(1_000);
     let v = a.plus(1_000);
     assert!(matches!(d.arm(Chamber::A, a, 400), Armed::Ok { .. }));
     assert!(matches!(d.arm(Chamber::V, v, 1_900), Armed::Ok { .. }));
@@ -427,13 +440,49 @@ fn a_pace_is_reported_only_after_its_pulse() {
     assert_eq!(d.board.pulses[1], [(d.board.time_of(v), 1_900)]);
 }
 
+/// A restart of the Partition: the driver's state is zero again and the
+/// timer's registers are as the incarnation before left them. Whatever
+/// that was (a Pace armed, a pulse high, a pulse ended and not yet
+/// reported), `configure` leaves nothing of it: the pin low, nothing to
+/// report, and the first arming of the new incarnation delivered as asked.
+/// Found on the rig (task 17.1): a restart between a pulse's end and its
+/// report left the pulse to be reported with the zeroed state's instant,
+/// and the step paced again 21 ms after it.
+#[test]
+fn a_restart_leaves_nothing_of_the_incarnation_before() {
+    for (case, wait, pulses_before) in [("armed, not yet fired", 500u64, 0usize), ("the pulse high", 1_100, 1), ("the pulse ended, not reported", 1_500, 1)] {
+        let mut d = driver(11, QUIET);
+        d.board.advance(100);
+        let v = present(&d).plus(1_000);
+        assert!(matches!(d.arm(Chamber::V, v, 400), Armed::Ok { .. }));
+        d.board.advance(wait);
+        // The restart.
+        let mut d = Driver::new(d.board);
+        d.configure().unwrap();
+        assert!(!d.board.pin[1], "{case}: the pin is low");
+        assert_eq!(d.fired().fired, [false, false], "{case}: nothing to report");
+        let start = present(&d).plus(923_000);
+        assert_eq!(d.arm(Chamber::V, start, 500), Armed::Ok { at: start, moved: false }, "{case}");
+        // What the incarnation before left comes past and is not reported.
+        d.board.advance(5_000);
+        assert_eq!(d.fired().fired, [false, false], "{case}: still nothing");
+        assert_eq!(d.board.pulses[1].len(), pulses_before, "{case}: no pulse of the old arming after the restart");
+        assert!(d.board.pulses[1].iter().all(|p| p.1 <= 400), "{case}: no pulse longer than its width");
+        d.board.advance(920_000);
+        let f = d.fired();
+        assert_eq!((f.fired, f.at[1]), ([false, true], start), "{case}");
+        assert_eq!(d.board.pulses[1].last(), Some(&(d.board.time_of(start), 500)), "{case}");
+        assert_eq!(d.board.pulses[1].len(), pulses_before + 1, "{case}");
+    }
+}
+
 /// A withdrawn Pace's end compare still comes past: it raises the timer's
 /// interrupt and nothing is reported. A disarmed start comes round after
 /// 2^32 - 2^30 µs unless the Chamber is refreshed.
 #[test]
 fn a_withdrawn_pace_leaves_nothing_behind_if_refreshed() {
     let mut d = driver(9, QUIET);
-    let at = Micros(d.board.counter()).plus(2_000);
+    let at = present(&d).plus(2_000);
     assert!(matches!(d.arm(Chamber::V, at, 400), Armed::Ok { .. }));
     assert_eq!(d.disarm(Chamber::V), Disarmed::Withdrawn);
     d.board.advance(3_000);
@@ -450,10 +499,10 @@ fn a_withdrawn_pace_leaves_nothing_behind_if_refreshed() {
     d.refresh(Chamber::V);
     let behind = d.board.counter().wrapping_sub(d.board.start_cc[1]);
     assert!(behind > FAR - 10_000 && behind < FAR + 10_000);
-    let at = Micros(d.board.counter()).plus(5_000);
+    let at = present(&d).plus(5_000);
     assert!(matches!(d.arm(Chamber::V, at, 400), Armed::Ok { .. }));
     d.refresh(Chamber::V);
-    assert_eq!(d.board.start_cc[1], at.0);
+    assert_eq!(d.board.start_cc[1], count_of(at).0);
     // Not refreshed, the model's start compare is what the counter reaches
     // after 2^32 - 2^30 ticks (stated, not run: 53.7 minutes of ticks).
     assert_eq!(0u32.wrapping_sub(FAR), 0xC000_0000);
@@ -494,7 +543,7 @@ fn the_sense_service_loses_no_edge() {
                         services += 1;
                         // The instant is that of an edge at or after the last reported one.
                         if let Some(prev) = last_instant {
-                            assert!(s.at.since(prev) >= 0, "{name} seed {seed}");
+                            assert!(since(s.at, prev) >= 0, "{name} seed {seed}");
                         }
                         last_instant = Some(s.at);
                     }
@@ -556,7 +605,7 @@ fn the_magnet_and_the_present_are_the_boards() {
     assert!(d.magnet());
     d.board.advance(1_234);
     let error = d.board.clock_error;
-    assert_eq!(d.now(), Micros(d.board.counter().wrapping_add(error as u32)));
+    assert_eq!(count_of(d.now()).0, d.board.counter().wrapping_add(error as u32));
 }
 
 // ---------------------------------------------------------------- the loop
@@ -753,4 +802,90 @@ fn the_tasks_on_the_model_pace_as_programmed() {
     assert!(pulses > 1_000 && senses > 300, "{pulses} {senses}");
     assert!(too_late > 5, "arming met a fired Pace {too_late} times");
     assert!(fusions > 5, "{fusions} fusions");
+}
+
+
+// ------------------------------------------------- the 64-bit boundary
+
+/// A board that is only a counter the test sets.
+struct Clock {
+    count: u32,
+}
+
+impl Board for Clock {
+    fn configure(&mut self) -> Result<(), HwFault> {
+        Ok(())
+    }
+    fn read(&mut self, _: Reg) -> u32 {
+        0
+    }
+    fn write(&mut self, _: Reg, _: u32) {}
+    fn now(&mut self) -> Count {
+        Count(self.count)
+    }
+}
+
+/// The therapy's instants have 64 bits and the timer 32 (2026-11-24): the
+/// driver's present goes on by what the counter advanced, across any
+/// number of the counter's wraps, as long as it is read within 2^31 µs.
+#[test]
+fn the_present_goes_on_across_the_counters_wraps() {
+    for start in [0u32, 1, 0x7FFF_FFFF, 0x8000_0000, u32::MAX - 5, u32::MAX] {
+        let mut d = Driver::new(Clock { count: start });
+        let first = d.now();
+        assert_eq!(first.0, u64::from(start), "the first reading is the counter's value");
+        let mut expected = first.0;
+        // 40 readings 2^31 - 1 µs apart: twenty times round the counter.
+        for step in [1u32, 20_000, 1_000_000, 0x7FFF_FFFF].into_iter().cycle().take(160) {
+            d.board.count = d.board.count.wrapping_add(step);
+            expected += u64::from(step);
+            let now = d.now();
+            assert_eq!(now.0, expected, "start {start:#x}");
+            assert_eq!(count_of(now).0, d.board.count, "the low 32 bits are the counter");
+        }
+        assert!(expected - u64::from(start) > 20 * (1u64 << 32));
+    }
+}
+
+/// A counter value near the present has the instant that many
+/// microseconds ahead of or behind it, on both sides of a wrap; and an
+/// instant's counter value is its low 32 bits, so the two agree.
+#[test]
+fn a_counter_value_near_the_present_has_its_instant() {
+    for start in [5u32, 0x7FFF_FFF0, u32::MAX - 3] {
+        let mut d = Driver::new(Clock { count: start });
+        // Some time on, across a wrap or two.
+        for _ in 0..3 {
+            d.board.count = d.board.count.wrapping_add(0x6000_0000);
+            let _ = d.now();
+        }
+        let now = d.now();
+        for d_us in [0u32, 1, 500, 923_077, 2_000_000, 0x7FFF_FFFF] {
+            let ahead = Count(d.board.count.wrapping_add(d_us));
+            assert_eq!(d.extend(ahead).0, now.0 + u64::from(d_us), "start {start:#x} ahead {d_us}");
+            assert_eq!(count_of(d.extend(ahead)), ahead);
+            let behind = Count(d.board.count.wrapping_sub(d_us));
+            assert_eq!(d.extend(behind).0, now.0 - u64::from(d_us), "start {start:#x} behind {d_us}");
+            assert_eq!(count_of(d.extend(behind)), behind);
+        }
+    }
+}
+
+/// A Pace armed across the counter's wrap: the compare is the instant's
+/// low 32 bits, the pulse comes at the instant, and it is reported with
+/// the 64-bit instant it was asked at.
+#[test]
+fn a_pace_armed_across_the_wrap_keeps_its_instant() {
+    // An even seed: the model's counter starts 2 s before its wrap.
+    let mut d = driver(2, QUIET);
+    d.board.advance(1_500_000);
+    let asked = present(&d).plus(923_077);
+    assert!(count_of(asked).0 < 1_000_000, "the instant is beyond the wrap");
+    assert_eq!(d.arm(Chamber::V, asked, 500), Armed::Ok { at: asked, moved: false });
+    assert_eq!(d.board.start_cc[1], count_of(asked).0);
+    d.board.advance(930_000);
+    let f = d.fired();
+    assert_eq!((f.fired, f.at[1]), ([false, true], asked));
+    assert_eq!(d.board.pulses[1], [(d.board.time_of(asked), 500)]);
+    assert!(d.now().0 > asked.0 && d.now().0 > u64::from(u32::MAX));
 }

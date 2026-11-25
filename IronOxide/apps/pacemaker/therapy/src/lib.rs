@@ -141,6 +141,14 @@ pub fn validate_status(_m: &[u32; pm_core::wire::STATUS_WORDS]) -> bool {
     false
 }
 
+/// The spare bytes of [`Timing`], which make its size a multiple of its
+/// alignment (8, since an instant has 64 bits): a Partition static has no
+/// padding byte. The board's own words differ in size between the boards.
+#[cfg(feature = "nrf52840")]
+pub const SPARE: usize = 2;
+#[cfg(not(feature = "nrf52840"))]
+pub const SPARE: usize = 6;
+
 #[derive(Clone, Copy)]
 pub struct Timing {
     /// `control`'s first Job has run.
@@ -148,7 +156,7 @@ pub struct Timing {
     /// The board could not be configured at Init: nothing is armed.
     pub hw_fault: bool,
     /// Always zero (a Partition static has no padding byte).
-    pub reserved: [u8; 2],
+    pub reserved: [u8; SPARE],
     /// The step function's state; all zero is the Power-On Reset State.
     pub state: State,
     /// The driver's state.
@@ -168,9 +176,9 @@ impl Timing {
         Timing {
             started: false,
             hw_fault: false,
-            reserved: [0; 2],
+            reserved: [0; SPARE],
             state: State::POWER_ON_RESET,
-            driver: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0 },
+            driver: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0, now: Micros(0), now_count: 0 },
             board: board::Words::new(),
             ring: [Record { kind: kind::NONE, chamber: 0, reserved: [0; 2], at: 0 }; RING],
             written: 0,
@@ -218,6 +226,54 @@ mod inject {
 
     /// A write into the Kernel's RAM, outside the Partition's view: a
     /// MemManage fault attributed to the Partition (R14.3).
+    pub fn fault() {
+        rsk::mmio::write(0x2000_0000, 1);
+    }
+}
+
+/// The one injection of task 17.1 (feature `inject-once`): a fault, an
+/// Overrun or a deadline miss in the Therapy_Partition, once in a run, so
+/// that the pause in pacing across the restart can be measured on the pins.
+///
+/// What has been done is remembered where a restart of the Partition does
+/// not reach: every static of the Partition is zeroed, so the mark is a
+/// bit of the port's output latch for a pin nothing uses (P1.08; the pin is
+/// an input, so the bit drives nothing; a reset of the board clears it).
+#[cfg(feature = "inject-once")]
+mod inject_once {
+    /// The first letter of `PM_INJECT`: `f`ault, `o`verrun, `d`eadline.
+    pub const KIND: u8 = env!("PM_INJECT").as_bytes()[0];
+    /// The run's window for the injection, in milliseconds.
+    pub const FROM_MS: u64 = 10_000;
+    const UNTIL_MS: u64 = 35_000;
+    const P1_OUT: u32 = 0x5000_0804;
+    const P1_OUTSET: u32 = 0x5000_0808;
+    const MARK: u32 = 1 << 8;
+
+    pub fn mark() {
+        rsk::mmio::write(P1_OUTSET, MARK);
+    }
+
+    /// Whether the injection is due: inside the window and not yet made.
+    pub fn due() -> bool {
+        let now = rsk::now();
+        now >= super::rsk_target::ms(FROM_MS) && now < super::rsk_target::ms(UNTIL_MS) && rsk::mmio::read(P1_OUT) & MARK == 0
+    }
+
+    /// A busy wait of `half_ms` half milliseconds by the time base, bounded
+    /// in iterations too (PR-16).
+    #[allow(unused_labels)]
+    pub fn spin_half_ms(half_ms: u64) -> u32 {
+        let start = rsk::now();
+        let ticks = super::rsk_target::ms(half_ms) / 2;
+        let mut i = 0u32;
+        'spin: while rsk::now().wrapping_sub(start) < ticks && i < 100_000_000 {
+            i += 1;
+        }
+        i
+    }
+
+    /// A write into the Kernel's RAM: a MemManage fault of the Partition.
     pub fn fault() {
         rsk::mmio::write(0x2000_0000, 1);
     }
@@ -303,7 +359,8 @@ fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32,
             _ => kind::NONE,
         };
         if let (Some((_, at)), true) = (marker, kind != kind::NONE) {
-            record(ring, written, counts, Record { kind, chamber: k as u8, reserved: [0; 2], at: at.0 });
+            // The record keeps the instant's low 32 bits: the therapy timer's count.
+            record(ring, written, counts, Record { kind, chamber: k as u8, reserved: [0; 2], at: pm_hw::count_of(at).0 });
         }
         k += 1;
     }
@@ -512,6 +569,15 @@ pub fn sense_a(mut cx: rsk_ctx::SenseA) {
 #[cfg(all(feature = "nrf52840", not(feature = "sweep")))]
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::control_pre(&cx)))]
 pub fn control(mut cx: rsk_ctx::Control) {
+    // The injection build (task 17.1): the first Job of an incarnation
+    // that begins inside the window is the restart the injection caused.
+    #[cfg(feature = "inject-once")]
+    {
+        let fresh = cx.timing.lock(|t| !t.started);
+        if fresh && rsk::now() >= rsk_target::ms(inject_once::FROM_MS) {
+            inject_once::mark();
+        }
+    }
     // The link's messages, taken outside the Critical_Section: at most
     // `MESSAGES`, and no further once a command has come (the next Job
     // takes the rest).
@@ -574,6 +640,27 @@ pub fn control(mut cx: rsk_ctx::Control) {
     {
         let words = cx.timing.lock(|t| t.rig_words());
         cx.sweep.with(|w| *w = words);
+    }
+    // The injection build (task 17.1), once in the run:
+    // - a fault: a write outside the Partition;
+    // - an Overrun: this Job runs 7 ms on a Budget of 5 ms;
+    // - a deadline miss: every Job of the window holds the Resource
+    //   `timing` for 3.5 ms, inside its Budget (4.5 ms was not: the Job's
+    //   own work with it passed 5 ms), until a pulse ends inside
+    //   such a hold: `pace` is then blocked past its deadline of 2 ms.
+    #[cfg(feature = "inject-once")]
+    if inject_once::due() {
+        if inject_once::KIND == b'f' {
+            inject_once::mark();
+            inject_once::fault();
+        } else if inject_once::KIND == b'o' {
+            inject_once::mark();
+            let _ = inject_once::spin_half_ms(14);
+        } else {
+            cx.timing.lock(|_| {
+                let _ = inject_once::spin_half_ms(7);
+            });
+        }
     }
 }
 

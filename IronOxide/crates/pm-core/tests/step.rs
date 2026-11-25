@@ -14,19 +14,19 @@ fn params(mode: Mode) -> Params {
 }
 
 fn tick(now: u32) -> Event {
-    Event::Tick { now: Micros(now), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
+    Event::Tick { now: Micros(now as u64), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
 }
 
 fn sense(c: Chamber, at: u32) -> Event {
-    Event::Sense { chamber: c, at: Micros(at), edges: 1 }
+    Event::Sense { chamber: c, at: Micros(at as u64), edges: 1 }
 }
 
 fn paced(c: Chamber, at: u32) -> Event {
-    Event::Paced { chamber: c, at: Micros(at) }
+    Event::Paced { chamber: c, at: Micros(at as u64) }
 }
 
 fn at(us: u32, width: u32) -> Pace {
-    Pace::At { at: Micros(us), width }
+    Pace::At { at: Micros(us as u64), width }
 }
 
 fn marker(a: &Arming, c: Chamber) -> Option<(Marker, Micros)> {
@@ -233,17 +233,24 @@ fn off_arms_nothing_and_withdraws_what_was_pending() {
     assert!(!s.chamber[1].pending.armed);
 }
 
-/// The instants are compared by difference: the cycle is the same across
-/// the counter's wrap.
+/// The cycle is the same across 2^32 µs, where the therapy timer's count
+/// wraps. (Until 2026-11-24 an instant had 32 bits and this test was of the
+/// comparison by difference across the wrap of the instant itself; an
+/// instant now has 64 bits and goes on past 2^32. The same instants are
+/// used.)
 #[test]
 fn the_cycle_crosses_the_wrap() {
     let p = params(Mode::VVI);
-    let t0 = u32::MAX - 400_000;
+    let t0 = u64::from(u32::MAX) - 400_000;
+    let tick = |t: u64| Event::Tick { now: Micros(t), activity: 0, magnet: false, battery: Battery::Bol, link_up: false };
+    let sense = |t: u64| Event::Sense { chamber: Chamber::V, at: Micros(t), edges: 1 };
+    let at = |t: u64| Pace::At { at: Micros(t), width: 400 };
     let (s, a) = step(&p, &State::POWER_ON_RESET, tick(t0));
-    assert_eq!(a.ventricular, at(t0.wrapping_add(1_000_000), 400));
-    let (s, a) = step(&p, &s, sense(Chamber::V, t0.wrapping_add(500_000)));
-    assert_eq!(a.ventricular, at(t0.wrapping_add(1_500_000), 400));
-    let (_, a) = step(&p, &s, sense(Chamber::V, t0.wrapping_add(700_000)));
+    assert_eq!(a.ventricular, at(t0 + 1_000_000));
+    assert!(t0 + 1_000_000 > u64::from(u32::MAX));
+    let (s, a) = step(&p, &s, sense(t0 + 500_000));
+    assert_eq!(a.ventricular, at(t0 + 1_500_000));
+    let (_, a) = step(&p, &s, sense(t0 + 700_000));
     assert_eq!(a.ventricular, Pace::Keep);
 }
 
@@ -306,10 +313,12 @@ fn run(seed: u64, tally: &mut Tally) {
     let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let p = generated_params(&mut r);
     let e = u64::from(p.lrl);
-    // A base near the counter's wrap in half the runs.
+    // A base near 2^32 µs in half the runs: where the timer's own count
+    // wraps (an instant has 64 bits since 2026-11-24 and does not; until
+    // then these runs crossed the wrap of the instant itself).
     let base: u64 = if seed & 1 == 0 { u64::from(u32::MAX) - 3_000_000 } else { r.below(1 << 32) };
-    let micros = |t: u64| Micros((base + t) as u32);
-    let abs = |now: u64, m: Micros| (now as i64 + i64::from(m.since(micros(now)))) as u64;
+    let micros = |t: u64| Micros(base + t);
+    let abs = |_now: u64, m: Micros| m.0 - base;
 
     let mut s = State::POWER_ON_RESET;
     let mut hw = Compares::default();
@@ -368,7 +377,7 @@ fn run(seed: u64, tally: &mut Tally) {
                     ticked = true;
                     first_tick = now;
                 }
-                tick(micros(now).0)
+                Event::Tick { now: micros(now), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
             }
         };
 
@@ -450,7 +459,7 @@ fn run(seed: u64, tally: &mut Tally) {
             }
             assert!(ch.pending.armed, "seed {seed}: no Pace pending");
             if ch.seen {
-                let d = ch.pending.at.since(ch.last);
+                let d = ch.pending.at.0 as i64 - ch.last.0 as i64;
                 assert!(d > 0 && d as u64 <= e, "seed {seed}: pending {d} after the last event");
             }
             // The compares agree with the state.

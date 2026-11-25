@@ -56,22 +56,23 @@ pub fn allowed(from: Therapy, to: Therapy) -> bool {
 pub struct Pending {
     /// Whether a Pace is pending. When false, `at` means nothing.
     pub armed: bool,
-    /// Always zero (no padding byte: see `Params::reserved`).
-    pub reserved: [u8; 3],
+    /// Always zero (no padding byte: see `Params::reserved`; seven bytes
+    /// since an instant has 64 bits and an alignment of 8).
+    pub reserved: [u8; 7],
     /// Its instant.
     pub at: Micros,
 }
 
 impl Pending {
     /// No Pace pending.
-    pub const NONE: Pending = Pending { armed: false, reserved: [0; 3], at: Micros(0) };
+    pub const NONE: Pending = Pending { armed: false, reserved: [0; 7], at: Micros(0) };
 
     /// A Pace pending at `at`.
     #[inline(always)]
     #[must_use]
     #[cfg_attr(creusot, creusot_std::macros::ensures(result.armed && result.at == at))]
     pub const fn at(at: Micros) -> Pending {
-        Pending { armed: true, reserved: [0; 3], at }
+        Pending { armed: true, reserved: [0; 7], at }
     }
 }
 
@@ -131,6 +132,8 @@ pub struct Atr {
     pub cycles_left: u16,
     /// The instant Fallback began, valid in the Fallback phase.
     pub fallback_start: Micros,
+    /// Always zero (no padding byte).
+    pub reserved: [u8; 4],
 }
 
 /// Everything the step function carries. The all-zero value is the Power-On
@@ -193,7 +196,7 @@ pub struct State {
     pub sensor_known: bool,
     pub sensor_interval: u32,
     /// Always zero (no padding byte: see `Params::reserved`).
-    pub reserved: [u8; 2],
+    pub reserved: [u8; 6],
 }
 
 /// The timing state of a Chamber with no event yet: all zero.
@@ -238,10 +241,10 @@ impl State {
         atrial_since_ventricular: false,
         pvarp_extended: false,
         pvarp_extended_last_cycle: false,
-        atr: Atr { phase: AtrPhase::Idle, counter: 0, cycles_left: 0, fallback_start: Micros(0) },
+        atr: Atr { phase: AtrPhase::Idle, counter: 0, cycles_left: 0, fallback_start: Micros(0), reserved: [0; 4] },
         sensor_known: false,
         sensor_interval: 0,
-        reserved: [0; 2],
+        reserved: [0; 6],
     };
 
     /// The parameters in force (PM6.2, PM6.3, PM6.5, PM7.1). The Magnet

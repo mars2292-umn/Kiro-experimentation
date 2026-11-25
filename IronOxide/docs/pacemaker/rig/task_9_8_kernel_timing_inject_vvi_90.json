@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:12fa5dd2fadc22cf9de1b9e0d526db4c52d175189c438bd02b29bbb2f1c4e353",
+  "binary_hash": "sha256:5ae450cce9085352b5d0921858e41ee9c5104a5d66983e6e22e202751215a78d",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "delta_hm",
-      "cycles": 5848,
+      "cycles": 7275,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 75,
-        "max_observed": 4678,
+        "max_observed": 5820,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -26,7 +26,7 @@
     },
     {
       "symbol": "delta_restart",
-      "cycles": 7107,
+      "cycles": 8479,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -35,7 +35,7 @@
       ],
       "measured": {
         "runs": 150,
-        "max_observed": 5685,
+        "max_observed": 6783,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -45,7 +45,7 @@
     },
     {
       "symbol": "delta_enforce",
-      "cycles": 7107,
+      "cycles": 8479,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -54,7 +54,7 @@
       ],
       "measured": {
         "runs": 75,
-        "max_observed": 5685,
+        "max_observed": 6783,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

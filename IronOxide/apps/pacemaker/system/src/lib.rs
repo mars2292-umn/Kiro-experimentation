@@ -110,7 +110,7 @@ pub fn safe_state() -> ! {
         i += 1;
     }
     let pending = t.state.chamber[paced as usize].pending;
-    print_number(b"pending_at", pending.at.0);
+    print_number(b"pending_at", (pending.at.0 % 0x1_0000_0000) as u32);
     if t.state.chamber[1 - paced as usize].pending.armed {
         ok = false;
     }
@@ -136,7 +136,7 @@ pub fn safe_state() -> ! {
     #[cfg(any(feature = "qemu-voo", feature = "qemu-aoo"))]
     {
         let n = t.written as usize;
-        if n != 5 || !(pending.armed && n > 0 && pending.at.0 == t.ring[n - 1].at.wrapping_add(500_000)) {
+        if n != 5 || !(pending.armed && n > 0 && (pending.at.0 % 0x1_0000_0000) as u32 == t.ring[n - 1].at.wrapping_add(500_000)) {
             ok = false;
         }
         let mut k = 0;

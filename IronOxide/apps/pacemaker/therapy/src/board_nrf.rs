@@ -12,7 +12,8 @@
 //! | sense input | GPIOTE channels 0 / 1 (P1.01 / P1.02, rising) |
 //! | magnet | P1.07 |
 
-use pm_core::{Chamber, Micros};
+use pm_core::Chamber;
+use pm_hw::Count;
 use pm_hw::{HwFault, Reg};
 
 // The App_Prover's view operator (`@`) in the contracts below.
@@ -235,7 +236,7 @@ impl pm_hw::Board for Board<'_> {
         }
     }
 
-    fn now(&mut self) -> Micros {
-        Micros(kernel_micros().wrapping_add(self.words.offset))
+    fn now(&mut self) -> Count {
+        Count(kernel_micros().wrapping_add(self.words.offset))
     }
 }

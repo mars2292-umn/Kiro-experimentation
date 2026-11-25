@@ -16,31 +16,31 @@ fn params(mode: Mode) -> Params {
 }
 
 fn tick(now: u32) -> Event {
-    Event::Tick { now: Micros(now), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
+    Event::Tick { now: Micros(now as u64), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
 }
 
 fn sense(c: Chamber, at: u32) -> Event {
-    Event::Sense { chamber: c, at: Micros(at), edges: 1 }
+    Event::Sense { chamber: c, at: Micros(at as u64), edges: 1 }
 }
 
 fn paced(c: Chamber, at: u32) -> Event {
-    Event::Paced { chamber: c, at: Micros(at) }
+    Event::Paced { chamber: c, at: Micros(at as u64) }
 }
 
 fn at(us: u32) -> Pace {
-    Pace::At { at: Micros(us), width: 400 }
+    Pace::At { at: Micros(us as u64), width: 400 }
 }
 
 fn sensed(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Sense { refractory: false }, Micros(at)))
+    Some((Marker::Sense { refractory: false }, Micros(at as u64)))
 }
 
 fn refractory(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Sense { refractory: true }, Micros(at)))
+    Some((Marker::Sense { refractory: true }, Micros(at as u64)))
 }
 
 fn pvc(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Pvc, Micros(at)))
+    Some((Marker::Pvc, Micros(at as u64)))
 }
 
 /// The start every diagram shares: a tick at 0, the atrial Pace at

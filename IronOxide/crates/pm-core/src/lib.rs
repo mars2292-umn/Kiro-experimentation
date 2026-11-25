@@ -39,5 +39,5 @@ pub use mode::{Chamber, Chambers, Mode, Response};
 pub use params::{interval_of_ppm, ActivityThreshold, Params};
 pub use state::{Atr, AtrPhase, ChamberState, Pending, State, Therapy};
 pub use step::{accounted, rearmed, step};
-pub use time::{Micros, HALF_RANGE};
+pub use time::Micros;
 pub use validate::{delivered_in_e1, delivered_in_e2, validate, word, NOMINAL_WORDS, WORDS};

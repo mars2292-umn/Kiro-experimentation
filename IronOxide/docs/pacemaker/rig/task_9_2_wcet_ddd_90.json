@@ -3,10 +3,10 @@
   "records": [
     {
       "item": "therapy.pace",
-      "wcet_cycles": 19853,
+      "wcet_cycles": 24812,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -15,14 +15,14 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "750 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2367 cycles",
-        "branch coverage 73 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2552 cycles"
       ],
       "measured": {
         "runs": 750,
-        "max_observed": 15882,
+        "max_observed": 19849,
         "margin_percent": 25,
-        "coverage_branch_percent": 73,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -30,10 +30,10 @@
     },
     {
       "item": "therapy.sense_v",
-      "wcet_cycles": 20324,
+      "wcet_cycles": 24304,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -42,14 +42,14 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "375 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2491 cycles",
-        "branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
       ],
       "measured": {
         "runs": 375,
-        "max_observed": 16259,
+        "max_observed": 19443,
         "margin_percent": 25,
-        "coverage_branch_percent": 72,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -57,10 +57,10 @@
     },
     {
       "item": "therapy.sense_a",
-      "wcet_cycles": 15329,
+      "wcet_cycles": 23319,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -69,14 +69,14 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "375 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2499 cycles",
-        "branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2600 cycles"
       ],
       "measured": {
         "runs": 375,
-        "max_observed": 12263,
+        "max_observed": 18655,
         "margin_percent": 25,
-        "coverage_branch_percent": 72,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -84,10 +84,10 @@
     },
     {
       "item": "therapy.control",
-      "wcet_cycles": 20118,
+      "wcet_cycles": 39010,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -95,14 +95,41 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none",
-        "branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
       ],
       "measured": {
         "runs": 15000,
-        "max_observed": 16094,
+        "max_observed": 31208,
         "margin_percent": 25,
-        "coverage_branch_percent": 64,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
+        ]
+      }
+    },
+    {
+      "item": "comms.link",
+      "wcet_cycles": 36808,
+      "method": "measured",
+      "tool": "xtask pm-measure: the Kernel's Budget accounting",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
+      "target": "nrf52840/r0p1",
+      "clock_hz": 64000000,
+      "icache": "off",
+      "conditions": [
+        "the Task entry: one Job's execution from the Budget accounting (R18.1)",
+        "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "6000 executions, below PAR-02's 10000",
+        "branch coverage not measured (R34.4)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
+      ],
+      "measured": {
+        "runs": 6000,
+        "max_observed": 29446,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -110,10 +137,10 @@
     },
     {
       "item": "therapy.pace#cs:timing",
-      "wcet_cycles": 12133,
+      "wcet_cycles": 16747,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -122,13 +149,13 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "750 executions, below PAR-02's 10000",
-        "branch coverage 73 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)"
       ],
       "measured": {
         "runs": 750,
-        "max_observed": 9706,
+        "max_observed": 13397,
         "margin_percent": 25,
-        "coverage_branch_percent": 73,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -136,10 +163,10 @@
     },
     {
       "item": "therapy.sense_v#cs:timing",
-      "wcet_cycles": 12460,
+      "wcet_cycles": 16219,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -148,13 +175,13 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "375 executions, below PAR-02's 10000",
-        "branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)"
       ],
       "measured": {
         "runs": 375,
-        "max_observed": 9968,
+        "max_observed": 12975,
         "margin_percent": 25,
-        "coverage_branch_percent": 72,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -162,10 +189,10 @@
     },
     {
       "item": "therapy.sense_a#cs:timing",
-      "wcet_cycles": 7110,
+      "wcet_cycles": 15230,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -174,13 +201,13 @@
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "375 executions, below PAR-02's 10000",
-        "branch coverage 72 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)"
       ],
       "measured": {
         "runs": 375,
-        "max_observed": 5688,
+        "max_observed": 12184,
         "margin_percent": 25,
-        "coverage_branch_percent": 72,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]
@@ -188,10 +215,10 @@
     },
     {
       "item": "therapy.control#cs:timing",
-      "wcet_cycles": 11852,
+      "wcet_cycles": 24242,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's Budget accounting",
-      "binary_hash": "sha256:345905f1bb9c4bda6d2261b5858917f72413a1248565deac1c85eadffa273cc6",
+      "binary_hash": "sha256:e04053954067eccf2b219dfaac6f4c63f8fbede33a9dce0be88ec367882f139a",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -199,13 +226,13 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "branch coverage 64 % of the Task entry's functions, from the coverage builds' runs under the same scenarios (docs/pacemaker/rig/task_9_9_coverage.json; R34.4)"
+        "branch coverage not measured (R34.4)"
       ],
       "measured": {
         "runs": 15000,
-        "max_observed": 9481,
+        "max_observed": 19393,
         "margin_percent": 25,
-        "coverage_branch_percent": 64,
+        "coverage_branch_percent": 0,
         "scenarios": [
           "nrf52840_measure, set ddd-90, Heart_Simulator `fixed` (300 s)"
         ]

@@ -9,21 +9,26 @@ use pm_core::*;
 const A: Chamber = Chamber::A;
 const V: Chamber = Chamber::V;
 
+/// An instant of these tests as a 32-bit number (none is beyond 2^32 µs).
+fn lo(m: Micros) -> u32 {
+    u32::try_from(m.0).expect("an instant below 2^32")
+}
+
 fn go(s: &State, e: Event) -> (State, Arming) {
     let p = *s.params();
     step(&p, s, e)
 }
 
 fn tick(now: u32, magnet: bool, link_up: bool) -> Event {
-    Event::Tick { now: Micros(now), activity: 0, magnet, battery: Battery::Bol, link_up }
+    Event::Tick { now: Micros(now as u64), activity: 0, magnet, battery: Battery::Bol, link_up }
 }
 
 fn sense(c: Chamber, at: u32) -> Event {
-    Event::Sense { chamber: c, at: Micros(at), edges: 1 }
+    Event::Sense { chamber: c, at: Micros(at as u64), edges: 1 }
 }
 
 fn paced(c: Chamber, at: u32) -> Event {
-    Event::Paced { chamber: c, at: Micros(at) }
+    Event::Paced { chamber: c, at: Micros(at as u64) }
 }
 
 fn set(mode: Mode, ppm: u32) -> Params {
@@ -35,7 +40,7 @@ fn permanent(p: Params) -> State {
 }
 
 fn at(us: u32, width: u32) -> Pace {
-    Pace::At { at: Micros(us), width }
+    Pace::At { at: Micros(us as u64), width }
 }
 
 /// The transitions the State machine has (design, "Therapy State Machine").
@@ -95,7 +100,7 @@ fn power_on_reset_is_left_by_a_programmed_set_at_the_next_ventricular_event() {
     assert!(t.programmed && !t.staged_valid && !t.change_waiting);
     assert_eq!(*t.params(), ddd);
     assert_eq!((a.atrial, a.ventricular), (at(POR_E + 850_000, 400), at(POR_E + 1_000_000, 400)));
-    assert_eq!(a.markers.ventricular, Some((Marker::Pace { fused: false }, Micros(POR_E))));
+    assert_eq!(a.markers.ventricular, Some((Marker::Pace { fused: false }, Micros(u64::from(POR_E)))));
 
     // The same at a ventricular Sense outside the VRP.
     let (t, a) = go(&w, sense(V, 500_000));
@@ -106,7 +111,7 @@ fn power_on_reset_is_left_by_a_programmed_set_at_the_next_ventricular_event() {
     let (r, _) = go(&w, paced(V, POR_E));
     let (r, _) = go(&r, Event::Command(Command::Program(set(Mode::VVI, 90))));
     let (r2, a) = go(&r, sense(V, POR_E + 100_000));
-    assert_eq!(a.markers.ventricular, Some((Marker::Sense { refractory: true }, Micros(POR_E + 100_000))));
+    assert_eq!(a.markers.ventricular, Some((Marker::Sense { refractory: true }, Micros(u64::from(POR_E) + 100_000))));
     assert_eq!(r2.params().mode, Mode::DDD);
     assert!(r2.change_waiting);
 }
@@ -264,7 +269,7 @@ fn the_magnet_interrupts_and_returns() {
         let (s, a) = go(&from, tick(1_020_000, true, link));
         assert_eq!(a, Arming::NONE);
         assert_eq!((s.therapy, s.change_waiting), (before, true));
-        let due = s.chamber[1].pending.at.0;
+        let due = lo(s.chamber[1].pending.at);
         let (s, _) = go(&s, paced(V, due));
         assert_eq!((s.therapy, s.before_magnet), (Therapy::Magnet, before));
         // The set of the State interrupted is kept (task 16.4: `own`; until
@@ -277,7 +282,7 @@ fn the_magnet_interrupts_and_returns() {
         // Released: back at the next ventricular event.
         let (r, _) = go(&s, tick(due + 20_000, false, link));
         assert_eq!((r.therapy, r.change_waiting), (Therapy::Magnet, true));
-        let due = r.chamber[1].pending.at.0;
+        let due = lo(r.chamber[1].pending.at);
         let (r, _) = go(&r, paced(V, due));
         assert_eq!((r.therapy, r.before_magnet), (before, Therapy::PowerOnReset));
     }
@@ -395,10 +400,10 @@ fn generated_runs_make_only_the_transitions_of_the_state_machine() {
                     // A Pace that is due, if one is; else a tick.
                     let due = [A, V].into_iter().find(|c| {
                         let p = s.chamber[c.index()].pending;
-                        p.armed && p.at.0 <= now
+                        p.armed && lo(p.at) <= now
                     });
                     match due {
-                        Some(c) => paced(c, s.chamber[c.index()].pending.at.0),
+                        Some(c) => paced(c, lo(s.chamber[c.index()].pending.at)),
                         None => tick(now, magnet, link),
                     }
                 }

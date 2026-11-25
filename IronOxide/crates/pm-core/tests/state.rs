@@ -41,7 +41,7 @@ fn the_power_on_reset_state_is_all_zero() {
         sensor_interval,
         reserved,
     } = State::POWER_ON_RESET;
-    assert_eq!(reserved, [0; 2]);
+    assert_eq!(reserved, [0; 6]);
     assert_eq!(therapy as u8, 0);
     assert_eq!(before_magnet as u8, 0);
     assert!(!programmed && !change_waiting && !cycle_known && !hysteresis_active);
@@ -69,7 +69,7 @@ fn the_power_on_reset_state_is_all_zero() {
             last_service,
             reserved,
         } = c;
-        assert_eq!((reserved, pending.reserved), ([0; 2], [0; 3]));
+        assert_eq!((reserved, pending.reserved), ([0; 2], [0; 7]));
         assert!(!seen && !last_paced && !blanked && !noisy && !serviced && !pending.armed && !unconfirmed);
         assert_eq!((last, refractory_until, blanking_until, pending.at, last_service), (Micros(0), Micros(0), Micros(0), Micros(0), Micros(0)));
     }

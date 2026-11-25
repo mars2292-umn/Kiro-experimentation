@@ -12,7 +12,7 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0x6522a088",
+  "config_checksum": "0x93878505",
   "layout_checksum": "0xcf61a543",
   "operating_duration_ticks": 720000000,
   "safe_state": "crate::safe_state",
@@ -280,7 +280,7 @@
         "irq": 26
       },
       "deadline_ticks": 32000,
-      "budget_cycles": 22400,
+      "budget_cycles": 28800,
       "fpu": false,
       "resources": [
         "therapy.timing"
@@ -318,7 +318,7 @@
         "irq": 10
       },
       "deadline_ticks": 48000,
-      "budget_cycles": 22400,
+      "budget_cycles": 28800,
       "fpu": false,
       "resources": [
         "therapy.timing"
@@ -356,7 +356,7 @@
         "irq": 9
       },
       "deadline_ticks": 64000,
-      "budget_cycles": 22400,
+      "budget_cycles": 28800,
       "fpu": false,
       "resources": [
         "therapy.timing"

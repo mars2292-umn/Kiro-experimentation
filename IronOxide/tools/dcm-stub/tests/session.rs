@@ -266,13 +266,18 @@ fn a_valid_set_is_accepted_and_an_invalid_one_refused_as_predicted() {
         other => panic!("{other:?}"),
     }
 
-    let _ = s.send_set(&bad, false, 10).unwrap();
-    match s.verdict(10).unwrap().expect("a verdict").reply {
-        Reply::Status { code: c, serial, refused, .. } => assert_eq!((c, serial, refused), (code::REFUSED, 2, 1)),
-        other => panic!("{other:?}"),
+    // The invalid set is refused by `link` itself, naming the frame of its
+    // last part; nothing restarts, and `control` has refused nothing.
+    // (Until 2026-11-24 `link` forwarded it, `therapy` refused it and
+    // `comms` was restarted.)
+    let parts = s.send_set(&bad, false, 10).unwrap();
+    let last = s.dcm.plain(kind::POLL).seq.wrapping_sub(1);
+    match parts[4].as_ref().expect("an answer").reply {
+        Reply::Status { of, code: c, refused, serial, .. } => assert_eq!((of, c, refused, serial), (last, code::REFUSED, 0, 1)),
+        ref other => panic!("{other:?}"),
     }
-    // The link started again: it has no set to read back.
-    assert_eq!(s.carrier.link.sets, 0);
+    assert_eq!(s.carrier.link.sets, 1, "the accepted set is still the one kept");
+    assert_eq!(s.read_set(20).unwrap(), Some(good));
 }
 
 #[test]

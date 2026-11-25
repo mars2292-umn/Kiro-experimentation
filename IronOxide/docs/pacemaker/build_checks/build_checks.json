@@ -1,6 +1,6 @@
 {
   "qemu": {
-    "binary_sha256": "a1c069760c9580076bae3d1f4d87108a75add0871614731303f78188ca03fd0a",
+    "binary_sha256": "9ee49d934c6f7639cef05430a100d546f1968ffd583bc9e26bec57278f1c4e91",
     "task_model": "apps/pacemaker/gen/task_model.json",
     "link_checker": {
       "passed": true,
@@ -16,11 +16,11 @@
     }
   },
   "nrf52840": {
-    "binary_sha256": "763bd0c684e5e92f4bdf7a33c6b35d53b70a06a532a5e2219511a43326d39f6d",
+    "binary_sha256": "a3d74d9af1a3f3c11083a32c8d9e973a20b3a513e7b239cf03b88c94c6c2f1fb",
     "task_model": "apps/pacemaker/gen-nrf52840/task_model.json",
     "link_checker": {
       "passed": true,
-      "verdict": "rsk-link: 105 functions bounded, 3 stack regions within their worst case"
+      "verdict": "rsk-link: 104 functions bounded, 3 stack regions within their worst case"
     },
     "config_checker": {
       "passed": true,
@@ -33,7 +33,7 @@
   },
   "profile_lint": {
     "passed": true,
-    "verdict": "note: R3.2: Profile_Lint over 19 crates: rsk-lint: 82 files, 161 loops bounded (8 annotated, 80 derived from constants, 68 by `decreases`, 5 non-terminating by design; 39 with an App_Prover variant equal to the bound, R35.2), no violation",
+    "verdict": "note: R3.2: Profile_Lint over 19 crates: rsk-lint: 83 files, 165 loops bounded (8 annotated, 84 derived from constants, 68 by `decreases`, 5 non-terminating by design; 40 with an App_Prover variant equal to the bound, R35.2), no violation",
     "static_checks": "     Running `target/debug/xtask check`"
   },
   "verdict": "PASS"

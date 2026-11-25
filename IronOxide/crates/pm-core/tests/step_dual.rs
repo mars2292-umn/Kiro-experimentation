@@ -10,36 +10,41 @@ use pm_core::*;
 const A: Chamber = Chamber::A;
 const V: Chamber = Chamber::V;
 
+/// An instant of these tests as a 32-bit number (none is beyond 2^32 µs).
+fn lo(m: Micros) -> u32 {
+    u32::try_from(m.0).expect("an instant below 2^32")
+}
+
 fn params(mode: Mode) -> Params {
     Params { mode, ..Params::NOMINAL }
 }
 
 fn tick(now: u32) -> Event {
-    Event::Tick { now: Micros(now), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
+    Event::Tick { now: Micros(now as u64), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
 }
 
 fn sense(c: Chamber, at: u32) -> Event {
-    Event::Sense { chamber: c, at: Micros(at), edges: 1 }
+    Event::Sense { chamber: c, at: Micros(at as u64), edges: 1 }
 }
 
 fn paced(c: Chamber, at: u32) -> Event {
-    Event::Paced { chamber: c, at: Micros(at) }
+    Event::Paced { chamber: c, at: Micros(at as u64) }
 }
 
 fn at(us: u32) -> Pace {
-    Pace::At { at: Micros(us), width: 400 }
+    Pace::At { at: Micros(us as u64), width: 400 }
 }
 
 fn sensed(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Sense { refractory: false }, Micros(at)))
+    Some((Marker::Sense { refractory: false }, Micros(at as u64)))
 }
 
 fn refractory(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Sense { refractory: true }, Micros(at)))
+    Some((Marker::Sense { refractory: true }, Micros(at as u64)))
 }
 
 fn pace_marker(at: u32) -> Option<(Marker, Micros)> {
-    Some((Marker::Pace { fused: false }, Micros(at)))
+    Some((Marker::Pace { fused: false }, Micros(at as u64)))
 }
 
 // Hand-worked diagrams. Times in µs; the nominal set: LRL 60 ppm
@@ -405,15 +410,15 @@ impl Board {
             match pace {
                 Pace::Keep => {}
                 Pace::Withdraw => self.armed[k] = None,
-                Pace::At { at, .. } if at.0 > self.now => {
-                    self.armed[k] = Some(at.0);
+                Pace::At { at, .. } if lo(at) > self.now => {
+                    self.armed[k] = Some(lo(at));
                     self.moved[k] = false;
                 }
                 Pace::At { .. } => {
                     let at = self.now + 500;
                     self.armed[k] = Some(at);
                     self.moved[k] = true;
-                    *s = rearmed(s, if k == 0 { A } else { V }, Micros(at));
+                    *s = rearmed(s, if k == 0 { A } else { V }, Micros(u64::from(at)));
                 }
             }
         }
@@ -502,15 +507,15 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
             2 | 3 => sense(V, now),
             _ => tick(now),
         };
-        let before = accounted(&p, &s, Micros(now));
+        let before = accounted(&p, &s, Micros(u64::from(now)));
         let (t, a) = step(&p, &s, ev);
         // Property P1: a ventricular Pace the step arms is no earlier than
         // one URL interval after the last ventricular event (the Modes here
         // have no triggered response).
         if let (Pace::At { at, .. }, Some(l)) = (a.ventricular, last_v) {
             let l = if matches!(a.markers.ventricular, Some((Marker::Sense { refractory: false }, _))) { now } else { l };
-            assert!(at.0 >= l + p.url, "{mode:?} seed {seed}: a ventricular Pace at {} within the URL interval of the event at {l}", at.0);
-            if at.0 == l + p.url && p.url < p.lrl {
+            assert!(lo(at) >= l + p.url, "{mode:?} seed {seed}: a ventricular Pace at {} within the URL interval of the event at {l}", at.0);
+            if lo(at) == l + p.url && p.url < p.lrl {
                 met.delayed_to_the_url += 1;
             }
         }
@@ -547,7 +552,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
                     // A ventricular Sense in the blanking interval after an
                     // atrial Pace: discarded (PM4.5; Property P3).
                     let v = before.chamber[1];
-                    assert!(matches!(chamber, Chamber::V) && v.blanked && now < v.blanking_until.0, "{mode:?} seed {seed}");
+                    assert!(matches!(chamber, Chamber::V) && v.blanked && now < lo(v.blanking_until), "{mode:?} seed {seed}");
                     assert_eq!(t, before);
                     assert_eq!(a, Arming::NONE);
                     met.blanked += 1;
@@ -566,7 +571,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
         // pending, in both Chambers.
         for k in 0..2 {
             let pending = s.chamber[k].pending;
-            assert_eq!(board.armed[k], pending.armed.then_some(pending.at.0), "{mode:?} seed {seed} at {now}: Chamber {k}");
+            assert_eq!(board.armed[k], pending.armed.then_some(lo(pending.at)), "{mode:?} seed {seed} at {now}: Chamber {k}");
             assert!(!s.chamber[k].unconfirmed);
         }
         // Property P2 for the ventricle: a Pace is pending, no later than
@@ -574,8 +579,8 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
         let v = s.chamber[1].pending;
         assert!(v.armed, "{mode:?} seed {seed}");
         if let Some(l) = last_v {
-            assert!(v.at.0 <= l + e, "{mode:?} seed {seed}: ventricular Pace at {} after the event at {l}", v.at.0);
-            assert!(v.at.0 > l);
+            assert!(lo(v.at) <= l + e, "{mode:?} seed {seed}: ventricular Pace at {} after the event at {l}", v.at.0);
+            assert!(lo(v.at) > l);
         }
         // The atrium has a Pace pending exactly while no atrial event has
         // come since the last ventricular event, in a Mode that paces it,
@@ -586,7 +591,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
             if let Some(l) = last_v {
                 // One paced AV delay before the end of the escape interval:
                 // the fixed delay, or a dynamic one within its limits.
-                let av = l + e - a_pending.at.0;
+                let av = l + e - lo(a_pending.at);
                 if p.dynamic_av && p.mode.tracks() {
                     assert!((p.min_dynamic_av..=p.fixed_av).contains(&av), "{mode:?} seed {seed}: AV delay {av}");
                 } else {

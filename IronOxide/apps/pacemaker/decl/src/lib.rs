@@ -24,21 +24,26 @@
 //! deadlines of 2, 3 and 4 ms for `pace`, `sense_v` and `sense_a`. With
 //! Budgets of 400 µs the Analyzer's bound for `sense_a` was 36 µs over its
 //! 4 ms once the Kernel's fault entry and stubs were measured; 350 µs was
-//! the user's decision of 2026-11-23. The three responses of the Partition
+//! the user's decision of 2026-11-23. Since 2026-11-24 they are 450 µs, also
+//! by the user's decision: on the stage E3 code a Job of 261 µs with two of
+//! the Kernel's timer entries inside it reached 350 µs in DDD and restarted
+//! the Partition (findings B36). The three responses of the Partition
 //! are RESTART_PARTITION (PM23.3), so a Budget set too low restarts pacing.
 //! The QEMU variant keeps Budgets of 1 ms: its execution times are the
 //! emulator's and are not measured.
 #![no_std]
 #![forbid(unsafe_code)]
 
-#[cfg(all(feature = "nrf52840", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig", feature = "nrf52840_coverage"))))]
+#[cfg(all(feature = "nrf52840", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig", feature = "nrf52840_rig_stop", feature = "nrf52840_coverage"))))]
 mod nrf52840;
 #[cfg(feature = "nrf52840_sweep")]
 mod nrf52840_sweep;
 #[cfg(all(feature = "nrf52840_measure", not(feature = "nrf52840_sweep")))]
 mod nrf52840_measure;
-#[cfg(all(feature = "nrf52840_rig", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure"))))]
+#[cfg(all(feature = "nrf52840_rig", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig_stop"))))]
 mod nrf52840_rig;
+#[cfg(all(feature = "nrf52840_rig_stop", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure"))))]
+mod nrf52840_rig_stop;
 #[cfg(all(feature = "nrf52840_coverage", not(any(feature = "nrf52840_sweep", feature = "nrf52840_measure", feature = "nrf52840_rig"))))]
 mod nrf52840_coverage;
 

@@ -36,6 +36,12 @@ rig = ["nrf52840", "pacemaker-decl/nrf52840_rig"]
 # Task 9.8: `control` overruns its Budget and faults at stated instants, so
 # that the Kernel's fault paths are measured (measurement builds only).
 inject = ["nrf52840"]
+# Task 17.2: the rig runs' declaration with `comms` stopped on a fault.
+rig-stop = ["rig", "pacemaker-decl/nrf52840_rig_stop"]
+# Task 17.1: one injection into `control`, of the kind the environment
+# variable `PM_INJECT` names (`fault`, `overrun`, `deadline`), between 10 and
+# 35 s into the run.
+inject-once = ["nrf52840"]
 # Task 9.9: the coverage runs' declaration (a larger code region).
 coverage = ["nrf52840", "pacemaker-decl/nrf52840_coverage"]
 

@@ -78,6 +78,13 @@ def sha(path):
 
 
 def probe(sub, board, *rest):
+    # A probe now and then fails to open with a USB transport error and
+    # opens at the next try (seen 2026-11-24).
+    for _ in range(3):
+        out = sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest], check=False)
+        if out.returncode == 0:
+            return out
+        time.sleep(1.0)
     return sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest])
 
 
@@ -371,7 +378,8 @@ def run_reset():
     undriven_us = floats1[-1][2] if len(floats1) == 1 else None
     disturbed_ms = (paces1[0][1] - floats1[-1][1]) * 1000 / RATE if paces1 and floats1 else None
 
-    cap = Capture(16)
+    # Long enough for the flashing, which takes up to 12 s, and six Paces.
+    cap = Capture(22)
     cap.started()
     time.sleep(1)
     before = time.time()

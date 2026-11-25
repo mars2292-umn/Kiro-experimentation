@@ -79,6 +79,13 @@ def build_heart(heart):
 
 
 def probe(sub, board, *rest):
+    # A probe now and then fails to open with a USB transport error and
+    # opens at the next try (seen 2026-11-24).
+    for _ in range(3):
+        out = sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest], check=False)
+        if out.returncode == 0:
+            return out
+        time.sleep(1.0)
     return sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest])
 
 

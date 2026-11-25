@@ -1,4 +1,4 @@
-note: 81 functions, 168 call edges, 6 indirect call sites
+note: 81 functions, 170 call edges, 6 indirect call sites
 note: PR-18: no function address in the read-only data inside the Partitions' and the shared code sections
 note: PR-18: no function address in the table sections (.rodata, .rsk.tables): an indirect call that materialises no function address is unresolved
 note: `bx Rm` with no resolvable target taken as an exception return in: rsk_irq_entry, rsk_unwind (the naked stubs, UJ-020, UJ-023)
@@ -6,7 +6,7 @@ note: panic path (core::panicking, rust_begin_unwind, the Kernel panic handler) 
 note: 3 core::fmt functions with unresolved trait-object calls are linked for the panic message, which the panic handler does not format (never reached): _RNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB5_9Formatter12pad_integral, _RNvNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB7_9Formatter12pad_integral12write_prefix, _RNvXs8_NtNtNtCs7ldSeZOOJos_4core3fmt3num3impmNtB9_7Display3fmt
 note: 7 Kernel entry points from the vector table; worst `rsk_irq_entry` at 1048 bytes
 note: R6.6: 60 Kernel functions scanned, 0 floating-point data-movement instructions, no arithmetic, comparison, conversion, or FPSCR write (the context-preservation vpush/vpop of the stubs are stack effects, PR-31)
-note: PR-22: 41 functions reachable from Task bodies scanned, none executes msr/mrs/cps or names a PPB address
+note: PR-22: 45 functions reachable from Task bodies scanned, none executes msr/mrs/cps or names a PPB address
 note: PR-18: no indirect call site in Kernel code; the stubs' indirect branches are exception returns
 note: ORQ-32: 13 naked stubs disassembled, no cross-section cbz/cbnz and no nop
 note: ERR-838869: every exception return of the 13 naked stubs is preceded by a dsb (R11.6); ERR-752770: no Kernel function loads SP from memory (every SP write is an immediate or a push/pop)

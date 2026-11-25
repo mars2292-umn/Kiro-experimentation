@@ -27,6 +27,9 @@ extern crate creusot_std;
 
 use pm_core::{Chamber, Micros};
 
+pub mod count;
+pub use count::Count;
+
 /// How far ahead a start is placed when the instant asked for cannot be
 /// met: it has to cover what can delay the Job between its reading of the
 /// present and its write of the start compare (a Kernel hold, and entries
@@ -103,7 +106,7 @@ pub trait Board {
     fn read(&mut self, reg: Reg) -> u32;
     fn write(&mut self, reg: Reg, value: u32);
     /// The present, in therapy microseconds.
-    fn now(&mut self) -> Micros;
+    fn now(&mut self) -> Count;
 }
 
 /// A borrowed board is a board: the Tasks keep the board's own words in
@@ -125,7 +128,7 @@ impl<B: Board + ?Sized> Board for &mut B {
     }
 
     #[inline(always)]
-    fn now(&mut self) -> Micros {
+    fn now(&mut self) -> Count {
         (**self).now()
     }
 }
@@ -202,6 +205,13 @@ pub trait Hw {
     fn magnet(&mut self) -> bool;
 }
 
+/// The counter's value at an instant: its low 32 bits.
+#[inline(always)]
+#[must_use]
+pub const fn count_of(m: Micros) -> Count {
+    Count((m.0 % 0x1_0000_0000) as u32)
+}
+
 /// What the driver keeps between calls. All zero at start (a Partition's
 /// statics are): nothing armed, nothing forced, no edge counted.
 #[derive(Clone, Copy, Debug, Default)]
@@ -221,6 +231,12 @@ pub struct DriverState {
     pub late_arms: u32,
     /// Of those, pulses whose end was also made by software.
     pub untimed: u32,
+    /// The present as the therapy counts it (64 bits, from the Partition's
+    /// start, never wrapping), and the counter's value it belongs to: every
+    /// reading of the counter moves both on, and a counter value near the
+    /// present is given its 64-bit instant from them ([`Driver::extend`]).
+    pub now: Micros,
+    pub now_count: u32,
 }
 
 /// The witness that a Chamber's start compare has just been put on the far
@@ -244,7 +260,7 @@ pub struct Driver<B: Board> {
 impl<B: Board> Driver<B> {
     #[inline(always)]
     pub fn new(board: B) -> Driver<B> {
-        Driver { board, state: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0 }, lead: LEAD, guard: GUARD }
+        Driver { board, state: DriverState { armed: [false; 2], last_start: [Micros(0); 2], forced: [false; 2], counted: [0; 2], late_arms: 0, untimed: 0, now: Micros(0), now_count: 0 }, lead: LEAD, guard: GUARD }
     }
 
     /// A driver that goes on from `state`, with the lead and the guard of
@@ -255,6 +271,33 @@ impl<B: Board> Driver<B> {
         Driver { board, state, lead: LEAD, guard: GUARD }
     }
 
+    /// The counter read, and the present moved on by what it has advanced
+    /// since the last reading. The counter wraps every 71.6 minutes and is
+    /// read at least every period of `control`, so the advance is the
+    /// difference modulo 2^32.
+    #[inline(always)]
+    fn present(&mut self) -> Count {
+        let c = self.board.now();
+        let advanced = c.0.wrapping_sub(self.state.now_count);
+        self.state.now = self.state.now.plus(advanced);
+        self.state.now_count = c.0;
+        c
+    }
+
+    /// The instant of a counter value within 2^31 µs (35.8 minutes) of the
+    /// present, on either side: a compare just written, or a sense edge
+    /// just captured.
+    #[inline(always)]
+    #[must_use]
+    pub fn extend(&self, c: Count) -> Micros {
+        let ahead = c.0.wrapping_sub(self.state.now_count);
+        if ahead < 0x8000_0000 {
+            self.state.now.plus(ahead)
+        } else {
+            self.state.now.minus(self.state.now_count.wrapping_sub(c.0))
+        }
+    }
+
     /// Steps 1 and 2 of the sequence: the start compare to the far side of
     /// the counter, after which nothing of the Chamber can fire; then
     /// whether a Pace had fired before that (its event flag is set).
@@ -262,7 +305,7 @@ impl<B: Board> Driver<B> {
     /// fired), or `None`.
     #[inline(always)]
     fn disarm_and_check(&mut self, c: Chamber) -> Option<Free> {
-        let far = self.board.now().minus(FAR);
+        let far = self.present().minus(FAR);
         self.board.write(Reg::StartCompare(c), far.0);
         if self.board.read(Reg::StartEvent(c)) == 0 {
             Some(Free(c))
@@ -278,7 +321,7 @@ impl<B: Board> Driver<B> {
     /// The stale end flag is cleared first (no pulse is in progress, so a
     /// set flag is the end compare of a withdrawn Pace coming past).
     #[inline(always)]
-    fn write_end(&mut self, free: Free, end: Micros) {
+    fn write_end(&mut self, free: Free, end: Count) {
         let Free(c) = free;
         self.board.write(Reg::EndEvent(c), 0);
         self.board.write(Reg::EndCompare(c), end.0);
@@ -295,12 +338,35 @@ impl<B: Board> Driver<B> {
 impl<B: Board> Hw for Driver<B> {
     #[inline(always)]
     fn configure(&mut self) -> Result<(), HwFault> {
-        self.board.configure()
+        let configured = self.board.configure();
+        let _ = self.present();
+        // The Partition may be starting again with the timer as the
+        // incarnation before left it (PM23.2, PM28.4): a Pace armed, a
+        // pulse high, or a pulse ended whose report its `pace` Job never
+        // made. Nothing of it is kept: each start compare goes to the far
+        // side of the counter, each pin low, and each event flag clear, so
+        // that no Pace of that incarnation fires or is reported in this one
+        // (reported, it would carry this incarnation's zeroed instant, and
+        // the step would pace again at once: found on the rig, task 17.1).
+        let mut k = 0;
+        #[cfg_attr(creusot, creusot_std::macros::variant(2 - k@))]
+        #[cfg_attr(creusot, creusot_std::macros::invariant(k@ <= 2))]
+        while k < 2 {
+            let c = if k == 0 { Chamber::A } else { Chamber::V };
+            let far = self.present().minus(FAR);
+            self.board.write(Reg::StartCompare(c), far.0);
+            self.board.write(Reg::PaceClear(c), 1);
+            self.board.write(Reg::StartEvent(c), 0);
+            self.board.write(Reg::EndEvent(c), 0);
+            k += 1;
+        }
+        configured
     }
 
     #[inline(always)]
     fn now(&mut self) -> Micros {
-        self.board.now()
+        let _ = self.present();
+        self.state.now
     }
 
     #[inline(always)]
@@ -309,7 +375,9 @@ impl<B: Board> Hw for Driver<B> {
         if self.state.forced[i] {
             return Armed::TooLate;
         }
-        let mut start = start;
+        // The instant as the therapy has it, and as the counter's value.
+        let mut instant = start;
+        let mut start = count_of(start);
         let mut moved = false;
         let mut round = 0;
         // Property P7: the sequence ends within `ROUNDS` rounds.
@@ -327,15 +395,16 @@ impl<B: Board> Hw for Driver<B> {
             // written, and then the start.
             self.write_end(free, start.plus(width));
             self.board.write(Reg::StartCompare(c), start.0);
-            self.state.last_start[i] = start;
+            self.state.last_start[i] = instant;
             self.state.armed[i] = true;
             // Read after the write: if the start is still ahead by the
             // guard, the write was in time and the compare will fire.
-            let now = self.board.now();
+            let now = self.present();
             if start.since(now) >= self.guard as i32 {
-                return Armed::Ok { at: start, moved };
+                return Armed::Ok { at: instant, moved };
             }
             start = now.plus(self.lead);
+            instant = self.extend(start);
             moved = true;
             round += 1;
         }
@@ -344,15 +413,16 @@ impl<B: Board> Hw for Driver<B> {
             Some(free) => free,
             None => return Armed::TooLate,
         };
-        let now = self.board.now();
+        let now = self.present();
         let end = now.plus(self.lead).plus(width);
         self.write_end(free, end);
         self.board.write(Reg::PaceSet(c), 1);
-        self.state.last_start[i] = now;
+        let forced_at = self.state.now;
+        self.state.last_start[i] = forced_at;
         self.state.armed[i] = true;
         self.state.forced[i] = true;
         self.state.late_arms = self.state.late_arms.saturating_add(1);
-        let timed = end.since(self.board.now()) >= self.guard as i32;
+        let timed = end.since(self.present()) >= self.guard as i32;
         if !timed {
             // The end compare may be behind the counter: end the pulse now.
             self.board.write(Reg::PaceClear(c), 1);
@@ -360,7 +430,7 @@ impl<B: Board> Hw for Driver<B> {
             self.state.armed[i] = false;
             self.state.untimed = self.state.untimed.saturating_add(1);
         }
-        Armed::Late { at: now, timed }
+        Armed::Late { at: forced_at, timed }
     }
 
     #[inline(always)]
@@ -382,7 +452,7 @@ impl<B: Board> Hw for Driver<B> {
     fn refresh(&mut self, c: Chamber) {
         let i = c.index();
         if !self.state.armed[i] && !self.state.forced[i] {
-            let far = self.board.now().minus(FAR);
+            let far = self.present().minus(FAR);
             self.board.write(Reg::StartCompare(c), far.0);
         }
     }
@@ -447,7 +517,10 @@ impl<B: Board> Hw for Driver<B> {
             self.board.write(Reg::CountEvent(c), 0);
             self.board.write(Reg::CountCompare(c), n.wrapping_add(STORM_SKIP));
         }
-        let at = Micros(self.board.read(Reg::SenseInstant(c)));
+        // The edge's capture, a counter value just behind the present.
+        let _ = self.present();
+        let captured = Count(self.board.read(Reg::SenseInstant(c)));
+        let at = self.extend(captured);
         let edges = n.wrapping_sub(self.state.counted[i]);
         self.state.counted[i] = n;
         if edges == 0 {

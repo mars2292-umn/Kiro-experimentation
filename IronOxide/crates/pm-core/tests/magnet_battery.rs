@@ -8,17 +8,22 @@ use pm_core::*;
 const V: Chamber = Chamber::V;
 const A: Chamber = Chamber::A;
 
+/// An instant of these tests as a 32-bit number (none is beyond 2^32 µs).
+fn lo(m: Micros) -> u32 {
+    u32::try_from(m.0).expect("an instant below 2^32")
+}
+
 fn go(s: &State, e: Event) -> (State, Arming) {
     let p = *s.params();
     step(&p, s, e)
 }
 
 fn tick(now: u32, magnet: bool, link_up: bool, battery: Battery) -> Event {
-    Event::Tick { now: Micros(now), activity: 0, magnet, battery, link_up }
+    Event::Tick { now: Micros(now as u64), activity: 0, magnet, battery, link_up }
 }
 
 fn paced(c: Chamber, at: u32) -> Event {
-    Event::Paced { chamber: c, at: Micros(at) }
+    Event::Paced { chamber: c, at: Micros(at as u64) }
 }
 
 fn set(mode: Mode, ppm: u32) -> Params {
@@ -32,7 +37,7 @@ fn permanent(p: Params) -> State {
 /// The timing Chamber's next event: its pending Pace, delivered.
 fn next_timing_event(s: &State) -> (State, Arming) {
     let c = s.params().mode.timing_chamber();
-    let due = s.chamber[c.index()].pending.at.0;
+    let due = lo(s.chamber[c.index()].pending.at);
     go(s, paced(c, due))
 }
 
@@ -54,13 +59,13 @@ fn the_magnet_state_paces_the_modes_chambers_asynchronously() {
         assert_eq!((s.params().mode, s.params().lrl), (magnet_mode, 600_000), "{mode:?}");
         // The event that entered the State armed the next Pace at the magnet's rate.
         let c = magnet_mode.timing_chamber();
-        let from = s.chamber[c.index()].last.0;
+        let from = lo(s.chamber[c.index()].last);
         if magnet_mode != Mode::DOO {
             let pace = if c == A { a.atrial } else { a.ventricular };
-            assert_eq!(pace, Pace::At { at: Micros(from + 600_000), width: 400 }, "{mode:?}");
+            assert_eq!(pace, Pace::At { at: Micros(u64::from(from) + 600_000), width: 400 }, "{mode:?}");
         }
         // A Sense changes nothing under the magnet: the Mode senses nothing.
-        let (t, a) = go(&s, Event::Sense { chamber: c, at: Micros(from + 300_000), edges: 1 });
+        let (t, a) = go(&s, Event::Sense { chamber: c, at: Micros(u64::from(from) + 300_000), edges: 1 });
         assert_eq!(a, Arming::NONE, "{mode:?}");
         assert_eq!(t.chamber[c.index()].pending, s.chamber[c.index()].pending);
     }
@@ -78,17 +83,17 @@ fn the_magnet_rate_shows_the_battery_level() {
         let (s, _) = go(&permanent(set(Mode::VVI, 60)), tick(0, true, false, battery));
         let (s, a) = next_timing_event(&s);
         assert_eq!((s.therapy, s.params().lrl), (Therapy::Magnet, interval), "{battery:?}");
-        assert_eq!(a.ventricular, Pace::At { at: Micros(s.chamber[1].last.0 + interval), width: 400 });
+        assert_eq!(a.ventricular, Pace::At { at: Micros(s.chamber[1].last.0 + u64::from(interval)), width: 400 });
     }
     let (s, _) = go(&permanent(set(Mode::VVI, 60)), tick(0, true, false, Battery::Bol));
     let (s, _) = next_timing_event(&s);
-    let now = s.chamber[1].last.0 + 20_000;
+    let now = lo(s.chamber[1].last) + 20_000;
     let (s, _) = go(&s, tick(now, true, false, Battery::Ern));
     assert_eq!((s.params().lrl, s.change_waiting), (600_000, true), "not before a timing event");
     let (s, _) = next_timing_event(&s);
     assert_eq!(s.params().lrl, 666_666);
     // Released: the State before, with its own rate.
-    let (s, _) = go(&s, tick(s.chamber[1].last.0 + 20_000, false, false, Battery::Ern));
+    let (s, _) = go(&s, tick(lo(s.chamber[1].last) + 20_000, false, false, Battery::Ern));
     let (s, a) = next_timing_event(&s);
     assert_eq!((s.therapy, s.params().mode, s.params().lrl), (Therapy::Permanent, Mode::VVI, 1_000_000));
     assert_eq!(a.ventricular, Pace::At { at: Micros(s.chamber[1].last.0 + 1_000_000), width: 400 });
@@ -150,7 +155,7 @@ fn a_depleted_battery_leaves_a_single_chamber_mode() {
             assert_eq!(s.chamber[1].pending.armed, left.paces(V), "{mode:?}");
             assert_eq!(s.chamber[0].pending.armed, left.paces(A), "{mode:?}");
             // The level comes back.
-            let now = s.chamber[left.timing_chamber().index()].last.0 + 20_000;
+            let now = lo(s.chamber[left.timing_chamber().index()].last) + 20_000;
             let (s, _) = go(&s, tick(now, false, false, Battery::Bol));
             let s = if matches!(left.paces, Chambers::None) { s } else { next_timing_event(&s).0 };
             assert_eq!(s.params().mode, mode, "{mode:?} back at BOL");
@@ -178,7 +183,7 @@ fn a_depleted_battery_ends_and_refuses_temporary_pacing() {
         let (s, _) = go(&s, Event::Command(Command::StartTemporary(temp)));
         let (s, _) = next_timing_event(&s);
         assert_eq!((s.therapy, s.params().mode), (Therapy::Temporary, Mode::VOO));
-        let (s, _) = go(&s, tick(s.chamber[1].last.0 + 20_000, false, true, low));
+        let (s, _) = go(&s, tick(lo(s.chamber[1].last) + 20_000, false, true, low));
         assert_eq!((s.therapy, s.change_waiting), (Therapy::Temporary, true));
         let (s, _) = next_timing_event(&s);
         assert_eq!((s.therapy, s.params().mode, s.temporary_wanted), (Therapy::Permanent, Mode::VVI, false), "{low:?}");

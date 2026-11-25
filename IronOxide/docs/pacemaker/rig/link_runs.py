@@ -31,11 +31,10 @@ the bridge through board C's debug probe's serial port.
         last, once the 300 s are over and the Kernel is in its safe state
         (a probe access to a running Application halts it, restarts it and
         clears the mirror), the Kernel's event mirror is read: it must
-        hold one rejected message, reported against `comms`, and before
-        it no event of the Application's. The mirror stops at the first
-        event outside the build's expected set, which that event is, so
-        the restart of `comms` that follows is not in it: the DCM_Stub
-        sees the restart by `link`'s numbering of its frames.
+        hold no event but the end of the Operating_Duration and the safe
+        state. Since 2026-11-24 `link` refuses a set the validation
+        function would refuse, so the refused set of this run is no
+        message to `therapy` and no fault of `comms`.
 
 The record holds each command's own record, the binaries' hashes and the
 pulse generator's counts. Exit 0 when every part passed.
@@ -76,6 +75,13 @@ def sha(path):
 
 
 def probe(sub, board, *rest):
+    # A probe now and then fails to open with a USB transport error and
+    # opens at the next try (seen 2026-11-24).
+    for _ in range(3):
+        out = sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest], check=False)
+        if out.returncode == 0:
+            return out
+        time.sleep(1.0)
     return sh(["probe-rs", sub, "--chip", CHIP, "--probe", board, *rest])
 
 
@@ -225,8 +231,11 @@ def main():
         print(f"Kernel events: {out['kernel_events_summary']}")
         others = [e for e in es if e["name"] not in ("message_rejected", "partition_restart", "operating_end", "safe_state", "debugger")]
         out["kernel_events_summary"]["other_events"] = len(others)
-        out["kernel_events_summary"]["note"] = "the mirror stops at the first event outside the build's expected set: the rejected message"
-        ok = (out["program"]["verdict"] == "PASS" and j.get("verdict") == "PASS" and len(rejected) == 1 and not of_therapy and not others)
+        # Since 2026-11-24 `link` refuses an invalid set itself: no message
+        # is rejected and nothing restarts. (A set that reaches `therapy`
+        # unchecked is e3_faults.py's run of a misbehaving `link`.)
+        ok = (out["program"]["verdict"] == "PASS" and j.get("verdict") == "PASS" and not rejected and not restarts and not of_therapy and not others
+              and [e["name"] for e in es if e["name"] != "debugger"] == ["operating_end", "safe_state"])
     else:
         sh(["cargo", "build", "-q", "-p", "pacemaker", "--release", "--target", TARGET, "--no-default-features", "--features",
             "nrf52840,debug-port,quiet", "--target-dir", "target/pacemaker-link"])
