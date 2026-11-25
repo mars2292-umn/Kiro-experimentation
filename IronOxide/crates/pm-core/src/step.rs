@@ -101,7 +101,8 @@ use crate::params::{interval_of_ppm, Params};
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use crate::state::allowed;
-use crate::state::{Pending, State, Therapy};
+use crate::rate::{fallback_interval, sensor_next, smoothed, interval_of, ATR_COUNT, NOISE_INTERVAL_US};
+use crate::state::{AtrPhase, Pending, State, Therapy};
 use crate::time::Micros;
 
 /// Property P1 as a statement about a state (investigation of 2026-11-24):
@@ -172,11 +173,51 @@ pub fn instant_of(e: Event) -> Micros {
 }
 
 
-/// The escape interval in force: the LRL's (PM9.1).
-#[cfg_attr(creusot, creusot_std::macros::ensures(result == p.lrl))]
+/// For the App_Prover: a parameter set with none of the rate behaviour of
+/// stage E4 (no rate adaptation, no hysteresis, no Rate Smoothing, no
+/// ATR). For such a set the escape interval is the LRL interval and no
+/// Mode switch comes from the step itself; the contracts of Properties P1
+/// and P2 are stated for these sets until task 19.5 restates them.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn plain(p: Params) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! { !p.mode.adaptive && p.hrl@ == 0 && p.rate_smoothing@ == 0 && !p.atr }
+}
+
+/// The escape interval in force at `at` (PM9.1; stage E4: PM15, PM16,
+/// PM14.6): the LRL interval, or the HRL interval after a Sense where
+/// hysteresis is on; the sensor's interval if that is shorter, in a
+/// rate-adaptive Mode; the Fallback interval if that is shorter, in ATR
+/// Fallback; kept within the Rate Smoothing percentage of the cycle
+/// before; and in the end not shorter than the URL interval (the MSR
+/// interval in a rate-adaptive Mode) and not longer than the LRL or HRL
+/// interval it started from.
+#[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) ==> result == p.lrl))]
 #[inline(always)]
-const fn escape(p: &Params) -> u32 {
-    p.lrl
+fn escape(p: &Params, st: &State, at: Micros) -> u32 {
+    let longest = if st.hysteresis_active && p.hrl > p.lrl { p.hrl } else { p.lrl };
+    let mut e = longest;
+    if p.mode.adaptive && st.sensor_known && st.sensor_interval < e {
+        e = st.sensor_interval;
+    }
+    if p.atr && matches!(st.atr.phase, AtrPhase::Fallback) {
+        let f = fallback_interval(p, st.atr.fallback_from, at.elapsed_since(st.atr.fallback_start));
+        if f < e {
+            e = f;
+        }
+    }
+    if p.rate_smoothing != 0 && st.cycle_known {
+        e = smoothed(e, st.last_cycle, p.rate_smoothing);
+    }
+    let shortest = if p.mode.adaptive { p.msr } else { p.url };
+    if e < shortest {
+        e = shortest;
+    }
+    if e > longest {
+        e = longest;
+    }
+    e
 }
 
 /// The AV delay after an atrial Pace (PM11.2 to PM11.4): the Fixed AV
@@ -215,8 +256,8 @@ const fn sensed_av(p: &Params, st: &State) -> u32 {
 /// ventricular event to the atrial Pace, so that the paced AV delay ends
 /// one escape interval after the ventricular event.
 #[inline(always)]
-const fn atrial_escape(p: &Params, st: &State) -> u32 {
-    escape(p).saturating_sub(paced_av(p, st))
+fn atrial_escape(p: &Params, st: &State, at: Micros) -> u32 {
+    escape(p, st, at).saturating_sub(paced_av(p, st))
 }
 
 /// Whether the cycle is the ventricular-based one: the Mode paces the
@@ -271,7 +312,18 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
     ch.last_paced = paced;
     ch.refractory_until = v.plus(p.vrp);
     ch.blanked = false;
-    ch.pending = if p.mode.paces(Chamber::V) { Pending::at(v.plus(escape(p))) } else { Pending::NONE };
+    // A new cycle: noisy until a service after the refractory period is
+    // not (PM13.1).
+    ch.noisy = true;
+    let paces_v = p.mode.paces(Chamber::V);
+    if paces_v {
+        // PM16.1, PM16.2: a Sense in the Chamber that starts the LRL
+        // interval begins hysteresis, a Pace ends it.
+        st.hysteresis_active = !paced && p.hrl != 0 && matches!(p.mode.response, Response::Inhibited | Response::Tracked);
+    }
+    atr_ventricular(p, st, v);
+    let e = escape(p, st, v);
+    st.chamber[Chamber::V.index()].pending = if paces_v { Pending::at(v.plus(e)) } else { Pending::NONE };
     st.atrial_since_ventricular = false;
     if ventricular_based(p) {
         // Property P8: not in two successive cycles.
@@ -282,9 +334,89 @@ fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bo
         let pvarp = if extend { p.pvarp.saturating_add(p.pvarp_extension) } else { p.pvarp };
         st.chamber[Chamber::A.index()].refractory_until = v.plus(pvarp);
         if p.mode.paces(Chamber::A) {
-            let escape = atrial_escape(p, st);
+            let escape = atrial_escape(p, st, v);
             st.chamber[Chamber::A.index()].pending = Pending::at(v.plus(escape));
         }
+    }
+}
+
+/// ATR at a ventricular event (PM14.4, PM14.6 to PM14.8), where the
+/// programmed set has ATR on and a Mode that tracks. ATR Duration counts
+/// the event; when the count is out with the tachycardia still there,
+/// Fallback begins. Fallback ends when the tachycardia has. A change of
+/// phase that changes the Mode in force (to VVIR and back) is marked as a
+/// change waiting, and the Mode changes at the next ventricular event, as
+/// every change of the State machine does.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber == (*st).chamber))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) ==> ^st == *st))]
+#[inline(always)]
+fn atr_ventricular(p: &Params, st: &mut State, v: Micros) {
+    if !p.atr {
+        return;
+    }
+    let tracks = st.own().mode.tracks();
+    if !tracks {
+        st.atr.phase = AtrPhase::Idle;
+        st.atr.counter = 0;
+        return;
+    }
+    match st.atr.phase {
+        AtrPhase::Duration => {
+            st.atr.cycles_left = st.atr.cycles_left.saturating_sub(1);
+            if st.atr.cycles_left == 0 {
+                st.atr.phase = AtrPhase::Fallback;
+                st.atr.fallback_start = v;
+                st.atr.fallback_from = if st.cycle_known { st.last_cycle } else { p.url };
+                st.change_waiting = true;
+            }
+        }
+        AtrPhase::Fallback => {
+            if st.atr.counter == 0 {
+                st.atr.phase = AtrPhase::Idle;
+                st.change_waiting = true;
+            }
+        }
+        AtrPhase::Idle => {}
+    }
+}
+
+/// ATR at an atrial event at `a`, a refractory Sense included (PM14.1 to
+/// PM14.5): the detection counter rises at an atrial interval shorter than
+/// the URL interval and falls at a longer one; at PM-PAR-13 the onset is
+/// detected and ATR Duration begins; at zero the tachycardia has ended,
+/// which ends ATR Duration at once. Returns whether this event is the onset.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy && (^st).chamber == (*st).chamber && (^st).change_waiting == (*st).change_waiting))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
+#[inline(always)]
+fn atr_atrial(st: &mut State, a: Micros) -> bool {
+    let own = *st.own();
+    if !own.atr || !own.mode.tracks() {
+        return false;
+    }
+    if st.atr.seen {
+        if a.elapsed_since(st.atr.last_atrial) < own.url {
+            if st.atr.counter < ATR_COUNT {
+                st.atr.counter += 1;
+            }
+        } else if st.atr.counter > 0 {
+            st.atr.counter -= 1;
+        }
+    }
+    st.atr.seen = true;
+    st.atr.last_atrial = a;
+    match st.atr.phase {
+        AtrPhase::Idle if st.atr.counter >= ATR_COUNT => {
+            st.atr.phase = AtrPhase::Duration;
+            st.atr.cycles_left = own.atr_duration;
+            true
+        }
+        AtrPhase::Duration if st.atr.counter == 0 => {
+            st.atr.phase = AtrPhase::Idle;
+            false
+        }
+        _ => false,
     }
 }
 
@@ -314,6 +446,8 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
     let based = ventricular_based(p);
     let delay = if paced { paced_av(p, st) } else { sensed_av(p, st) };
     let ch = &mut st.chamber[Chamber::A.index()];
+    // The atrial cycle, for an atrial Mode's Rate Smoothing.
+    let cycle = if ch.seen { Some(a.elapsed_since(ch.last)) } else { None };
     ch.seen = true;
     ch.last = a;
     ch.last_paced = paced;
@@ -341,7 +475,17 @@ fn atrial_event(p: &Params, st: &mut State, a: Micros, paced: bool, starts_av: b
         }
     } else {
         ch.refractory_until = a.plus(p.arp);
-        ch.pending = if p.mode.paces(Chamber::A) { Pending::at(a.plus(escape(p))) } else { Pending::NONE };
+        ch.noisy = true;
+        let paces_a = p.mode.paces(Chamber::A);
+        if paces_a {
+            st.hysteresis_active = !paced && p.hrl != 0 && matches!(p.mode.response, Response::Inhibited | Response::Tracked);
+        }
+        if let Some(cycle) = cycle {
+            st.last_cycle = cycle;
+            st.cycle_known = true;
+        }
+        let e = escape(p, st, a);
+        st.chamber[Chamber::A.index()].pending = if paces_a { Pending::at(a.plus(e)) } else { Pending::NONE };
     }
 }
 
@@ -498,10 +642,11 @@ fn tick(p: &Params, st: &mut State, now: Micros) {
     let paces_a = p.mode.paces(Chamber::A);
     if ventricular_based(p) {
         if !st.chamber[Chamber::V.index()].pending.armed {
-            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(escape(p)));
+            let e = escape(p, st, now);
+            st.chamber[Chamber::V.index()].pending = Pending::at(now.plus(e));
             st.atrial_since_ventricular = false;
             if paces_a {
-                let escape = atrial_escape(p, st);
+                let escape = atrial_escape(p, st, now);
                 st.chamber[Chamber::A.index()].pending = Pending::at(now.plus(escape));
             }
         }
@@ -510,13 +655,13 @@ fn tick(p: &Params, st: &mut State, now: Micros) {
         }
     } else {
         st.chamber[Chamber::V.index()].pending = Pending::NONE;
-        let a = &mut st.chamber[Chamber::A.index()];
         if paces_a {
-            if !a.pending.armed {
-                a.pending = Pending::at(now.plus(escape(p)));
+            if !st.chamber[Chamber::A.index()].pending.armed {
+                let e = escape(p, st, now);
+                st.chamber[Chamber::A.index()].pending = Pending::at(now.plus(e));
             }
         } else {
-            a.pending = Pending::NONE;
+            st.chamber[Chamber::A.index()].pending = Pending::NONE;
         }
     }
 }
@@ -578,6 +723,10 @@ const fn asynchronous(m: Mode) -> Mode {
 #[inline(always)]
 fn in_force(st: &State) -> Params {
     let mut p = *st.own();
+    // PM14.6: in ATR Fallback the Mode is VVIR.
+    if p.atr && p.mode.tracks() && matches!(st.atr.phase, AtrPhase::Fallback) {
+        p.mode = Mode::VVI.rate_adaptive();
+    }
     let low = matches!(st.battery_in_force, Battery::Ert | Battery::Erp | Battery::Tripped);
     if low {
         p.mode = depleted(p.mode);
@@ -662,7 +811,12 @@ fn resolve(st: &mut State) {
 fn waiting(st: &State) -> bool {
     let mut t = *st;
     resolve(&mut t);
-    st.staged_valid || t.therapy as u8 != st.therapy as u8 || t.before_magnet as u8 != st.before_magnet as u8 || st.battery as u8 != st.battery_in_force as u8
+    st.staged_valid
+        || t.therapy as u8 != st.therapy as u8
+        || t.before_magnet as u8 != st.before_magnet as u8
+        || st.battery as u8 != st.battery_in_force as u8
+        // ATR Fallback began or ended: the Mode in force is to change.
+        || crate::wire::mode_byte(t.in_force.mode) != crate::wire::mode_byte(st.params().mode)
 }
 
 /// A timing event of `chamber` at `at` at which a change was waiting: the
@@ -701,6 +855,40 @@ fn switched(st: &mut State, chamber: Chamber, at: Micros, paced: bool) -> Params
 #[inline(always)]
 fn is_timing(p: &Params, c: Chamber) -> bool {
     matches!((p.mode.timing_chamber(), c), (Chamber::A, Chamber::A) | (Chamber::V, Chamber::V))
+}
+
+/// A service of `chamber`'s sense line at `at` that reported `edges`
+/// edges, for the noise rule (PM13.1; design, "Sense intake, MIT and
+/// noise"). The service is "close" when it reports more than one edge or
+/// comes within PM-PAR-12 of the service before. A Chamber is noisy for
+/// the cycle while every service since the end of its refractory period
+/// has been close. Returns whether this service finds the cycle noisy: the
+/// Sense is then no Sense. A service in a refractory period is only
+/// recorded (its instant is what the next service is close to or not); a
+/// blanked edge and an edge of a Chamber the Mode does not sense leave
+/// no record.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).therapy == (*st).therapy && (^st).change_waiting == (*st).change_waiting))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[0].pending == (*st).chamber@[0].pending && (^st).chamber@[1].pending == (*st).chamber@[1].pending))]
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[1].seen == (*st).chamber@[1].seen && (^st).chamber@[1].last == (*st).chamber@[1].last))]
+#[inline(always)]
+fn serviced(p: &Params, st: &mut State, chamber: Chamber, at: Micros, edges: u32) -> bool {
+    // A Chamber the Mode does not sense, and a blanked edge, leave no
+    // record: nothing of the state changes for them.
+    if !p.mode.senses(chamber) || blanked(st, chamber, at) {
+        return false;
+    }
+    let ch = st.chamber[chamber.index()];
+    let close = edges > 1 || (ch.serviced && at.elapsed_since(ch.last_service) < NOISE_INTERVAL_US);
+    let counted = !refractory(p, st, chamber, at);
+    let noisy = counted && ch.noisy && close;
+    let c = &mut st.chamber[chamber.index()];
+    c.serviced = true;
+    c.last_service = at;
+    if counted {
+        c.noisy = noisy;
+    }
+    noisy
 }
 
 /// A Sense of `chamber` at `at`, applied to the accounted state `before`.
@@ -818,6 +1006,9 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
             let mut st = *s;
             // The other Chamber's Pace, if it was due by now.
             account(p, &mut st, chamber.other(), at);
+            if matches!(chamber, Chamber::A) {
+                let _ = atr_atrial(&mut st, at);
+            }
             let before = st;
             let ch = st.chamber[chamber.index()];
             // A Pace the state no longer had pending at this instant: a
@@ -858,9 +1049,22 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
             set_marker(&mut out, chamber, Marker::Pace { fused: !expected }, at);
             (st, out)
         }
-        Event::Sense { chamber, at, edges: _ } => {
-            // Property P3 is stated on `sense`, against this state.
-            let before = accounted(p, s, at);
+        Event::Sense { chamber, at, edges } => {
+            // Property P3 is stated on `sense`, against this state: the
+            // accounted one, with what every service of a sense line
+            // records whatever comes of it (the atrial interval for ATR,
+            // the service for the noise rule).
+            let mut before = accounted(p, s, at);
+            let onset = matches!(chamber, Chamber::A) && atr_atrial(&mut before, at);
+            if serviced(p, &mut before, chamber, at, edges) {
+                // PM13.1, PM13.2: a noisy cycle. The pending Pace stays
+                // where it is, whatever was sensed: asynchronous pacing.
+                set_marker(&mut out, chamber, Marker::Noise, at);
+                return (before, out);
+            }
+            if onset {
+                out.markers.augmentation = Some((Marker::AtrialTachy, at));
+            }
             if before.change_waiting && is_timing(p, chamber) && p.mode.senses(chamber) && !blanked(&before, chamber, at) && !refractory(p, &before, chamber, at) {
                 // The State machine: the change in force from this Sense.
                 let mut st = before;
@@ -869,11 +1073,26 @@ pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {
                 set_marker(&mut out, chamber, Marker::Sense { refractory: false }, at);
                 return (st, out);
             }
-            sense(p, &before, chamber, at)
+            let (st, mut sensed) = sense(p, &before, chamber, at);
+            if onset && sensed.markers.augmentation.is_none() {
+                sensed.markers.augmentation = out.markers.augmentation;
+            }
+            (st, sensed)
         }
-        Event::Tick { now, magnet, link_up, battery, .. } => {
+        Event::Tick { now, magnet, link_up, battery, activity } => {
             let before = accounted(p, s, now);
             let mut st = before;
+            // PM15: the sensor rate, one step per period, in a
+            // rate-adaptive Mode; it is in force from the next event that
+            // starts an escape interval.
+            if p.mode.adaptive {
+                let from = if st.sensor_known { st.sensor_rate } else { 0 };
+                st.sensor_rate = sensor_next(p, from, activity);
+                st.sensor_interval = interval_of(st.sensor_rate);
+                st.sensor_known = true;
+            } else {
+                st.sensor_known = false;
+            }
             // The inputs of the State machine, and whether they ask for a
             // change: it comes into force at the next timing event.
             st.magnet = magnet;

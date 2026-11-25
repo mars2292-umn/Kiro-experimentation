@@ -29,6 +29,7 @@ pub mod frame;
 pub mod wire;
 mod mode;
 mod params;
+pub mod rate;
 mod state;
 mod step;
 mod time;

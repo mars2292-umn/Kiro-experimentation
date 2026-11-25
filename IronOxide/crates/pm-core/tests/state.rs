@@ -39,9 +39,10 @@ fn the_power_on_reset_state_is_all_zero() {
         atr,
         sensor_known,
         sensor_interval,
+        sensor_rate,
         reserved,
     } = State::POWER_ON_RESET;
-    assert_eq!(reserved, [0; 6]);
+    assert_eq!(reserved, [0; 2]);
     assert_eq!(therapy as u8, 0);
     assert_eq!(before_magnet as u8, 0);
     assert!(!programmed && !change_waiting && !cycle_known && !hysteresis_active);
@@ -51,9 +52,12 @@ fn the_power_on_reset_state_is_all_zero() {
     assert!(!magnet_off && !in_force_valid);
     assert_eq!(in_force, Params::ZERO);
     assert!(!atrial_since_ventricular && !pvarp_extended && !pvarp_extended_last_cycle && !sensor_known);
-    assert_eq!((last_cycle, sensor_interval), (0, 0));
+    assert_eq!((last_cycle, sensor_interval, sensor_rate), (0, 0, 0));
     assert_eq!(atr.phase as u8, 0);
-    assert_eq!((atr.counter, atr.cycles_left, atr.fallback_start), (0, 0, Micros(0)));
+    let Atr { phase: _, counter, seen: atr_seen, reserved: atr_reserved, cycles_left, fallback_from, fallback_start, last_atrial } = atr;
+    assert_eq!((counter, cycles_left, fallback_from, fallback_start, last_atrial), (0, 0, 0, Micros(0), Micros(0)));
+    assert!(!atr_seen);
+    assert_eq!(atr_reserved, [0; 7]);
     for c in chamber {
         let ChamberState {
             seen,

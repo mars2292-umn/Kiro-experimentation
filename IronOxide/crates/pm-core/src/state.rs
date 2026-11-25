@@ -128,12 +128,20 @@ pub struct Atr {
     pub phase: AtrPhase,
     /// The detection counter of PM14.1, 0 to PM-PAR-13.
     pub counter: u8,
+    /// Whether an atrial event has been seen: `last_atrial` is then its
+    /// instant.
+    pub seen: bool,
+    /// Always zero (no padding byte).
+    pub reserved: [u8; 7],
     /// Cardiac cycles left of ATR Duration.
     pub cycles_left: u16,
+    /// The cardiac cycle at which Fallback began: the rate Fallback lowers.
+    pub fallback_from: u32,
     /// The instant Fallback began, valid in the Fallback phase.
     pub fallback_start: Micros,
-    /// Always zero (no padding byte).
-    pub reserved: [u8; 4],
+    /// The instant of the last atrial event, refractory Senses included:
+    /// the detection counter is of the intervals between them.
+    pub last_atrial: Micros,
 }
 
 /// Everything the step function carries. The all-zero value is the Power-On
@@ -195,8 +203,10 @@ pub struct State {
     /// The sensor-indicated interval, valid when `sensor_known`.
     pub sensor_known: bool,
     pub sensor_interval: u32,
+    /// The sensor rate in µppm (`rate`), valid when `sensor_known`.
+    pub sensor_rate: u32,
     /// Always zero (no padding byte: see `Params::reserved`).
-    pub reserved: [u8; 6],
+    pub reserved: [u8; 2],
 }
 
 /// The timing state of a Chamber with no event yet: all zero.
@@ -241,10 +251,11 @@ impl State {
         atrial_since_ventricular: false,
         pvarp_extended: false,
         pvarp_extended_last_cycle: false,
-        atr: Atr { phase: AtrPhase::Idle, counter: 0, cycles_left: 0, fallback_start: Micros(0), reserved: [0; 4] },
+        atr: Atr { phase: AtrPhase::Idle, counter: 0, seen: false, reserved: [0; 7], cycles_left: 0, fallback_from: 0, fallback_start: Micros(0), last_atrial: Micros(0) },
         sensor_known: false,
         sensor_interval: 0,
-        reserved: [0; 6],
+        sensor_rate: 0,
+        reserved: [0; 2],
     };
 
     /// The parameters in force (PM6.2, PM6.3, PM6.5, PM7.1). The Magnet

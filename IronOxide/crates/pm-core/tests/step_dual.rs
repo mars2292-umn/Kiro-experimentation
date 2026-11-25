@@ -11,6 +11,19 @@ const A: Chamber = Chamber::A;
 const V: Chamber = Chamber::V;
 
 /// An instant of these tests as a 32-bit number (none is beyond 2^32 µs).
+/// A state without its record of the sense lines' services. Since stage E4
+/// every service of a sensed Chamber is recorded for the noise rule
+/// (PM13.1), a refractory Sense included; Property P3 is that nothing else
+/// of the state changes. (Until then these tests compared whole states.)
+fn timing(s: &State) -> State {
+    let mut t = *s;
+    for c in &mut t.chamber {
+        c.serviced = false;
+        c.last_service = Micros(0);
+    }
+    t
+}
+
 fn lo(m: Micros) -> u32 {
     u32::try_from(m.0).expect("an instant below 2^32")
 }
@@ -132,7 +145,7 @@ fn ddd_tracks_the_atrium_and_is_inhibited_by_the_ventricle() {
     let (t, a) = step(&p, &s, sense(A, 700_000));
     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
     assert_eq!(a.markers.atrial, refractory(700_000));
-    assert_eq!(t, s, "Property P3");
+    assert_eq!(timing(&t), timing(&s), "Property P3");
 
     let (s, a) = step(&p, &s, paced(V, 750_000));
     assert_eq!((a.atrial, a.ventricular), (at(1_600_000), at(1_750_000)));
@@ -145,7 +158,7 @@ fn ddd_tracks_the_atrium_and_is_inhibited_by_the_ventricle() {
     let (t, a) = step(&p, &s, sense(V, 1_300_000));
     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
     assert_eq!(a.markers.ventricular, refractory(1_300_000));
-    assert_eq!(t, s, "Property P3");
+    assert_eq!(timing(&t), timing(&s), "Property P3");
 
     // No atrial activity: the atrial Pace, then the AV delay. An atrial
     // Sense in it is a Refractory sense; a ventricular Sense in it (the
@@ -154,7 +167,7 @@ fn ddd_tracks_the_atrium_and_is_inhibited_by_the_ventricle() {
     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
     let (t, a) = step(&p, &s, sense(A, 2_100_000));
     assert_eq!(a.markers.atrial, refractory(2_100_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
     let (s, a) = step(&p, &s, sense(V, 2_150_000));
     assert_eq!((a.atrial, a.ventricular), (at(3_000_000), at(3_150_000)));
     let _ = s;
@@ -199,7 +212,7 @@ fn ddi_inhibits_the_atrial_pace_and_does_not_track() {
     // A second atrial Sense before the ventricular event changes nothing.
     let (t, a) = step(&p, &s, sense(A, 800_000));
     assert_eq!(a.markers.atrial, refractory(800_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 
     let (s, a) = step(&p, &s, paced(V, 1_000_000));
     assert_eq!((a.atrial, a.ventricular), (at(1_850_000), at(2_000_000)));
@@ -312,7 +325,7 @@ fn aat_paces_at_once_after_a_sense() {
     let (t, a) = step(&p, &s, sense(A, 600_300));
     assert_eq!(a.markers.atrial, refractory(600_300));
     assert_eq!(a.atrial, Pace::Keep);
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 
     let (s, a) = step(&p, &s, paced(A, 600_700));
     assert_eq!(a.atrial, at(1_600_700));
@@ -320,7 +333,7 @@ fn aat_paces_at_once_after_a_sense() {
 
     let (t, a) = step(&p, &s, sense(A, 700_000));
     assert_eq!(a.markers.atrial, refractory(700_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
     // The ventricle is not sensed.
     let (t, a) = step(&p, &s, sense(V, 900_000));
     assert_eq!(a, Arming::NONE);
@@ -352,7 +365,7 @@ fn vvt_paces_at_once_after_a_sense() {
     // The VRP runs from the Pace: to 920,700.
     let (t, a) = step(&p, &s, sense(V, 900_000));
     assert_eq!(a.markers.ventricular, refractory(900_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
     let (_, a) = step(&p, &s, sense(V, 950_000));
     assert_eq!(a.ventricular, at(950_000));
 }
@@ -537,7 +550,7 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
             match m {
                 Some((Marker::Sense { refractory: true }, _)) => {
                     // Property P3.
-                    assert_eq!(t, before, "{mode:?} seed {seed}");
+                    assert_eq!(timing(&t), timing(&before), "{mode:?} seed {seed}");
                     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
                     met.refractory += 1;
                 }
@@ -556,6 +569,14 @@ fn run(mode: Mode, seed: u64, events: usize) -> Met {
                     assert_eq!(t, before);
                     assert_eq!(a, Arming::NONE);
                     met.blanked += 1;
+                }
+                // PM13.1 (stage E4): an edge within PM-PAR-12 of the one
+                // before it, with none further apart since the refractory
+                // period, is noise: nothing is armed or withdrawn.
+                Some((Marker::Noise, _)) => {
+                    assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep), "{mode:?} seed {seed}");
+                    assert_eq!(t.chamber[0].pending, before.chamber[0].pending);
+                    assert_eq!(t.chamber[1].pending, before.chamber[1].pending);
                 }
                 None => {}
                 other => panic!("{other:?}"),

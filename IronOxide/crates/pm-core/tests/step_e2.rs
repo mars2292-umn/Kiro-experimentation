@@ -11,6 +11,19 @@ use pm_core::*;
 const A: Chamber = Chamber::A;
 const V: Chamber = Chamber::V;
 
+/// A state without its record of the sense lines' services. Since stage E4
+/// every service of a sensed Chamber is recorded for the noise rule
+/// (PM13.1), a refractory Sense included; Property P3 is that nothing else
+/// of the state changes. (Until then these tests compared whole states.)
+fn timing(s: &State) -> State {
+    let mut t = *s;
+    for c in &mut t.chamber {
+        c.serviced = false;
+        c.last_service = Micros(0);
+    }
+    t
+}
+
 fn params(mode: Mode) -> Params {
     Params { mode, ..Params::NOMINAL }
 }
@@ -165,7 +178,7 @@ fn an_atrial_rate_above_the_url_is_tracked_no_faster_than_the_url() {
     let (t, a) = step(&p, &s, sense(A, 900_000));
     assert_eq!(a.markers.atrial, refractory(900_000));
     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 
     // AS + AV is past the URL interval's end (1,250,000): not delayed.
     let (s, a) = step(&p, &s, sense(A, 1_300_000));
@@ -211,7 +224,7 @@ fn a_pvc_extends_the_pvarp_in_at_most_one_cycle_of_two() {
 
     let (t, a) = step(&p, &s, sense(A, 1_200_000));
     assert_eq!(a.markers.atrial, refractory(1_200_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 
     // No atrial event since the ventricular Pace: a PVC.
     let (s, a) = step(&p, &s, sense(V, 1_400_000));
@@ -221,7 +234,7 @@ fn a_pvc_extends_the_pvarp_in_at_most_one_cycle_of_two() {
     assert!(s.pvarp_extended && !s.pvarp_extended_last_cycle);
     let (t, a) = step(&p, &s, sense(A, 1_700_000));
     assert_eq!(a.markers.atrial, refractory(1_700_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 
     // A Refractory sense is no atrial event: the next ventricular Sense is
     // a PVC as well, and its PVARP is the programmed one.
@@ -242,7 +255,7 @@ fn a_pvc_extends_the_pvarp_in_at_most_one_cycle_of_two() {
     assert!(s.pvarp_extended);
     let (t, a) = step(&p, &s, sense(A, 3_000_000));
     assert_eq!(a.markers.atrial, refractory(3_000_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
 }
 
 /// With PVARP Extension off a PVC is marked and the PVARP is the
@@ -337,7 +350,7 @@ fn a_parameter_is_read_only_in_the_modes_the_table_gives_it_to() {
     assert!(s.pvarp_extended);
     let (t, a) = step(&p, &s, sense(A, 1_900_000));
     assert_eq!(a.markers.atrial, refractory(1_900_000));
-    assert_eq!(t, s);
+    assert_eq!(timing(&t), timing(&s));
     let (_, a) = step(&p, &s, sense(A, 2_000_000));
     assert_eq!(a.ventricular, at(2_090_000), "the paced delay: VDD has no offset");
 

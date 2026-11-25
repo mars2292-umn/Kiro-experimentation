@@ -13,6 +13,19 @@ fn params(mode: Mode) -> Params {
     Params { mode, ..Params::NOMINAL }
 }
 
+/// A state without its record of the sense lines' services. Since stage E4
+/// every service of a sensed Chamber is recorded for the noise rule
+/// (PM13.1), a refractory Sense included; Property P3 is that nothing else
+/// of the state changes. (Until then these tests compared whole states.)
+fn timing(s: &State) -> State {
+    let mut t = *s;
+    for c in &mut t.chamber {
+        c.serviced = false;
+        c.last_service = Micros(0);
+    }
+    t
+}
+
 fn tick(now: u32) -> Event {
     Event::Tick { now: Micros(now as u64), activity: 0, magnet: false, battery: Battery::Bol, link_up: false }
 }
@@ -110,12 +123,15 @@ fn vvi_is_inhibited_by_a_sense_outside_the_vrp_only() {
     let (s, a) = step(&p, &before, sense(Chamber::V, 800_000));
     assert_eq!((a.atrial, a.ventricular), (Pace::Keep, Pace::Keep));
     assert_eq!(a.markers.ventricular, Some((Marker::Sense { refractory: true }, Micros(800_000))));
-    assert_eq!(s, before);
-    let (s, a) = step(&p, &s, sense(Chamber::V, 919_999));
+    assert_eq!(timing(&s), timing(&before));
+    let (late, a) = step(&p, &s, sense(Chamber::V, 919_999));
     assert_eq!(a.ventricular, Pace::Keep);
-    assert_eq!(s, before);
+    assert_eq!(timing(&late), timing(&before));
 
-    // The VRP ends at 920,000 exactly.
+    // The VRP ends at 920,000 exactly. (The Sense follows the refractory
+    // one at 800,000, 120 ms before it: since stage E4 an edge within
+    // 100 ms of the one before it, as one at 920,000 after one at 919,999
+    // would be, is noise; `rate.rs` tests that.)
     let (s, a) = step(&p, &s, sense(Chamber::V, 920_000));
     assert_eq!(a.ventricular, at(1_920_000, 400));
 
@@ -127,7 +143,7 @@ fn vvi_is_inhibited_by_a_sense_outside_the_vrp_only() {
     // A Pace starts the VRP as well.
     let (s2, a) = step(&p, &s, sense(Chamber::V, 2_239_999));
     assert_eq!(a.ventricular, Pace::Keep);
-    assert_eq!(s2, s);
+    assert_eq!(timing(&s2), timing(&s));
     // An atrial edge is not sensed in VVI.
     let (s2, a) = step(&p, &s, sense(Chamber::A, 2_500_000));
     assert_eq!(a, Arming::NONE);
@@ -153,7 +169,7 @@ fn aai_is_inhibited_by_a_sense_outside_the_arp_only() {
     let (s2, a) = step(&p, &s, sense(Chamber::A, 949_999));
     assert_eq!(a.atrial, Pace::Keep);
     assert_eq!(a.markers.atrial, Some((Marker::Sense { refractory: true }, Micros(949_999))));
-    assert_eq!(s2, s);
+    assert_eq!(timing(&s2), timing(&s));
     let (s, a) = step(&p, &s, sense(Chamber::A, 950_000));
     assert_eq!(a.atrial, at(1_950_000, 400));
     // A ventricular edge is not sensed in AAI.
@@ -302,6 +318,7 @@ struct Tally {
     accounted: u64,
     refractory: u64,
     inhibitions: u64,
+    noise: u64,
 }
 
 /// One generated run: a heart producing edges, the compares firing by
@@ -427,12 +444,22 @@ fn run(seed: u64, tally: &mut Tally) {
                     // state is the one the Sense found.
                     tally.refractory += 1;
                     assert_eq!((arming.atrial, arming.ventricular), (Pace::Keep, Pace::Keep), "seed {seed}");
-                    assert_eq!(after, settled, "seed {seed}");
+                    assert_eq!(timing(&after), timing(&settled), "seed {seed}");
                 }
                 Some((Marker::Sense { refractory: false }, _)) => {
                     assert!(p.mode.senses(chamber));
                     happened[chamber.index()].push(abs(now, instant));
                     tally.inhibitions += 1;
+                }
+                // PM13.1 (stage E4): edges closer than PM-PAR-12 since the
+                // refractory period are noise: nothing armed or withdrawn,
+                // and nothing of the timing changes.
+                Some((Marker::Noise, _)) => {
+                    tally.noise += 1;
+                    assert_eq!((arming.atrial, arming.ventricular), (Pace::Keep, Pace::Keep), "seed {seed}");
+                    let mut expected = timing(&settled);
+                    expected.chamber[chamber.index()].noisy = after.chamber[chamber.index()].noisy;
+                    assert_eq!(timing(&after), expected, "seed {seed}");
                 }
                 None => assert!(!p.mode.senses(chamber), "seed {seed}"),
                 other => panic!("seed {seed}: {other:?}"),
@@ -489,7 +516,7 @@ fn run(seed: u64, tally: &mut Tally) {
 
 #[test]
 fn generated_runs_keep_properties_p2_p3_and_p9() {
-    let mut tally = Tally { steps: 0, paces: 0, fusions: 0, accounted: 0, refractory: 0, inhibitions: 0 };
+    let mut tally = Tally { steps: 0, paces: 0, fusions: 0, accounted: 0, refractory: 0, inhibitions: 0, noise: 0 };
     for seed in 1..=400 {
         run(seed, &mut tally);
     }
