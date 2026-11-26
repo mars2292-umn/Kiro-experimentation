@@ -193,6 +193,11 @@ unwind, and kept by a dispatch vector and a supervisor call), and
 start's frame, the floating-point access; over `HSpec2`). BASEPRI over an
 interrupt entry is not proven in Lean.
 
+`lean/Sched/Plan.lean` (2026-11-26) proves the contracts of `plan.rs` on
+the extracted functions (`frame_in_stack`, `plan_frame`, `compare_target`,
+`top_active`) and that the Endpoint storage keeps every word between two
+entries.
+
 Since 2026-11-17 no transition of the run is modelled by hand: each one
 that changes the Kernel's state carries the extracted function's result.
 `lean/Sched/Endpoint.lean` reads the Endpoint entry cores and `Bound`'s
@@ -342,6 +347,29 @@ D='crate::arch::cm4::drivers'
     --dest-file /tmp/drivers.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest /tmp/drivers-out /tmp/drivers.llbc
 cp /tmp/drivers-out/Drivers.lean ../../proofs/aeneas/lean/Hw/Drivers.lean
+```
+
+`lean/Hw/TimeBase.lean` (2026-11-26) is the Aeneas translation of
+`ArchState::extend` (`crates/rsk-kernel/src/arch/cm4/plan.rs`), the wrap
+extension of the 32-bit counter, which the Kernel's translation does not
+reach. `lean/Hw/TimeBaseProofs.lean` (handwritten) proves its contract,
+the induction over a sequence of readings, and that `timer0::now` over the
+register model returns the true instant. Charon does not take an inherent
+method as a start, so the start is the module, with the constructor (its
+ghost fields are closures) and the functions already in
+`lean/Sched/Kernel.lean` left out:
+
+```sh
+cd crates/rsk-kernel
+P='crate::arch::cm4::plan'
+../../../aeneas/charon/bin/charon cargo --preset=aeneas --start-from "$P" \
+    --include 'verus_builtin::Ghost' --include 'vstd::seq::Seq' \
+    --include 'verus_builtin::Tracked' --include 'rsk_logic::logic::endpoint::_' \
+    --exclude "$P::_::new" --exclude "$P::top_active" --exclude "$P::frame_in_stack" \
+    --exclude "$P::plan_frame" --exclude "$P::compare_target" \
+    --dest-file /tmp/extend.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/extend-out /tmp/extend.llbc
+cp /tmp/extend-out/Extend.lean ../../proofs/aeneas/lean/Hw/TimeBase.lean
 ```
 
 ## The Generator's arithmetic and the Config_Checker's core (Verification_Plan, 2026-11-18)

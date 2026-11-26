@@ -3566,3 +3566,34 @@ find = "    (hap : ai.apply h0 (arch.cm4.entry.Action.SetBasepri 0#u8) = ok h1) 
 replace = "    (hap : ai.apply h0 (arch.cm4.entry.Action.SetBasepri 0#u8) = ok h1) (hb : True) :\n"
 expect = ["Sched/ArchHwA1.lean"]
 prover = "lean"
+
+# 2026-11-26, later: three rows of the Verus-only table proven in Lean
+# (the time base's wrap extension, dispatch planning, the Endpoint storage
+# between entries).
+
+[[mutation]]
+id = "lean-counter-reading-any-distance-after-the-last"
+kills = "extend_spec, extends_true, now_true (Hw/TimeBaseProofs.lean, 2026-11-26; HW-12, DD-05, R9.5): the extension returns the true instant because the reading follows the one before by less than one counter period; without that bound a reading two periods later has the same low bits and the result is not the true instant"
+file = "proofs/aeneas/lean/Hw/TimeBaseProofs.lean"
+find = "  previous ≤ at_ ∧ at_ < previous + counterPeriod ∧ at_ < 0x1_0000_0000_0000_0000 ∧\n"
+replace = "  previous ≤ at_ ∧ True ∧ at_ < 0x1_0000_0000_0000_0000 ∧\n"
+expect = ["Hw/TimeBaseProofs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-frame-in-stack-by-its-first-byte"
+kills = "frame_in_stack_spec, plan_frame_some (Sched/Plan.lean, 2026-11-26; R16.5): the frame lies inside the stack region because its last byte, not only its first, is below the region's end; with the frame's size dropped from the statement the code's check is not the statement"
+file = "proofs/aeneas/lean/Sched/Plan.lean"
+find = "def frameInStack (psp bottom top : Nat) : Prop := bottom ≤ psp ∧ psp + frameBytes ≤ top\n"
+replace = "def frameInStack (psp bottom top : Nat) : Prop := bottom ≤ psp ∧ psp ≤ top\n"
+expect = ["Sched/Plan.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-endpoint-storage-past-the-kernel-ram"
+kills = "storage_kept_between_entries (Sched/Plan.lean, 2026-11-26; R16.1 for R39): the Endpoint storage keeps every word while a Job runs because it ends inside the Kernel's RAM; without the upper bound a word of it may lie in memory a Partition may write"
+file = "proofs/aeneas/lean/Sched/Plan.lean"
+find = "    (hhi : base.val + total.val ≤ l.kernel_ram.base.val + isz l.kernel_ram) :\n"
+replace = "    (hhi : True) :\n"
+expect = ["Sched/Plan.lean"]
+prover = "lean"
