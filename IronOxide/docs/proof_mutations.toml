@@ -3526,3 +3526,43 @@ find = "def QuietAct : arch.cm4.entry.Action → Prop\n  | .PrimaskSet => False\
 replace = "def QuietAct : arch.cm4.entry.Action → Prop\n  | .PrimaskSet => False\n  | .PrimaskClear => True\n"
 expect = ["Sched/ArchHw.lean"]
 prover = "lean"
+
+# 2026-11-26: the remainders of the three rows first proven in Lean on
+# 2026-11-25 (Health_Monitor, hardware model, entry cores over the
+# hardware model).
+
+[[mutation]]
+id = "lean-response-resets-any-budget-account"
+kills = "reset_bu_c, clear_loop_bu, apply_response_bu (Sched/ContainMore.lean, 2026-11-26; R14.9): a response leaves the Budget account of every Task outside its Partition because the only account it empties is of a Task of the Partition; without that the account emptied may be another Partition's"
+file = "proofs/aeneas/lean/Sched/ContainMore.lean"
+find = "    (htc : cfg.tasks.index_usize t = ok tc) (hp : tc.partition = partition) :\n    BU"
+replace = "    (htc : cfg.tasks.index_usize t = ok tc) (hp : True) :\n    BU"
+expect = ["Sched/ContainMore.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-mpu-write-granted-without-the-write-bit"
+kills = "mpu_grant_covered, hw_partition_isolation, hw_write_isolation (Sched/HwMore.lean, 2026-11-26; HW-09, Property 12): a write the MPU grants lies in the Partition's writable memory because the deciding region must be writable; granting a write on any deciding region, a write to read-only memory would be granted"
+file = "proofs/aeneas/lean/Sched/HwMore.lean"
+find = "    | .write => (v.regions.val[r]!).write = true\n"
+replace = "    | .write => True\n"
+expect = ["Sched/HwMore.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-boot-disable-action-enables-the-line"
+kills = "boot_vectors_loop_ok, boot_vectors_ok (Sched/ArchHwBoot.lean, 2026-11-26; R19.5): an unbound line is disabled after the start because the Disable action clears the line's enable bit in the model; were it to set the bit, the unbound line would be left enabled"
+file = "proofs/aeneas/lean/Sched/ArchHwBoot.lean"
+find = "  | .Disable n => { h with enabled := fun x => if x = n.val then false else h.enabled x }\n"
+replace = "  | .Disable n => { h with enabled := fun x => if x = n.val then true else h.enabled x }\n"
+expect = ["Sched/ArchHwBoot.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-a1-zero-after-any-basepri-write"
+kills = "a1_zero, epilogue_core_a1 (Sched/ArchHwA1.lean, 2026-11-26; A1, DD-01): an unwind that ends in the safe state leaves BASEPRI at 0 because BASEPRI is not written after the write of 0; without the frame after the write the value at the return is not known"
+file = "proofs/aeneas/lean/Sched/ArchHwA1.lean"
+find = "    (hap : ai.apply h0 (arch.cm4.entry.Action.SetBasepri 0#u8) = ok h1) (hb : HB hv hw' h1) :\n"
+replace = "    (hap : ai.apply h0 (arch.cm4.entry.Action.SetBasepri 0#u8) = ok h1) (hb : True) :\n"
+expect = ["Sched/ArchHwA1.lean"]
+prover = "lean"

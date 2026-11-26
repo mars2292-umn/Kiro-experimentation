@@ -37,10 +37,9 @@ statement of the form "if the function returns":
   top and that Task's Partition, and then that Partition's declared fault
   response applied.
 
-Not here, proven in Verus only: that the Budget accounts and the timer
-slots of the other Partitions' Tasks are left (the accounts' and the
-slots' own invariants are in `Sched/Overrun.lean` and `Sched/Slots.lean`,
-not this frame); that the System_Ceiling does not rise. The timing state
+In `Sched/ContainMore.lean` since 2026-11-26: that the System_Ceiling
+does not rise and that the Budget accounts of the other Partitions' Tasks
+are left. Proven in Verus only: that their timer slots are left. The timing state
 under a response is in `Sched/SpFrame.lean` and `Sched/MaskFrame.lean`. -/
 
 namespace P18
@@ -514,14 +513,14 @@ theorem FL.trans {p : Nat} {a b c : Array Bool NP × Array U32 NP × Array Bool 
   obtain ⟨b1, b2, b3, b4⟩ := h2 q hq
   exact ⟨b1.trans a1, b2.trans a2, b3.trans a3, b4.trans a4⟩
 
-theorem set_other {α} [Inhabited α] {n : Usize} {v a : Array α n} {partition : U8} {x : α}
+theorem flag_other {α} [Inhabited α] {n : Usize} {v a : Array α n} {partition : U8} {x : α}
     (h : v.update (UScalar.cast .Usize partition) x = ok a) (q : Nat) (hq : q ≠ partition.val) :
     a.val[q]! = v.val[q]! := by
   obtain ⟨hb, rfl⟩ := update_ok h
   rw [get_set _ _ _ _ hb, U8.cast_Usize_val_eq]
   simp only [hq, ite_false]
 
-theorem set_self {α} [Inhabited α] {n : Usize} {v a : Array α n} {partition : U8} {x : α}
+theorem flag_self {α} [Inhabited α] {n : Usize} {v a : Array α n} {partition : U8} {x : α}
     (h : v.update (UScalar.cast .Usize partition) x = ok a) : a.val[partition.val]! = x := by
   obtain ⟨hb, rfl⟩ := update_ok h
   rw [get_set _ _ _ _ hb, U8.cast_Usize_val_eq]
@@ -529,19 +528,19 @@ theorem set_self {α} [Inhabited α] {n : Usize} {v a : Array α n} {partition :
 
 theorem FL.set1 {partition : U8} {s a : Array Bool NP} {m : Array U32 NP} {r d : Array Bool NP}
     {x : Bool} (h : s.update (UScalar.cast .Usize partition) x = ok a) :
-    FL partition.val (s, m, r, d) (a, m, r, d) := fun q hq => ⟨set_other h q hq, rfl, rfl, rfl⟩
+    FL partition.val (s, m, r, d) (a, m, r, d) := fun q hq => ⟨flag_other h q hq, rfl, rfl, rfl⟩
 
 theorem FL.set2 {partition : U8} {s : Array Bool NP} {m a : Array U32 NP} {r d : Array Bool NP}
     {x : U32} (h : m.update (UScalar.cast .Usize partition) x = ok a) :
-    FL partition.val (s, m, r, d) (s, a, r, d) := fun q hq => ⟨rfl, set_other h q hq, rfl, rfl⟩
+    FL partition.val (s, m, r, d) (s, a, r, d) := fun q hq => ⟨rfl, flag_other h q hq, rfl, rfl⟩
 
 theorem FL.set3 {partition : U8} {s : Array Bool NP} {m : Array U32 NP} {r a d : Array Bool NP}
     {x : Bool} (h : r.update (UScalar.cast .Usize partition) x = ok a) :
-    FL partition.val (s, m, r, d) (s, m, a, d) := fun q hq => ⟨rfl, rfl, set_other h q hq, rfl⟩
+    FL partition.val (s, m, r, d) (s, m, a, d) := fun q hq => ⟨rfl, rfl, flag_other h q hq, rfl⟩
 
 theorem FL.set4 {partition : U8} {s : Array Bool NP} {m : Array U32 NP} {r d a : Array Bool NP}
     {x : Bool} (h : d.update (UScalar.cast .Usize partition) x = ok a) :
-    FL partition.val (s, m, r, d) (s, m, r, a) := fun q hq => ⟨rfl, rfl, rfl, set_other h q hq⟩
+    FL partition.val (s, m, r, d) (s, m, r, a) := fun q hq => ⟨rfl, rfl, rfl, flag_other h q hq⟩
 
 syntax "fl_step" : tactic
 macro_rules | `(tactic| fl_step) => `(tactic| exact FL.refl _ _)
@@ -801,7 +800,7 @@ theorem clear_partition_releases_dma {k k' : logic.kernel.Kernel NT NR NP NL NS 
   peel h
   rename_i k1 hk1 a ha
   dsimp only
-  exact set_self ha
+  exact flag_self ha
 
 theorem end_partition_jobs_dma {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     {cfg : logic.Config NT NR NP} {partition : U8}
@@ -821,7 +820,7 @@ theorem stop_partition_flags {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
   peel h
   rename_i k1 hp k2 he a ha
   dsimp only
-  exact ⟨set_self ha, end_partition_jobs_dma he⟩
+  exact ⟨flag_self ha, end_partition_jobs_dma he⟩
 
 /-- **A restarted Partition has its re-initialization and its EasyDMA stop
 requested and its MIT_Violation count at 0** (R14.5, R10.4). -/
@@ -834,7 +833,7 @@ theorem restart_partition_flags {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
   peel h
   rename_i k1 hp k2 he a ha a1 ha1
   dsimp only
-  exact ⟨set_self ha1, end_partition_jobs_dma he, set_self ha⟩
+  exact ⟨flag_self ha1, end_partition_jobs_dma he, flag_self ha⟩
 
 /-! ## The responses -/
 

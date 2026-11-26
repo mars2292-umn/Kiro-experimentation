@@ -41,8 +41,8 @@ The premises on the configuration (`LevelsOk`: every Task's Priority is a
 level 1 to 7 and every Resource's Ceiling at most 7) are what
 `Config::validate` checks. -/
 
-namespace P18
-open rsk_kernel rsk_kernel.rsk_logic
+namespace P18.Nv
+open rsk_kernel rsk_kernel.rsk_logic P18
 
 variable {NT NR NL NP NS NE : Usize}
 
@@ -344,4 +344,4 @@ theorem kernel_level_not_preempted (active : Finset Nat) (basepri : Nat) (primas
   unfold nvicTakes at ht
   omega
 
-end P18
+end P18.Nv

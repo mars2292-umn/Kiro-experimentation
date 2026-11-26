@@ -23,11 +23,12 @@ returns":
   Kernel's own `basepri_now` on the state `apply_core` returns, or 0 when
   the Kernel is in its safe state.
 
-What is not here (Verus only): A1 composed over each of the other cores
-(dispatch, unwind, interrupt entry, fault), the vector priorities
-`boot_core` sets, that only the time base feeds the watchdog (the frame is
-proven here of the supervisor call's path and of `apply_core`, not of
-every core), and which Job the floating-point access is set for. That an
+Elsewhere since 2026-11-26: A1 after the dispatch, the unwind, a dispatch
+vector and a supervisor call (`Sched/ArchHwA1.lean`,
+`Sched/ArchHwA1Svc.lean`); the vector lines `boot_vectors` sets, the
+start's frame and the floating-point access (`Sched/ArchHwBoot.lean`).
+What is not in Lean (Verus only): A1 over an interrupt entry, and the
+lines still so at `boot_core`'s return. That an
 implementation of `KernelArch` satisfies `HSpec` is the trait's contract,
 as in Verus; for the Target's implementation it rests on the register
 drivers (`Hw/Model.lean`) and the trusted leaves. -/
@@ -821,5 +822,101 @@ theorem start_core_a1 [HSpec ai hv] [KBp ki bp] {k k' : K} {hw hw' : A} {tables 
     refine a1_after (apply_core_a1 (hv := hv) (bp := bp) (by assumption)) ?_
     hb_close
     done
+
+/-! ## BASEPRI kept by the services of a supervisor call -/
+
+macro_rules
+  | `(tactic| hb_call) => `(tactic| refine HB.trans ?_ (congrArg HV.basepri (HSpec.copy_in (by assumption))))
+macro_rules
+  | `(tactic| hb_call) => `(tactic| refine HB.trans ?_ (congrArg HV.basepri (HSpec.copy_out (by assumption))))
+
+macro "hb_core " h:ident : tactic => `(tactic| (all_goals first
+    | (hb_close; done)
+    | (rcases ite_cases $h:ident with ⟨_, $h:ident⟩ | ⟨_, $h:ident⟩ <;> peel $h:ident <;> first
+        | (hb_close; done)
+        | (rcases ite_cases $h:ident with ⟨_, $h:ident⟩ | ⟨_, $h:ident⟩ <;> peel $h:ident <;> first
+            | (hb_close; done)
+            | (rcases ite_cases $h:ident with ⟨_, $h:ident⟩ | ⟨_, $h:ident⟩ <;> peel $h:ident <;>
+                (hb_close; done))))))
+
+theorem dma_request_core_hb [HSpec ai hv] {k k' : K} {hw hw' : A} {tables : T} {i : Usize} {ptr len : U32} {b : Bool}
+    (h : arch.cm4.entry.dma_request_core ki ai ti k hw tables i ptr len = ok (b, k', hw')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.dma_request_core at h
+  peel h
+  hb_core h
+
+hb_reg dma_request_core_hb
+
+theorem dma_write_core_hb [HSpec ai hv] {k k' : K} {hw hw' : A} {tables : T} {i : Usize} {offset value : U32} {b : Bool}
+    (h : arch.cm4.entry.dma_write_core ki ai ti k hw tables i offset value = ok (b, k', hw')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.dma_write_core at h
+  peel h
+  hb_core h
+
+hb_reg dma_write_core_hb
+
+theorem raise_core_hb [HSpec ai hv] {k k' : K} {hw hw' : A} {tables : T} {i : Usize} {b : Bool}
+    (h : arch.cm4.entry.raise_core ki ai ti k hw tables i = ok (b, k', hw')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.raise_core at h
+  peel h
+  hb_core h
+
+hb_reg raise_core_hb
+
+theorem copy_in_checked_hb [HSpec ai hv] {k : K} {hw hw' : A} {tables : T}
+    {g : verus_builtin.Ghost verus_builtin.int} {dst src len x : U32}
+    (h : arch.cm4.entry.copy_in_checked ki ai ti k hw tables g dst src len = ok (x, hw')) :
+    HB hv hw' hw := by
+  unfold arch.cm4.entry.copy_in_checked at h
+  peel h
+  hb_core h
+
+hb_reg copy_in_checked_hb
+
+theorem copy_out_checked_hb [HSpec ai hv] {k : K} {hw hw' : A} {tables : T}
+    {g : verus_builtin.Ghost verus_builtin.int} {dst src len x : U32}
+    (h : arch.cm4.entry.copy_out_checked ki ai ti k hw tables g dst src len = ok (x, hw')) :
+    HB hv hw' hw := by
+  unfold arch.cm4.entry.copy_out_checked at h
+  peel h
+  hb_core h
+
+hb_reg copy_out_checked_hb
+
+set_option maxHeartbeats 8000000 in
+theorem endpoint_send_core_hb [HSpec ai hv] {k k' : K} {hw hw' : A} {tables : T} {s s' : arch.cm4.plan.ArchState} {arg ptr len x : U32}
+    (h : arch.cm4.entry.endpoint_send_core ki ai ti k hw tables s arg ptr len = ok (x, k', hw', s')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.endpoint_send_core at h
+  peel h
+  hb_core h
+
+hb_reg endpoint_send_core_hb
+
+set_option maxHeartbeats 8000000 in
+theorem endpoint_recv_core_hb [HSpec ai hv] {k k' : K} {hw hw' : A} {tables : T} {s s' : arch.cm4.plan.ArchState} {arg ptr len : U32} {x : U32 × verus_builtin.Ghost verus_builtin.int}
+    (h : arch.cm4.entry.endpoint_recv_core ki ai ti k hw tables s arg ptr len = ok (x, k', hw', s')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.endpoint_recv_core at h
+  peel h
+  hb_core h
+
+hb_reg endpoint_recv_core_hb
+
+theorem irq_entry_core_loop_hb [HSpec ai hv] {hw hw' : A} {s s' : arch.cm4.plan.ArchState} {i : Usize}
+    (h : arch.cm4.entry.irq_entry_core_loop ai hw s i = ok (hw', s')) : HB hv hw' hw := by
+  unfold arch.cm4.entry.irq_entry_core_loop at h
+  refine loop_inv _ (fun x => HB hv x.1 hw) (fun r => HB hv r.1 hw) ?_ ?_ _ (hw', s')
+    (HB.refl _ _) h
+  · rintro ⟨hw1, st, c⟩ ⟨hw2, st', c'⟩ hinv hb
+    dsimp only at hinv hb ⊢
+    unfold arch.cm4.entry.irq_entry_core_loop.body at hb
+    peel hb
+    hb_core hb
+  · rintro ⟨hw1, st, c⟩ ⟨hw2, st'⟩ hinv hb
+    dsimp only at hinv hb ⊢
+    unfold arch.cm4.entry.irq_entry_core_loop.body at hb
+    peel hb
+    hb_core hb
+
+hb_reg irq_entry_core_loop_hb
 
 end P18

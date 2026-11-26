@@ -182,6 +182,17 @@ and proves its statements against the extracted scheduler state.
 (PRIMASK, the watchdog, BASEPRI after `apply_core` and the cores that end
 in it) over the contract of the `KernelArch` trait as a class (`HSpec`).
 
+Added 2026-11-26: `lean/Sched/ContainMore.lean` (a response does not raise
+the System_Ceiling and leaves the other Partitions' Budget accounts),
+`lean/Sched/HwMore.lean` (the rest of the Hardware_Model restated: the
+MPU's decision and Partition isolation, the masks, the frame, the compare
+distance, the EasyDMA footprint), `lean/Sched/ArchHwA1.lean` and
+`lean/Sched/ArchHwA1Svc.lean` (BASEPRI after the dispatch of a Job and the
+unwind, and kept by a dispatch vector and a supervisor call), and
+`lean/Sched/ArchHwBoot.lean` (the vector lines `boot_vectors` sets, the
+start's frame, the floating-point access; over `HSpec2`). BASEPRI over an
+interrupt entry is not proven in Lean.
+
 Since 2026-11-17 no transition of the run is modelled by hand: each one
 that changes the Kernel's state carries the extracted function's result.
 `lean/Sched/Endpoint.lean` reads the Endpoint entry cores and `Bound`'s
