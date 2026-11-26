@@ -164,14 +164,6 @@ reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 
 [[justification]]
-id = "UJ-025"
-summary = "rsk_timer_entry: the Kernel-level timer handler"
-kind = "review"
-why_no_machine_check = "As UJ-022. Since 2026-11-13 the stub's instruction sequence is proven against a machine model (arch/cm4/stub_model.rs, tied to this text by `cargo xtask check`; Verification_Plan 5.17); the instruction semantics, the exception model and the compiled Rust halves' calling convention remain by review."
-reviewed_by = "rsk kernel review (task 5.1)"
-reviewed_on = "2026-10-08"
-
-[[justification]]
 id = "UJ-026"
 summary = "rsk_memmanage_entry"
 kind = "review"

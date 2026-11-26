@@ -27,11 +27,10 @@ pub const LEAN_MODEL: &str = "proofs/aeneas/lean/Sched/StubModel.lean";
 
 /// Each modelled stub and the model functions that state it, in the order
 /// of the assembly.
-pub const STUB_MODELS: [(&str, &[&str]); 7] = [
+pub const STUB_MODELS: [(&str, &[&str]); 6] = [
     ("rsk_irq_entry", &["irq_to_call", "irq_after_call", "irq_dispatch", "irq_restore", "irq_return", "irq_to_unwind"]),
     ("rsk_svc_entry", &["svc_to_call", "kentry_after_call", "kentry_return"]),
     ("rsk_unwind", &["unwind_entry", "unwind_to_call", "unwind_after_call", "unwind_exit", "unwind_again"]),
-    ("rsk_timer_entry", &["timer_to_call", "kentry_after_call", "kentry_return"]),
     ("rsk_memmanage_entry", &["mm_to_call", "kentry_after_call", "kentry_return"]),
     ("rsk_busfault_entry", &["fault_to_call", "kentry_after_call", "kentry_return"]),
     ("rsk_usagefault_entry", &["fault_to_call", "kentry_after_call", "kentry_return"]),
@@ -443,7 +442,7 @@ mod tests {
         let irq = &found.iter().find(|(n, _)| n == "rsk_irq_entry").unwrap().1;
         assert_eq!(irq.iter().filter(|l| *l == "cpsid f").count(), 2);
         assert!(irq.len() > 35);
-        assert_eq!(found.len(), 8);
+        assert_eq!(found.len(), 7);
     }
 
     #[test]

@@ -22,7 +22,7 @@ the top of the main stack (`unwind_round_spec`), that a dispatch followed
 by the unwind of its level gives the preempted context back its registers
 (`dispatch_unwind_restores`), the same over any number of levels
 (`unwind_loop_frames`), that the Kernel-level handlers return with the
-registers they were entered with (`kentry_tail`, and the four stubs), and
+registers they were entered with (`kentry_tail`, and the three stubs), and
 that a handler preempted by an interrupt vector that neither dispatches nor
 unwinds finds its state as it left it (`nested_irq_resumed`).
 
@@ -35,8 +35,10 @@ Assumed, as in Verus: the exception model, and AAPCS for the compiled Rust
 halves (`call`). The instruction semantics of the `i_*` functions was
 assumed until 2026-11-26; `Sched/StubPaths.lean` now proves it of the
 stubs' machine code under a semantics of the Armv7-M instructions
-(`Sched/Arm.lean`), with one difference it states: `vpush` and `vpop` here
-leave CONTROL, where the processor sets CONTROL.FPCA. -/
+(`Sched/Arm.lean`). That proof found that `vpush` and `vpop` here left
+CONTROL where the processor sets CONTROL.FPCA; they set it since then
+(`fpca`). `rsk_timer_entry`, which no vector used, was removed with its
+model the same day. -/
 
 namespace Stub
 
@@ -107,17 +109,31 @@ def i_tst_lr (s : M) (mask : Nat) : M := { s with z := !hasBit s.lr mask }
 /-- `tst rN, #mask`. -/
 def i_tst_r (s : M) (n : Nat) (mask : Nat) : M := { s with z := !hasBit (s.r n) mask }
 
+/-- CONTROL after a floating-point instruction: the FPCA bit (bit 2) set.
+With FPCCR.ASPEN set, as the boot sets it, the processor sets CONTROL.FPCA
+when it executes a floating-point instruction with the bit clear (Armv7-M
+ARM B1.5.7), and an exception entry clears it. Until 2026-11-26 `vpush`
+and `vpop` left CONTROL; the proof against the instructions' semantics
+(`Sched/StubPaths.lean`) found the difference. -/
+def fpca (c : Int) : Int := if c / 4 % 2 = 0 then c + 4 else c
+
+theorem fpca_idem (c : Int) : fpca (fpca c) = fpca c := by
+  unfold fpca
+  split_ifs <;> omega
+
 /-- `vpush {s16-s31}`: sixteen words, S16 at the lowest address. -/
 def vpush (s : M) : M :=
   { s with
-    sp := s.sp - 64,
+    sp := s.sp - 64, control := fpca s.control,
     mem := fun x =>
       if s.sp - 64 ≤ x ∧ x < s.sp ∧ (x - (s.sp - 64)) % 4 = 0
       then s.fp ((x - (s.sp - 64)) / 4).toNat else s.mem x }
 
 /-- `vpop {s16-s31}`. -/
 def vpop (s : M) : M :=
-  { s with sp := s.sp + 64, fp := fun i => if i < 16 then s.mem (s.sp + 4 * (i : Int)) else s.fp i }
+  { s with
+    sp := s.sp + 64, control := fpca s.control,
+    fp := fun i => if i < 16 then s.mem (s.sp + 4 * (i : Int)) else s.fp i }
 
 /-- `it eq` / `vpusheq {s16-s31}`. -/
 def i_vpush_eq (s : M) : M := if s.z then vpush s else s
@@ -187,6 +203,12 @@ def call_svc (s h : M) (frame : Int) (on_msp : Bool) (v : Int) : M :=
       else (call s h).mem x } 0 v
 
 /-! ## The stubs, line by line (`unsafe_module/stubs.rs`) -/
+
+/-- CONTROL as the dispatch stub reads it for its Rust half, and as it
+leaves it when it returns as entered: the entry's CONTROL, with FPCA set
+when the entry stacked a floating-point frame (EXC_RETURN bit 4 clear),
+since the stub then executes `vpusheq`. -/
+def entryControl (s : M) : Int := if hasBit s.lr 0x10 then s.control else fpca s.control
 
 /-- `rsk_irq_entry`, from the entry instruction to the call of the Rust half. -/
 def irq_to_call (s : M) : M :=
@@ -322,12 +344,6 @@ def kentry_return (s : M) : M :=
   -- ctl: bx lr
   s
 
-/-- `rsk_timer_entry`. -/
-def timer_to_call (s : M) : M :=
-  let s := i_push_r4_lr s
-  -- ctl: bl {timer}
-  s
-
 /-- `rsk_memmanage_entry`. -/
 def mm_to_call (s : M) : M :=
   let s := i_push_r4_lr s
@@ -390,14 +406,14 @@ def irq_called (s h : M) (p0 p1 p2 p3 : Int) : M :=
 the out-pointer inside the stub's own stack room. -/
 theorem irq_call (s : M) :
     (irq_to_call s).primask = true ∧ (irq_to_call s).r 0 = s.ipsr ∧
-    (irq_to_call s).r 1 = s.psp ∧ (irq_to_call s).r 2 = s.control ∧
+    (irq_to_call s).r 1 = s.psp ∧ (irq_to_call s).r 2 = entryControl s ∧
     (irq_to_call s).r 3 = s.lr ∧
     (irq_to_call s).mem (irq_to_call s).sp = (irq_to_call s).sp + 8 ∧
     (irq_to_call s).sp = s.sp - frameSize (entryFrame s 0) - 24 := by
   cases hb : hasBit s.lr 16 <;>
     simp [irq_to_call, i_cpsid_i, i_push_r3_r11_lr, i_tst_lr, i_vpush_eq, vpush, i_mrs_ipsr,
       i_mrs_psp, i_mrs_control, i_mov_r_lr, i_sub_sp, i_add_r_sp, i_str_sp, setr, wr, entryFrame,
-      frameSize, hb] <;> omega
+      frameSize, entryControl, hb] <;> omega
 
 /-! ## The instructions that move the main stack -/
 
@@ -439,7 +455,7 @@ theorem irq_pro_spec (s : M) (g : Int) (hg : 0 ≤ g) :
     frameTop (irq_pro s).mem (irq_pro s).sp (entryFrame s g) ∧
     (∀ x, s.sp ≤ x → (irq_pro s).mem x = s.mem x) ∧
     (irq_pro s).r = s.r ∧ (irq_pro s).lr = s.lr ∧ (irq_pro s).fp = s.fp ∧
-    (irq_pro s).psp = s.psp ∧ (irq_pro s).control = s.control ∧ (irq_pro s).ipsr = s.ipsr ∧
+    (irq_pro s).psp = s.psp ∧ (irq_pro s).control = entryControl s ∧ (irq_pro s).ipsr = s.ipsr ∧
     (irq_pro s).primask = true ∧ (irq_pro s).faultmask = s.faultmask := by
   obtain ⟨hp1, hp2, hp3⟩ := push_spec (i_cpsid_i s)
   have e0 : (i_cpsid_i s).sp = s.sp := rfl
@@ -462,7 +478,8 @@ theorem irq_pro_spec (s : M) (g : Int) (hg : 0 ≤ g) :
     rw [hq]
     have hfs : frameSize (entryFrame s g) = 104 := by simp [frameSize, entryFrame, hb]
     have hfp : (entryFrame s g).hasFp = true := by simp [entryFrame, hb]
-    refine ⟨by rw [hv1, hfs]; omega, ⟨?_, ?_, hg⟩, ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    refine ⟨by rw [hv1, hfs]; omega, ⟨?_, ?_, hg⟩, ?_, rfl, rfl, rfl, rfl,
+      (by simp [vpush, i_tst_lr, i_push_r3_r11_lr, i_cpsid_i, entryControl, hb]), rfl, rfl, rfl⟩
     · intro i hi
       rw [hfp, if_pos rfl, hv1]
       rw [show s.sp - 40 - 64 + 64 + 4 * (i : Int) = s.sp - 40 + 4 * (i : Int) by omega]
@@ -483,7 +500,8 @@ theorem irq_pro_spec (s : M) (g : Int) (hg : 0 ≤ g) :
     have e3 : (i_tst_lr (i_push_r3_r11_lr (i_cpsid_i s)) 0x10).sp = s.sp - 40 := hp1
     have e4 : (i_tst_lr (i_push_r3_r11_lr (i_cpsid_i s)) 0x10).mem
         = (i_push_r3_r11_lr (i_cpsid_i s)).mem := rfl
-    refine ⟨by rw [e3, hfs], ⟨?_, ?_, hg⟩, ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    refine ⟨by rw [e3, hfs], ⟨?_, ?_, hg⟩, ?_, rfl, rfl, rfl, rfl,
+      (by simp [i_tst_lr, i_push_r3_r11_lr, i_cpsid_i, entryControl, hb]), rfl, rfl, rfl⟩
     · intro i hi
       rw [hfp, e3, e4]
       simp only [Bool.false_eq_true, ite_false]
@@ -586,7 +604,8 @@ theorem irq_called_spec (s h : M) (p0 p1 p2 p3 g : Int) (hg : 0 ≤ g) :
     frameTop (irq_called s h p0 p1 p2 p3).mem (irq_called s h p0 p1 p2 p3).sp (entryFrame s g) ∧
     (∀ x, s.sp ≤ x → (irq_called s h p0 p1 p2 p3).mem x = s.mem x) ∧
     (irq_called s h p0 p1 p2 p3).fp = s.fp ∧ (irq_called s h p0 p1 p2 p3).primask = true ∧
-    (irq_called s h p0 p1 p2 p3).psp = s.psp ∧ (irq_called s h p0 p1 p2 p3).control = s.control ∧
+    (irq_called s h p0 p1 p2 p3).psp = s.psp ∧
+    (irq_called s h p0 p1 p2 p3).control = entryControl s ∧
     (irq_called s h p0 p1 p2 p3).faultmask = s.faultmask := by
   rw [irq_called_eq]
   obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11⟩ := irq_pro_spec s g hg
@@ -612,7 +631,8 @@ theorem pops_spec (t : M) (rz : Nat) (f : Frame) (hft : frameTop t.mem t.sp f)
     (∀ i, (i < 3 ∨ 11 < i) → (pops t rz).r i = t.r i) ∧
     (pops t rz).lr = f.regs 9 ∧
     (∀ i, (pops t rz).fp i = if f.hasFp = true ∧ i < 16 then f.fpv i else t.fp i) ∧
-    (pops t rz).mem = t.mem ∧ (pops t rz).psp = t.psp ∧ (pops t rz).control = t.control ∧
+    (pops t rz).mem = t.mem ∧ (pops t rz).psp = t.psp ∧
+    (pops t rz).control = (if f.hasFp then fpca t.control else t.control) ∧
     (pops t rz).primask = t.primask ∧ (pops t rz).faultmask = t.faultmask ∧
     (pops t rz).ipsr = t.ipsr := by
   obtain ⟨hr, hfv, _⟩ := hft
@@ -690,7 +710,7 @@ theorem irq_restore_spec (s h : M) (p0 p1 p2 p3 : Int) :
     (irq_restore (irq_called s h p0 p1 p2 p3)).lr = s.lr ∧
     (∀ i, (irq_restore (irq_called s h p0 p1 p2 p3)).fp i = s.fp i) ∧
     (irq_restore (irq_called s h p0 p1 p2 p3)).psp = s.psp ∧
-    (irq_restore (irq_called s h p0 p1 p2 p3)).control = s.control ∧
+    (irq_restore (irq_called s h p0 p1 p2 p3)).control = entryControl s ∧
     (∀ i, 3 ≤ i → i ≤ 11 → (irq_restore (irq_called s h p0 p1 p2 p3)).r i = s.r i) ∧
     (irq_restore (irq_called s h p0 p1 p2 p3)).r 12 = p3 ∧
     (irq_restore (irq_called s h p0 p1 p2 p3)).z = decide (p3 = 0) ∧
@@ -722,8 +742,12 @@ theorem irq_restore_spec (s h : M) (p0 p1 p2 p3 : Int) :
       rw [c9]
   · show (pops (i_mov t 12 3) 8).psp = s.psp
     rw [q7]; exact c11
-  · show (pops (i_mov t 12 3) 8).control = s.control
-    rw [q8]; exact c12
+  · show (pops (i_mov t 12 3) 8).control = entryControl s
+    rw [q8]
+    have hc : (i_mov t 12 3).control = entryControl s := c12
+    rw [hc]
+    unfold entryControl entryFrame
+    cases hb : hasBit s.lr 16 <;> simp [hb, fpca_idem]
   · intro i h3 h11
     show (pops (i_mov t 12 3) 8).r i = s.r i
     rw [q2 i h3 h11]
@@ -974,7 +998,7 @@ theorem unwind_loop_frames :
       obtain ⟨f', h', a0, a1, a2, a3, hlast, r⟩ := ih _ rest hrest hfr2
       exact ⟨f', h', a0, a1, a2, a3, by rw [List.getLast?_cons_cons]; exact hlast, r⟩
 
-/-! ## The Kernel-level handlers: SVC, faults, the timer -/
+/-! ## The Kernel-level handlers: SVC and the faults -/
 
 /-- What every Kernel-level handler's stub does after its Rust half
 returned: `pop {r4, lr}` gives back R4 and LR, and the stack pointer is the
@@ -1021,22 +1045,10 @@ theorem kentry_ret_tail (s c h : M) (v : Int) (h1 : c.sp = s.sp - 8) (h2 : c.mem
   refine ⟨k1, k2, k3, ?_, k5, k6, k7⟩
   rw [k4]; simp [call_ret, setr]
 
-/-- `rsk_timer_entry`: the registers a handler must preserve are the
-entry's when it returns or branches to `rsk_unwind`, and R0 is the plan. -/
-theorem timer_stub (s h : M) (hop : Int) :
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).sp = s.sp ∧
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).lr = s.lr ∧
-    (∀ i, 4 ≤ i → i ≤ 11 → (kentry_after_call (call_ret (timer_to_call s) h hop)).r i = s.r i) ∧
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).r 0 = hop ∧
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).fp = s.fp ∧
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).psp = s.psp ∧
-    (kentry_after_call (call_ret (timer_to_call s) h hop)).control = s.control :=
-  kentry_ret_tail s (timer_to_call s) h hop rfl (by simp [timer_to_call, i_push_r4_lr])
-    (by simp [timer_to_call, i_push_r4_lr]) (fun _ _ _ => rfl)
 
 /-- `rsk_busfault_entry` and `rsk_usagefault_entry`: R0 at the call says
 whether the fault is the Kernel's (taken from Handler mode or with PRIMASK
-set); the registers are preserved as by the timer's stub. -/
+set); the registers a handler must preserve are those of the entry. -/
 theorem fault_stub (s h : M) (hop : Int) :
     ((fault_to_call s).r 0 ≠ 0 ↔ (s.primask = true ∨ hasBit s.lr 8 = false)) ∧
     (kentry_after_call (call_ret (fault_to_call s) h hop)).sp = s.sp ∧
@@ -1211,7 +1223,11 @@ theorem nested_irq_resumed (s hx h : M) (n g p1 p2 : Int) (hg : 32 ≤ g) :
     split_ifs <;> first | rfl | omega
   rw [esp] at u1 u11
   generalize irq_restore (irq_called (exc_enter_handler s n g hx) h 0 p1 p2 0) = u at *
-  refine ⟨?_, ?_, ?_, u4, u5, u3, rfl, rfl, rfl, ?_⟩
+  have u5' : u.control = s.control := by
+    rw [u5]
+    have hb : hasBit (0xFFFFFFF1 : Int) 0x10 = true := by decide
+    simp [entryControl, exc_enter_handler, hb]
+  refine ⟨?_, ?_, ?_, u4, u5', u3, rfl, rfl, rfl, ?_⟩
   · intro i hi
     show (if i = 0 then u.mem u.sp else if i = 1 then u.mem (u.sp + 4)
       else if i = 2 then u.mem (u.sp + 8) else if i = 3 then u.mem (u.sp + 12)

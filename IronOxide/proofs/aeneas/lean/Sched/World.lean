@@ -21,7 +21,7 @@ Each theorem takes a stub entered in a machine state `s`, its Rust half
 answering as the extracted core does, and shows the agreement holds again
 in the state the stub leaves:
 
-- `kentry_world`: a Kernel-level handler (SVC, timer, faults);
+- `kentry_world`: a Kernel-level handler (SVC, faults);
 - `irq_stub_world`: `rsk_irq_entry`, on its three paths (a dispatch pushes
   the record of the new level, built from the entry's registers; a return
   as entered; a branch to `rsk_unwind`);
@@ -252,33 +252,6 @@ theorem kentry_world {k' : K} {s0 s1 : arch.cm4.plan.ArchState} {s u : M} {g : I
   rw [hsp]
   rw [hg] at hw1
   simpa using hw1
-
-/-- `rsk_timer_entry`'s stub leaves the main stack at and above its entry's
-stack pointer as it was. -/
-theorem timer_stub_mem (s h : M) (hop : Int) :
-    ∀ x, s.sp ≤ x → (kentry_after_call (call_ret (timer_to_call s) h hop)).mem x = s.mem x := by
-  intro x hx
-  simp only [kentry_after_call, i_pop_r4_lr, call_ret, call, setr, timer_to_call, i_push_r4_lr]
-  split_ifs <;> first | rfl | omega
-
-/-- **`rsk_timer_entry` with `timer_core`.** -/
-theorem timer_stub_world [KSpec ki kv okK] {k k' : K} {hwd hwd' : A} {tables : T}
-    {s0 s1 : arch.cm4.plan.ArchState} {hop : U32} {safe : Bool} (s h : M) {g : Int}
-    {ws : List (Nat × Stub.Frame)} {tp : Bool}
-    (hok : okK k) (hai : AI kv k s0 0) (hw : World s0.levels s.mem (s.sp + g) ws tp)
-    (he : hwEntry s.lr g tp)
-    (hc : arch.cm4.entry.timer_core ki ai ti k hwd tables s0 = ok ((hop, safe), k', hwd', s1))
-    (h8 : hop.val ≠ 0 → hasBit s.lr 8 = true) :
-    okK k' ∧ AI kv k' s1 hop.val ∧
-    World s1.levels (kentry_after_call (call_ret (timer_to_call s) h hop.val)).mem (s.sp + g) ws tp ∧
-    (hop.val ≠ 0 → World s1.levels (kentry_after_call (call_ret (timer_to_call s) h hop.val)).mem
-      (kentry_after_call (call_ret (timer_to_call s) h hop.val)).sp ws tp) := by
-  obtain ⟨hok', hai'⟩ := timer_core_keeps hok hai hc
-  obtain ⟨t1, _⟩ := timer_stub s h hop.val
-  have hg := he.1
-  obtain ⟨w1, w2⟩ := kentry_world hw he (timer_core_frame hc) hai' t1
-    (fun x hx => timer_stub_mem s h hop.val x (by omega)) h8
-  exact ⟨hok', hai', w1, w2⟩
 
 /-- `rsk_busfault_entry` and `rsk_usagefault_entry`'s stub and the main
 stack. -/

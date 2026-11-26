@@ -11,14 +11,12 @@ at the instruction the path's control line names. The control lines of
 the model (`-- ctl:`) are steps of the machine here: `bl` (`<stub>_bl`),
 `cbz`, `bne`, `b`, `bx`.
 
-Where the machine and the model differ, the theorems say by how much: a
-floating-point instruction (`vpusheq`, `vpopeq`) executed in a handler
-with CONTROL.FPCA clear sets FPCA (B1.5.7, with FPCCR.ASPEN set), which
-the model's `vpush` and `vpop` do not show. So after such an instruction
-the machine's CONTROL is the model's plus 4, and so is the value
-`rsk_irq_entry` hands its Rust half in R2. `msr control` then writes the
-excess back with the value read. The theorems carry the excess `e`,
-which is 0 or 4, and 0 when no floating-point instruction ran.
+The first form of these theorems carried a difference between the machine
+and the model: a floating-point instruction (`vpusheq`, `vpopeq`)
+executed in a handler with CONTROL.FPCA clear sets FPCA (B1.5.7, with
+FPCCR.ASPEN set), which the model's `vpush` and `vpop` did not show. The
+two stub models now set it (`fpca`), and the theorems are exact: the
+machine state reached is the model state, with no excess.
 
 Assumed here, as in the model: the exception model (what entry and return
 do), and AAPCS for the Rust halves; the theorems start after an entry or
@@ -103,13 +101,11 @@ theorem irq_return_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {kr : Nat → I
     omega
   · exact r3.pcit _ _
 
-theorem irq_to_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {m : M}
-    (hR : R kc (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 0#32)
+theorem irq_to_call_run (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} {m : M}
+    (hR : R 0 (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 0#32)
     (hsp : 128 ≤ a.sp.toNat) :
     ∃ a', run (codeAt base (irqCode c1 c2 u1 u2)) 13 a = some a' ∧ a'.it = 0#8 ∧
-      a'.pc = base + 38#32 ∧
-      ∃ e : Int, (e = 0 ∨ e = 4) ∧ (hasBit m.lr 16 = true → e = 0) ∧
-        R (kc + e) (fun i => if i = 2 then kc + e else 0) a' (irq_to_call m) := by
+      a'.pc = base + 38#32 ∧ R 0 (fun _ => 0) a' (irq_to_call m) := by
   have q0 : a.pc = base + 0#32 := hpc
   have t0 : a.it = 0#8 := hit
   have r0 := hR
@@ -181,12 +177,8 @@ theorem irq_to_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {
     step_of (by rw [q12]; exact irq_f36 base c1 c2 u1 u2) e13
   have q13 : a13.pc = base + 38#32 := by rw [p13, q12]; pcn
   have s13' : a13.sp.toNat = a12.sp.toNat := by rw [s13]
-  have hz3 : (!hasBit m.lr 16) = a3.z := r3.z
-  refine ⟨a13, ((run_succ _ 12 _ _ st1).trans ((run_succ _ 11 _ _ st2).trans ((run_succ _ 10 _ _ st3).trans ((run_succ _ 9 _ _ st4).trans ((run_succ _ 8 _ _ st5).trans ((run_succ _ 7 _ _ st6).trans ((run_succ _ 6 _ _ st7).trans ((run_succ _ 5 _ _ st8).trans ((run_succ _ 4 _ _ st9).trans ((run_succ _ 3 _ _ st10).trans ((run_succ _ 2 _ _ st11).trans ((run_succ _ 1 _ _ st12).trans ((run_succ _ 0 _ _ st13).trans rfl))))))))))))), t13, q13, (if a4.z then fex a4 else 0), ?_, ?_, ?_⟩
-  · unfold fex; split_ifs <;> simp
-  · intro hb; rw [z4, ← hz3, hb]; rfl
-  · refine r13.kcongr ?_ ?_
-    · split_ifs <;> simp
+  refine ⟨a13, ((run_succ _ 12 _ _ st1).trans ((run_succ _ 11 _ _ st2).trans ((run_succ _ 10 _ _ st3).trans ((run_succ _ 9 _ _ st4).trans ((run_succ _ 8 _ _ st5).trans ((run_succ _ 7 _ _ st6).trans ((run_succ _ 6 _ _ st7).trans ((run_succ _ 5 _ _ st8).trans ((run_succ _ 4 _ _ st9).trans ((run_succ _ 3 _ _ st10).trans ((run_succ _ 2 _ _ st11).trans ((run_succ _ 1 _ _ st12).trans ((run_succ _ 0 _ _ st13).trans rfl))))))))))))), t13, q13, ?_⟩
+  · refine r13.kcongr rfl ?_
     · intro i hi; first | (simp only [kset, kpop]; split_ifs <;> first | rfl | omega | simp_all) | (split_ifs <;> simp_all [kset, kpop])
 
 theorem irq_dispatch_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {m : M}
@@ -240,12 +232,12 @@ theorem irq_dispatch_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} 
     omega
   · exact r6.pcit _ _
 
-theorem irq_restore_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {m : M}
-    (hR : R kc (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 76#32)
+theorem irq_restore_run (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} {m : M}
+    (hR : R 0 (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 76#32)
     (hhi : a.sp.toNat + 104 < 4294967296) :
     ∃ a', run (codeAt base (irqCode c1 c2 u1 u2)) 7 a = some a' ∧ a'.it = 0#8 ∧
       a'.pc = (if a'.z = false then base + 108#32 else base + 98#32) ∧
-      ∃ e : Int, (e = 0 ∨ e = 4) ∧ R (kc + e) (fun _ => 0) a' (irq_restore m) := by
+      R 0 (fun _ => 0) a' (irq_restore m) := by
   have q0 : a.pc = base + 76#32 := hpc
   have t0 : a.it = 0#8 := hit
   have r0 := hR
@@ -285,12 +277,10 @@ theorem irq_restore_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {
   have s6' : a6.sp.toNat = a5.sp.toNat := by rw [s6]
   have st7 : step (codeAt base (irqCode c1 c2 u1 u2)) a6 = some _ :=
     step_of (by rw [q6]; exact irq_f96 base c1 c2 u1 u2) (exec_bne t6 _)
-  refine ⟨_, ((run_succ _ 6 _ _ st1).trans ((run_succ _ 5 _ _ st2).trans ((run_succ _ 4 _ _ st3).trans ((run_succ _ 3 _ _ st4).trans ((run_succ _ 2 _ _ st5).trans ((run_succ _ 1 _ _ st6).trans ((run_succ _ 0 _ _ st7).trans rfl))))))), t6, ?_, (if a3.z then fex a3 else 0), ?_, ?_⟩
+  refine ⟨_, ((run_succ _ 6 _ _ st1).trans ((run_succ _ 5 _ _ st2).trans ((run_succ _ 4 _ _ st3).trans ((run_succ _ 3 _ _ st4).trans ((run_succ _ 2 _ _ st5).trans ((run_succ _ 1 _ _ st6).trans ((run_succ _ 0 _ _ st7).trans rfl))))))), t6, ?_, ?_⟩
   · show (if a6.z = false then a6.pc + 4#32 + _ else a6.pc + 2#32) = _
     rw [q6]; pcn
-  · unfold fex; split_ifs <;> simp
-  · refine (r6.kcongr ?_ ?_).pc _
-    · split_ifs <;> simp
+  · refine (r6.kcongr rfl ?_).pc _
     · intro i hi; first | (simp only [kset, kpop]; split_ifs <;> first | rfl | omega | simp) | (split_ifs <;> simp [kset, kpop])
 
 theorem irq_to_unwind_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {kr : Nat → Int} {a : Arm.St} {m : M}
@@ -345,8 +335,8 @@ theorem unwind_to_call_run (base : W) (c1 c2 : Nat) {kc : Int} {kr : Nat → Int
   have s2' : a2.sp.toNat = a1.sp.toNat := by rw [s2]
   exact ⟨a2, ((run_succ _ 1 _ _ st1).trans ((run_succ _ 0 _ _ st2).trans rfl)), t2, q2, r2⟩
 
-theorem unwind_after_call_run (base : W) (c1 c2 : Nat) {kc : Int} {a : Arm.St} {m : M}
-    (hR : R kc (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 10#32)
+theorem unwind_after_call_run (base : W) (c1 c2 : Nat) {a : Arm.St} {m : M}
+    (hR : R 0 (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 10#32)
     (hhi : a.sp.toNat + 120 < 4294967296) (h4 : m.mem (m.sp + 0) % 4 = 0)
     (hv : 0 ≤ m.mem (m.sp + 4) ∧ m.mem (m.sp + 4) < 8 ∧ m.mem (m.sp + 4) / 2 % 2 = 0) :
     ∃ a', run (codeAt base (unwindCode c1 c2)) 14 a = some a' ∧ a'.it = 0#8 ∧
@@ -586,53 +576,6 @@ theorem svc_to_unwind_step (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} (hit : a.
   rw [e, hpc]
   pcn
 
-theorem timer_after_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {kr : Nat → Int} {a : Arm.St} {m : M}
-    (hR : R kc kr a m) (hit : a.it = 0#8) (hpc : a.pc = base + 6#32)
-    (hhi : a.sp.toNat + 8 < 4294967296) :
-    ∃ a', run (codeAt base (timerCode c1 c2 u1 u2)) 2 a = some a' ∧ a'.it = 0#8 ∧
-      a'.pc = (if a'.r 0 = 0#32 then base + 16#32 else base + 12#32) ∧
-      R kc (kset kr 4 0) a' (kentry_after_call m) := by
-  have q0 : a.pc = base + 6#32 := hpc
-  have t0 : a.it = 0#8 := hit
-  have r0 := hR
-  obtain ⟨a1, e1, p1, t1, s1, r1⟩ := sim_pop_b r0 t0 (by omega) _
-  have st1 : step (codeAt base (timerCode c1 c2 u1 u2)) a = some a1 :=
-    step_of (by rw [q0]; exact timer_f6 base c1 c2 u1 u2) e1
-  have q1 : a1.pc = base + 10#32 := by rw [p1, q0]; pcn
-  have st2 : step (codeAt base (timerCode c1 c2 u1 u2)) a1 = some _ :=
-    step_of (by rw [q1]; exact timer_f10 base c1 c2 u1 u2) (exec_cbz t1 (by omega) _)
-  refine ⟨_, ((run_succ _ 1 _ _ st1).trans ((run_succ _ 0 _ _ st2).trans rfl)), rfl, ?_, r1.pcit _ _⟩
-  show (if a1.r 0 = 0#32 then a1.pc + 4#32 + _ else a1.pc + 2#32) = _
-  rw [q1]; pcn
-
-theorem timer_return_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {kr : Nat → Int} {a : Arm.St} {m : M}
-    (hR : R kc kr a m) (hit : a.it = 0#8) (hpc : a.pc = base + 16#32) :
-    ∃ a', run (codeAt base (timerCode c1 c2 u1 u2)) 2 a = some a' ∧ a'.it = 0#8 ∧
-      a'.pc = a.lr ∧ R kc kr a' (kentry_return m) := by
-  have q0 : a.pc = base + 16#32 := hpc
-  have t0 : a.it = 0#8 := hit
-  have r0 := hR
-  obtain ⟨a1, e1, p1, t1, s1, r1⟩ := sim_dsb r0 t0
-  have st1 : step (codeAt base (timerCode c1 c2 u1 u2)) a = some a1 :=
-    step_of (by rw [q0]; exact timer_f16 base c1 c2 u1 u2) e1
-  have q1 : a1.pc = base + 20#32 := by rw [p1, q0]; pcn
-  have s1' : a1.sp.toNat = a.sp.toNat := by rw [s1]
-  have st2 : step (codeAt base (timerCode c1 c2 u1 u2)) a1 = some _ :=
-    step_of (by rw [q1]; exact timer_f20 base c1 c2 u1 u2) (exec_bx_lr t1)
-  refine ⟨_, ((run_succ _ 1 _ _ st1).trans ((run_succ _ 0 _ _ st2).trans rfl)), rfl, ?_, r1.pcit _ _⟩
-  show a1.lr = a.lr
-  have l1 : m.lr = ((a1.lr.toNat : Nat) : Int) := r1.lr
-  have l0 := hR.lr
-  apply BitVec.eq_of_toNat_eq
-  omega
-
-theorem timer_to_unwind_step (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} (hit : a.it = 0#8)
-    (hpc : a.pc = base + 12#32) (hu : IsBw u1 u2) :
-    step (codeAt base (timerCode c1 c2 u1 u2)) a = some { a with pc := base + (16#32 + brOff u1 u2), it := 0#8 } := by
-  have e := step_of (a := a) (by rw [hpc]; exact timer_f12 base c1 c2 u1 u2 hu) (exec_b hit _ _)
-  rw [e, hpc]
-  pcn
-
 theorem mm_after_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {kr : Nat → Int} {a : Arm.St} {m : M}
     (hR : R kc kr a m) (hit : a.it = 0#8) (hpc : a.pc = base + 32#32)
     (hhi : a.sp.toNat + 8 < 4294967296) :
@@ -726,20 +669,6 @@ theorem fault_to_unwind_step (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} (hit : 
   have e := step_of (a := a) (by rw [hpc]; exact fault_f24 base c1 c2 u1 u2 hu) (exec_b hit _ _)
   rw [e, hpc]
   pcn
-
-theorem timer_to_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {m : M}
-    (hR : R kc (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 0#32)
-    (hsp : 8 ≤ a.sp.toNat) :
-    ∃ a', run (codeAt base (timerCode c1 c2 u1 u2)) 1 a = some a' ∧ a'.it = 0#8 ∧
-      a'.pc = base + 2#32 ∧ R kc (fun _ => 0) a' (timer_to_call m) := by
-  have q0 : a.pc = base + 0#32 := hpc
-  have t0 : a.it = 0#8 := hit
-  have r0 := hR
-  obtain ⟨a1, e1, p1, t1, s1, r1⟩ := sim_push_b r0 t0 (by omega) rfl _
-  have st1 : step (codeAt base (timerCode c1 c2 u1 u2)) a = some a1 :=
-    step_of (by rw [q0]; exact timer_f0 base c1 c2 u1 u2) e1
-  have q1 : a1.pc = base + 2#32 := by rw [p1, q0]; pcn
-  exact ⟨a1, ((run_succ _ 0 _ _ st1).trans rfl), t1, q1, r1⟩
 
 theorem fault_to_call_run (base : W) (c1 c2 u1 u2 : Nat) {kc : Int} {a : Arm.St} {m : M}
     (hR : R kc (fun _ => 0) a m) (hit : a.it = 0#8) (hpc : a.pc = base + 0#32)
@@ -892,16 +821,6 @@ theorem fault_bl (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} (hit : a.it = 0#8)
     step (codeAt base (faultCode c1 c2 u1 u2)) a = some { a with
       lr := (base + 18#32) ||| 1#32, pc := base + (18#32 + brOff c1 c2), it := 0#8 } := by
   have e := step_of (a := a) (by rw [hpc]; exact fault_f14 base c1 c2 u1 u2 hc) (exec_bl hit _)
-  rw [e, hpc]
-  pcn
-
-/-- The `bl` of the stub: LR gets the return address with bit 0 set, and
-the PC the target the two halfwords encode. -/
-theorem timer_bl (base : W) (c1 c2 u1 u2 : Nat) {a : Arm.St} (hit : a.it = 0#8)
-    (hpc : a.pc = base + 2#32) (hc : IsBl c1 c2) :
-    step (codeAt base (timerCode c1 c2 u1 u2)) a = some { a with
-      lr := (base + 6#32) ||| 1#32, pc := base + (6#32 + brOff c1 c2), it := 0#8 } := by
-  have e := step_of (a := a) (by rw [hpc]; exact timer_f2 base c1 c2 u1 u2 hc) (exec_bl hit _)
   rw [e, hpc]
   pcn
 

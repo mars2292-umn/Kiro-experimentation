@@ -16,6 +16,17 @@
 //!   plus the hardware frame of an exception taken from the idle loop (32),
 //!   against the Kernel RAM left above the Kernel's data, bss and no-init
 //!   records.
+//! - Since 2026-11-26 the MSP bound also counts a handler that preempts a
+//!   handler (`msp_bound`). A dispatch stub can be preempted at its entry
+//!   instruction, before it masks, by a vector of higher priority or a
+//!   Kernel-level entry (Verification_Plan 5.8a): the hardware stacks a
+//!   basic frame on the MSP and the preempting handler runs to its full
+//!   depth above it, once per Job level at most. And a HardFault or an NMI
+//!   can be taken inside any handler or the start: its frame (the extended
+//!   one when a Task has a floating-point context, since `vpusheq` in the
+//!   dispatch stub sets CONTROL.FPCA) and its handler's own usage, which
+//!   the path to the safe state needs. The bound is never below the one
+//!   of the earlier rule.
 
 use std::collections::BTreeMap;
 
@@ -113,6 +124,65 @@ fn find_entry<'a>(functions: &'a [FunctionReport], path: &str) -> Option<&'a Fun
     functions.iter().find(|f| demangle(&f.name) == want)
 }
 
+/// The handler of exception `number` (word `number` of `.vector_table`;
+/// 1 is the reset, 2 the NMI, 3 the HardFault), as a function.
+fn vector_handler<'a>(elf: &rsk_elf::Elf, functions: &'a [FunctionReport], number: usize) -> Result<Option<&'a FunctionReport>, String> {
+    let section = elf.section_by_name(".vector_table").ok_or("binary: no .vector_table section")?;
+    let data = elf.section_data(section).map_err(|e| format!("binary: .vector_table: {e}"))?;
+    let Some(word) = data.chunks_exact(4).nth(number) else { return Ok(None) };
+    let addr = u32::from_le_bytes([word[0], word[1], word[2], word[3]]) & !1;
+    Ok(functions.iter().find(|f| f.address == addr))
+}
+
+/// What the MSP bound is computed from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MspInputs {
+    /// The worst usage over every vector-table entry, the reset included.
+    pub worst: u64,
+    /// The reset handler's usage.
+    pub reset: u64,
+    /// The worst usage over the handlers other than the reset.
+    pub worst_handler: u64,
+    /// The worse of the HardFault and NMI handlers' usages.
+    pub fatal: u64,
+    /// The number of Job levels (distinct Priorities).
+    pub levels: u64,
+    /// The bytes of one level record.
+    pub record: u64,
+    /// Whether a Task has a floating-point context.
+    pub any_fp: bool,
+}
+
+/// The MSP bound and its terms (R37.2). The largest of three cases:
+///
+/// 1. the rule before 2026-11-26: the worst entry, one level record per
+///    Job level, the frame of an exception taken from the idle loop;
+/// 2. the start with a HardFault or NMI taken in it: the reset handler,
+///    a basic frame, the fatal handler;
+/// 3. handlers nested: the worst handler, the level records, the idle
+///    frame, a basic frame per Job level for a handler preempted at its
+///    entry instruction, and a HardFault or NMI taken in the innermost
+///    handler (an extended frame when a Task has a floating-point
+///    context) with the fatal handler's usage.
+pub fn msp_bound(i: &MspInputs) -> (u64, Vec<String>) {
+    let records = i.levels * i.record;
+    let fatal_frame = if i.any_fp { FP_FRAME } else { BASIC_FRAME } as u64;
+    let windows = i.levels * BASIC_FRAME as u64;
+    let before = i.worst + records + BASIC_FRAME as u64;
+    let start = i.reset + BASIC_FRAME as u64 + i.fatal;
+    let nested = i.worst_handler + records + BASIC_FRAME as u64 + windows + fatal_frame + i.fatal;
+    let bound = before.max(start).max(nested);
+    let terms = vec![
+        format!("worst entry {} + {} Job levels x {} (level records) + {BASIC_FRAME} (exception frame from the idle loop) = {before}", i.worst, i.levels, i.record),
+        format!("the start with a HardFault or NMI in it: {} + {BASIC_FRAME} + {} = {start}", i.reset, i.fatal),
+        format!(
+            "handlers nested: worst handler {} + {records} (level records) + {BASIC_FRAME} (idle frame) + {} x {BASIC_FRAME} (a handler preempted at its entry instruction) + {fatal_frame} + {} (a HardFault or NMI in it) = {nested}",
+            i.worst_handler, i.levels, i.fatal
+        ),
+    ];
+    (bound, terms)
+}
+
 /// The Kernel entry points: the handlers of the vector table (words 1.. of
 /// `.vector_table`), mapped to functions.
 fn kernel_entries<'a>(elf: &rsk_elf::Elf, functions: &'a [FunctionReport]) -> Result<Vec<&'a FunctionReport>, String> {
@@ -182,7 +252,15 @@ pub fn bounds(elf: &rsk_elf::Elf, model: &ModelInputs, functions: &[FunctionRepo
     levels.dedup();
     let any_fp = model.tasks.iter().any(|t| t.fpu);
     let record = if any_fp { LEVEL_RECORD_FP } else { LEVEL_RECORD } as u64;
-    let msp_bound = worst.1 as u64 + levels.len() as u64 * record + BASIC_FRAME as u64;
+    let reset = vector_handler(elf, functions, 1)?;
+    let usage_of = |n: usize| -> Result<u64, String> { Ok(vector_handler(elf, functions, n)?.map_or(0, |f| f.usage as u64)) };
+    let fatal = usage_of(2)?.max(usage_of(3)?);
+    if vector_handler(elf, functions, 3)?.is_none() {
+        violations.push(Violation { rule: "R37.2", message: "the HardFault vector names no function: the Kernel MSP bound has no fatal-path term".to_string() });
+    }
+    let worst_handler = entries.iter().filter(|f| reset.is_none_or(|r| r.address != f.address)).map(|f| f.usage as u64).max().unwrap_or(0);
+    let inputs = MspInputs { worst: worst.1 as u64, reset: reset.map_or(0, |f| f.usage as u64), worst_handler, fatal, levels: levels.len() as u64, record, any_fp };
+    let (msp_bound, bound_terms) = msp_bound(&inputs);
     let mut occupied = 0u64;
     // The no-init records of a HIL build (`.kernel.noinit`: the trace ring,
     // the event mirror, the release-timing record) occupy Kernel RAM too;
@@ -197,16 +275,44 @@ pub fn bounds(elf: &rsk_elf::Elf, model: &ModelInputs, functions: &[FunctionRepo
     }
     let available = model.kernel_ram_size.saturating_sub(occupied);
     let ok = msp_bound <= available;
-    let terms = vec![
-        format!("worst Kernel entry point `{}`: {}", worst.0, worst.1),
-        format!("{} Job levels x {record} (level records)", levels.len()),
-        format!("{BASIC_FRAME} (exception frame from the idle loop)"),
-        format!("Kernel RAM {} minus {occupied} of data, bss and no-init records", model.kernel_ram_size),
-    ];
+    let mut terms = vec![format!("worst Kernel entry point `{}`: {}", worst.0, worst.1)];
+    terms.extend(bound_terms);
+    terms.push(format!("Kernel RAM {} minus {occupied} of data, bss and no-init records", model.kernel_ram_size));
     if !ok {
         violations.push(Violation { rule: "R37.2", message: format!("Kernel MSP: {available} bytes available, worst case {msp_bound} ({})", terms.join("; ")) });
     }
     regions.push(RegionBound { name: "kernel".to_string(), kind: "msp", bound: msp_bound, available, ok, terms });
     notes.push(format!("{} Kernel entry points from the vector table; worst `{}` at {} bytes", entries.len(), worst.0, worst.1));
     Ok((tasks, regions, violations, notes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn inputs() -> MspInputs {
+        MspInputs { worst: 3120, reset: 3120, worst_handler: 1944, fatal: 1528, levels: 7, record: 104, any_fp: true }
+    }
+
+    #[test]
+    fn the_msp_bound_counts_the_start_and_nested_handlers() {
+        // The start with a fault in it is the worst here: 3120 + 32 + 1528.
+        let (bound, terms) = msp_bound(&inputs());
+        assert_eq!(bound, 4680);
+        assert_eq!(terms.len(), 3);
+        // Handlers nested: 1944 + 728 + 32 + 224 + 104 + 1528.
+        let (bound, _) = msp_bound(&MspInputs { reset: 100, ..inputs() });
+        assert_eq!(bound, 4560);
+        // Without a floating-point context the fatal frame is the basic one.
+        let (bound, _) = msp_bound(&MspInputs { reset: 100, any_fp: false, record: 40, ..inputs() });
+        assert_eq!(bound, 1944 + 280 + 32 + 224 + 32 + 1528);
+    }
+
+    #[test]
+    fn the_msp_bound_is_never_below_the_earlier_rule() {
+        for (worst, reset, handler, fatal, levels) in [(3120, 3120, 1944, 1528, 7), (5000, 5000, 10, 0, 1), (900, 100, 900, 0, 0), (2000, 50, 2000, 3, 8)] {
+            let i = MspInputs { worst, reset, worst_handler: handler, fatal, levels, record: 104, any_fp: true };
+            assert!(msp_bound(&i).0 >= worst + levels * 104 + 32, "{i:?}");
+        }
+    }
 }

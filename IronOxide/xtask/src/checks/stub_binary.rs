@@ -218,11 +218,10 @@ pub fn objdump() -> Option<std::path::PathBuf> {
 pub const LEAN_CODE: &str = "proofs/aeneas/lean/Sched/StubCode.lean";
 
 /// Each stub and the Lean definition that holds its halfwords.
-pub const LEAN_CODES: [(&str, &str); 7] = [
+pub const LEAN_CODES: [(&str, &str); 6] = [
     ("rsk_irq_entry", "irqCode"),
     ("rsk_svc_entry", "svcCode"),
     ("rsk_unwind", "unwindCode"),
-    ("rsk_timer_entry", "timerCode"),
     ("rsk_memmanage_entry", "mmCode"),
     ("rsk_busfault_entry", "faultCode"),
     ("rsk_usagefault_entry", "faultCode"),

@@ -627,36 +627,6 @@ fn pins_running(task: Option<u8>) {
     let _ = task;
 }
 
-/// The Kernel-level timer handler body.
-pub fn timer<S: System>() -> ReturnPlan {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
-    pins_enter();
-    #[cfg(feature = "trace-ram")]
-    unsafe_module::span_enter();
-    #[cfg(feature = "trace-ram")]
-    let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
-    #[cfg(feature = "trace-ram")]
-    let span_what;
-    let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
-    #[cfg(feature = "trace-ram")]
-    {
-        let interrupting_cycles = hw::dwt_cyccnt().wrapping_sub(start);
-        span_what = entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
-        if let Some(t) = top_before {
-            unsafe_module::stats_interrupted(t, unsafe_module::ENTRY_TIMER, interrupting_cycles);
-        }
-    }
-    mirror_events(k);
-    if safe {
-        safe_state::<S>();
-    }
-    #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0, span_what);
-    pins_running(k.top());
-    hop
-}
-
 /// Enters the system safe state (R14.4). In a boot-check build under the
 /// watchdog case the report is withheld while the watchdog runs
 /// (`hw::watchdog_case_hold`).

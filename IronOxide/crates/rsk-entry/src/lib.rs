@@ -204,11 +204,6 @@ pub unsafe extern "C" fn rsk_epilogue_rust(level: u32, out: *mut [u32; 4]) {
 }
 
 #[no_mangle]
-pub extern "C" fn rsk_timer_rust() -> u32 {
-    arch::timer::<Sys>()
-}
-
-#[no_mangle]
 pub extern "C" fn rsk_memmanage_rust(in_kernel: u32, frame: u32, exc_return: u32) -> u32 {
     arch::mem_manage::<Sys>(in_kernel != 0, frame, exc_return)
 }

@@ -3660,9 +3660,18 @@ prover = "lean"
 
 [[mutation]]
 id = "lean-arm-fp-instruction-leaves-fpca"
-kills = "sim_vpush_eq, sim_vpop_eq (Sched/StubRefine.lean, 2026-11-26; B1.5.7): the excess of CONTROL over the model after a floating-point instruction is the FPCA bit the machine sets; with a machine that leaves CONTROL the stated excess is wrong"
+kills = "sim_vpush_eq, sim_vpop_eq (Sched/StubRefine.lean, 2026-11-26; B1.5.7): the model's vpush and vpop set CONTROL.FPCA because the machine's floating-point instructions do; with a machine that leaves CONTROL the model is not the machine"
 file = "proofs/aeneas/lean/Sched/Arm.lean"
 find = "  else some (if s.aspen then { s with control := s.control ||| 4#32 } else s)\n"
 replace = "  else some s\n"
 expect = ["Sched/StubRefine.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-stub-model-vpush-leaves-control"
+kills = "irq_pro_spec, irq_call (Sched/StubModel.lean, 2026-11-26; B1.5.7): the dispatch stub hands its Rust half the entry's CONTROL with FPCA set when the entry stacked a floating-point frame, because the model's vpush sets it as the processor does; with the model as it was before the finding (CONTROL left) the statement is false of it. The machine-code proof's side is lean-arm-fp-instruction-leaves-fpca"
+file = "proofs/aeneas/lean/Sched/StubModel.lean"
+find = "    sp := s.sp - 64, control := fpca s.control,\n    mem := fun x =>"
+replace = "    sp := s.sp - 64,\n    mem := fun x =>"
+expect = ["Sched/StubModel.lean"]
 prover = "lean"

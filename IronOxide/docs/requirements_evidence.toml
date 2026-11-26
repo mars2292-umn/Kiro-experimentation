@@ -933,7 +933,7 @@ file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
 name = "lemma_stubs_keep_basepri"
 tool = "verus"
 says = "Every instruction sequence of the stub model leaves BASEPRI as it found it; a call of a Rust half leaves the value the half left; and the model's exception entry and return leave it."
-reviewed = "970b3c179a0b38dd"
+reviewed = "b3b9f1e5636332a1"
 
 [[row]]
 requirement = 8

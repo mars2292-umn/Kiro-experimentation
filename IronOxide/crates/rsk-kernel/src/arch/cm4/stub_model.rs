@@ -11,7 +11,7 @@
 //!   effect on the state.
 //! - Each stub of `unsafe_module/stubs.rs` as the sequence of those
 //!   functions, one per assembly line, in the order of the source
-//!   (`irq_*`, `unwind_*`, `svc_*`, `mm_*`, `fault_*`, `timer_*`). The static
+//!   (`irq_*`, `unwind_*`, `svc_*`, `mm_*`, `fault_*`). The static
 //!   check `cargo xtask check` (`checks::stub_model`) compares the two texts line by
 //!   line, so the model cannot drift from the assembly unnoticed.
 //! - A call of a Rust half (`call*`): what AAPCS leaves to the caller (R4
@@ -146,15 +146,34 @@ pub open spec fn i_tst_lr(s: M, mask: u32) -> M { M { z: !has_bit(s.lr, mask), .
 /// `tst rN, #mask`.
 pub open spec fn i_tst_r(s: M, n: int, mask: u32) -> M { M { z: !has_bit(s.r[n], mask), ..s } }
 
+/// CONTROL after a floating-point instruction: the FPCA bit (bit 2) set.
+/// With FPCCR.ASPEN set, as the boot sets it, the processor sets
+/// CONTROL.FPCA when it executes a floating-point instruction with the bit
+/// clear (Armv7-M ARM B1.5.7, `ExecuteFPCheck`), and an exception entry
+/// clears it. Until 2026-11-26 `vpush` and `vpop` left CONTROL; the proof
+/// of the stubs' machine code against a semantics of the instructions
+/// (`proofs/aeneas/lean/Sched/StubPaths.lean`) found the difference.
+pub open spec fn fpca(c: int) -> int {
+    if (c / 4) % 2 == 0 { c + 4 } else { c }
+}
+
 /// `vpush {s16-s31}`: sixteen words, S16 at the lowest address.
 pub open spec fn vpush(s: M) -> M {
     let b = s.sp - 64;
-    M { sp: b, mem: |x: int| if b <= x < b + 64 && (x - b) % 4 == 0 { s.fp[(x - b) / 4] } else { (s.mem)(x) }, ..s }
+    M { sp: b, control: fpca(s.control), mem: |x: int| if b <= x < b + 64 && (x - b) % 4 == 0 { s.fp[(x - b) / 4] } else { (s.mem)(x) }, ..s }
 }
 
 /// `vpop {s16-s31}`.
 pub open spec fn vpop(s: M) -> M {
-    M { sp: s.sp + 64, fp: Seq::new(16, |i: int| (s.mem)(s.sp + 4 * i)), ..s }
+    M { sp: s.sp + 64, control: fpca(s.control), fp: Seq::new(16, |i: int| (s.mem)(s.sp + 4 * i)), ..s }
+}
+
+/// CONTROL as the dispatch stub reads it for its Rust half, and as the
+/// stub leaves it when it returns as entered: the entry's CONTROL, with
+/// FPCA set when the entry stacked a floating-point frame (EXC_RETURN bit
+/// 4 clear), since the stub then executes `vpusheq`.
+pub open spec fn entry_control(s: M) -> int {
+    if has_bit(s.lr, 0x10) { s.control } else { fpca(s.control) }
 }
 
 /// `it eq` / `vpusheq {s16-s31}`.
@@ -386,14 +405,6 @@ pub open spec fn kentry_return(s: M) -> M {
     s
 }
 
-// ---- rsk_timer_entry.
-
-pub open spec fn timer_to_call(s: M) -> M {
-    let s = i_push_r4_lr(s);
-    // ctl: bl {timer}
-    s
-}
-
 // ---- rsk_memmanage_entry.
 
 pub open spec fn mm_to_call(s: M) -> M {
@@ -559,7 +570,7 @@ pub proof fn lemma_irq_call(s: M)
         let c = irq_to_call(s);
         &&& wf(c)
         &&& c.primask
-        &&& c.r[0] == s.ipsr && c.r[1] == s.psp && c.r[2] == s.control && c.r[3] == s.lr
+        &&& c.r[0] == s.ipsr && c.r[1] == s.psp && c.r[2] == entry_control(s) && c.r[3] == s.lr
         &&& (c.mem)(c.sp) == c.sp + 8
         &&& c.sp == s.sp - frame_size(entry_frame(s, 0)) - 24
     }),
@@ -579,7 +590,7 @@ pub proof fn lemma_irq_called(s: M, h: M, p: (int, int, int, int), g: int)
         &&& t.sp == s.sp - frame_size(entry_frame(s, g))
         &&& frame_top(t.mem, t.sp, entry_frame(s, g))
         &&& forall|x: int| x >= s.sp ==> (s.mem)(x) == #[trigger] (t.mem)(x)
-        &&& t.fp == s.fp && t.primask && t.psp == s.psp && t.control == s.control && t.faultmask == s.faultmask
+        &&& t.fp == s.fp && t.primask && t.psp == s.psp && t.control == entry_control(s) && t.faultmask == s.faultmask
     }),
 {
     let c = irq_to_call(s);
@@ -603,7 +614,7 @@ pub proof fn lemma_irq_restore(s: M, h: M, p: (int, int, int, int))
     ensures ({
         let u = irq_restore(irq_called(s, h, p));
         &&& wf(u)
-        &&& u.sp == s.sp && u.lr == s.lr && u.fp =~= s.fp && u.psp == s.psp && u.control == s.control
+        &&& u.sp == s.sp && u.lr == s.lr && u.fp =~= s.fp && u.psp == s.psp && u.control == entry_control(s)
         &&& forall|i: int| 3 <= i <= 11 ==> u.r[i] == s.r[i]
         &&& u.r[12] == p.3 && u.z == (p.3 == 0) && u.primask && u.faultmask == s.faultmask
         &&& forall|x: int| x >= s.sp ==> (s.mem)(x) == #[trigger] (u.mem)(x)
@@ -649,7 +660,7 @@ pub proof fn theorem_irq_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState, s
         let c = irq_to_call(s);
         let t = irq_called(s, h, (plan.psp as int, plan.control as int, plan.exc_return as int, plan.hop as int));
         let u = irq_restore(t);
-        &&& c.primask && c.r[0] == s.ipsr && c.r[1] == s.psp && c.r[2] == s.control && c.r[3] == s.lr
+        &&& c.primask && c.r[0] == s.ipsr && c.r[1] == s.psp && c.r[2] == entry_control(s) && c.r[3] == s.lr
         &&& (t.r[0] == 0) == (plan.psp == 0)
         &&& plan.psp != 0 ==> ({
             let d = irq_dispatch(t);
@@ -659,7 +670,7 @@ pub proof fn theorem_irq_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState, s
             &&& super::entry::arch_inv(k1, s1, 0)
         })
         &&& plan.psp == 0 ==> ({
-            &&& u.sp == s.sp && u.lr == s.lr && u.fp =~= s.fp && u.psp == s.psp && u.control == s.control
+            &&& u.sp == s.sp && u.lr == s.lr && u.fp =~= s.fp && u.psp == s.psp && u.control == entry_control(s)
             &&& forall|i: int| 3 <= i <= 11 ==> u.r[i] == s.r[i]
             &&& u.z == (plan.hop == 0)
         })
@@ -746,7 +757,7 @@ pub proof fn lemma_stubs_keep_basepri(s: M, h: M, out: int, v: (int, int, int, i
         unwind_after_call(s).basepri == s.basepri, unwind_exit(s).basepri == s.basepri,
         unwind_again(s).basepri == s.basepri,
         svc_to_call(s).basepri == s.basepri, kentry_after_call(s).basepri == s.basepri,
-        kentry_return(s).basepri == s.basepri, timer_to_call(s).basepri == s.basepri,
+        kentry_return(s).basepri == s.basepri,
         mm_to_call(s).basepri == s.basepri, fault_to_call(s).basepri == s.basepri,
         call(s, h).basepri == h.basepri, call_ret(s, h, v.0).basepri == h.basepri,
         call_out4(s, h, out, v.0, v.1, v.2, v.3).basepri == h.basepri,
@@ -769,8 +780,7 @@ pub proof fn lemma_irq_stub_basepri(s: M, h: M, p: (int, int, int, int))
     lemma_stubs_keep_basepri(c, h, (c.mem)(c.sp), p, 0, false, 0, 0);
 }
 
-/// A Kernel-level stub, whole (the SVC's; the timer's and the faults' have
-/// the same tail): returning as entered or reaching `rsk_unwind`, BASEPRI is
+/// A Kernel-level stub, whole (the SVC's; the faults' have the same tail): returning as entered or reaching `rsk_unwind`, BASEPRI is
 /// what the Rust half's core left.
 pub proof fn lemma_svc_stub_basepri(s: M, h: M, hop: int)
     ensures ({
@@ -989,7 +999,7 @@ pub proof fn theorem_unwind<K: KernelOps>(m: M, n: int, ks: Seq<K>, ss: Seq<Arch
     }
 }
 
-// ---- The Kernel-level handlers: SVC, faults, the timer.
+// ---- The Kernel-level handlers: SVC and the faults.
 
 /// What every Kernel-level handler's stub does after its Rust half returned
 /// the plan `hop` (`kentry_rel`): it restores R4 and LR; with no plan it
@@ -1119,29 +1129,6 @@ pub proof fn theorem_fault_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState,
     lemma_kentry_tail(s, c, call_ret(c, h, hop), k1, s0, s1, hop, fs, g, tpsp);
 }
 
-/// The timer handler's stub (`rsk_timer_entry`; no vector of the nRF52840
-/// table uses it, the time base is an interrupt line served by
-/// `rsk_irq_entry`). It has no Handler-mode guard of its own, hence the
-/// premise that a plan is handed only to an entry from Thread mode.
-pub proof fn theorem_timer_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState, s1: ArchState, hop: int, fs: Seq<Frame>, g: int, tpsp: bool)
-    requires
-        wf(s), world(s0, s.mem, s.sp + g, fs, tpsp), hw_entry(s.lr, g, tpsp), k1.inv(),
-        super::entry::kentry_rel(k1, s0, s1, hop),
-        hop != 0 ==> has_bit(s.lr, 0x8),
-    ensures ({
-        let c = timer_to_call(s);
-        let u = kentry_after_call(call_ret(c, h, hop));
-        &&& u.sp == s.sp && u.lr == s.lr && u.fp == s.fp && u.r[0] == hop
-        &&& forall|i: int| 4 <= i <= 11 ==> u.r[i] == s.r[i]
-        &&& hop == 0 ==> world(s1, kentry_return(u).mem, s.sp + g, fs, tpsp) && super::entry::arch_inv(k1, s1, 0)
-        &&& hop != 0 ==> wf(unwind_entry(u)) && unwind_entry(u).r[0] == hop && unwind_entry(u).primask
-                && world(s1, unwind_entry(u).mem, unwind_entry(u).sp, fs, tpsp) && super::entry::arch_inv(k1, s1, hop)
-    }),
-{
-    let c = timer_to_call(s);
-    lemma_kentry_tail(s, c, call_ret(c, h, hop), k1, s0, s1, hop, fs, g, tpsp);
-}
-
 // ---- The exception model at a handler, and the entry-instruction window (5.8a).
 
 /// HW-06: exception `n` taken while a handler executes (Handler mode, on the
@@ -1195,9 +1182,12 @@ pub open spec fn resumed_as_left(r: M, s: M) -> bool {
 /// The Handler-mode EXC_RETURN value: neither Thread mode nor the process stack.
 pub proof fn lemma_handler_exc_return()
     ensures !has_bit(0xFFFF_FFF1, 0x8), !has_bit(0xFFFF_FFF1, 0x4), 0xFFFF_FFF1u32 & 0x8 == 0,
+        // no floating-point frame: the dispatch stub entered from a handler executes no `vpusheq`
+        has_bit(0xFFFF_FFF1, 0x10),
 {
     assert(0xFFFF_FFF1u32 & 0x8 == 0) by (bit_vector);
     assert(0xFFFF_FFF1u32 & 0x4 == 0) by (bit_vector);
+    assert(0xFFFF_FFF1u32 & 0x10 != 0) by (bit_vector);
 }
 
 /// The entry-instruction window (5.8a), an interrupt vector's case. A

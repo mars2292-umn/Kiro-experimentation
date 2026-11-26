@@ -7,11 +7,10 @@
 //! silently to a `nop` (found by the P1 spike, see design.md DD-01).
 //!
 //! Register conventions: the stubs run in Handler mode on the MSP. The
-//! Rust halves (`super::super::irq_entry`, `svc`, `epilogue`, `timer`,
-//! `fault`) are generic over the system crate's `System` type; the entry
+//! Rust halves (`super::super::irq_entry`, `svc`, `epilogue`, `fault`) are generic over the system crate's `System` type; the entry
 //! crate instantiates them through the `extern "C"` symbols
 //! `rsk_irq_entry_rust`, `rsk_svc_rust`, `rsk_epilogue_rust`,
-//! `rsk_timer_rust`, `rsk_memmanage_rust`, `rsk_busfault_rust`, and
+//! `rsk_memmanage_rust`, `rsk_busfault_rust`, and
 //! `rsk_usagefault_rust`, which it defines (R24.6: the Kernel never
 //! depends on the system crate directly).
 
@@ -26,8 +25,6 @@ extern "C" {
     /// `epilogue`: level exception number -> (psp, control, exc_return,
     /// next level to unwind or 0) through `out`.
     fn rsk_epilogue_rust(level: u32, out: *mut [u32; 4]);
-    /// `timer` -> ReturnPlan.
-    fn rsk_timer_rust() -> u32;
     fn rsk_memmanage_rust(in_kernel: u32, pc: u32) -> u32;
     fn rsk_busfault_rust(in_kernel: u32) -> u32;
     fn rsk_usagefault_rust(in_kernel: u32) -> u32;
@@ -223,26 +220,6 @@ pub unsafe extern "C" fn rsk_unwind() {
         "mov r0, r12",
         "b 1b",
         epilogue = sym rsk_epilogue_rust,
-    )
-}
-
-/// The Kernel-level timer handler: returns normally, or unwinds the level
-/// of a Job that a response ended.
-// SAFETY (UJ-025): as UJ-022.
-#[unsafe(naked)]
-#[no_mangle]
-pub unsafe extern "C" fn rsk_timer_entry() {
-    naked_asm!(
-        "push {{r4, lr}}",
-        "bl {timer}",
-        "pop {{r4, lr}}",
-        "cbz r0, 1f",
-        "b {unwind}",
-        "1:",
-        "dsb",
-        "bx lr",
-        timer = sym rsk_timer_rust,
-        unwind = sym rsk_unwind,
     )
 }
 

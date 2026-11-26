@@ -19,8 +19,10 @@ are what keeps the two the same: no wrap of the stack pointer, SP_main a
 multiple of 4, a value written to PSP a multiple of 4, a value written to
 CONTROL with no bit but nPRIV and FPCA.
 
-One difference is carried, not assumed away: CONTROL.FPCA after a
-floating-point instruction (`sim_vpush_eq`, `sim_vpop_eq`, `fex`). -/
+The proof first found a difference: a floating-point instruction sets
+CONTROL.FPCA, which the model's `vpush` and `vpop` did not. The model was
+corrected (`fpca` in `Sched/StubModel.lean` and in the Verus model), and
+`sim_vpush_eq` and `sim_vpop_eq` are exact. -/
 
 namespace Stub
 open Arm
@@ -160,8 +162,10 @@ CONTROL with no bit but nPRIV and FPCA (Handler mode).
 
 Two components are compared with an excess: the machine's CONTROL is the
 model's plus `kc`, and the machine's R`i` is the model's plus `kr i`. The
-excess is 0 except where a floating-point instruction has set
-CONTROL.FPCA, which the model does not show; then it is 4. -/
+excess was needed while the model's `vpush` and `vpop` left CONTROL where
+the machine sets CONTROL.FPCA; since the model sets it too (2026-11-26)
+every theorem of `Sched/StubPaths.lean` has the excess 0, and the
+relation is equality. -/
 structure R (kc : Int) (kr : Nat → Int) (a : Arm.St) (m : M) : Prop where
   r : ∀ i, i ≤ 12 → m.r i + kr i = ((a.r i).toNat : Int)
   sp : m.sp = ((a.sp.toNat : Nat) : Int)
@@ -843,10 +847,6 @@ theorem sim_pop_b (h : R kc kr a m) (hit : a.it = 0#8) (hsp : a.sp.toNat + 8 < 4
 
 /-! ## The instructions of the IT blocks -/
 
-/-- What a floating-point instruction adds to CONTROL on the machine: the
-FPCA bit, when it is clear. -/
-def fex (a : Arm.St) : Int := if a.control.toNat < 4 then 4 else 0
-
 theorem or4_toNat (c : W) (hc : c.toNat < 8 ∧ c.toNat / 2 % 2 = 0) :
     ((c ||| 4#32).toNat : Int) = c.toNat + (if c.toNat < 4 then 4 else 0) ∧
     ((c ||| 4#32).toNat < 8 ∧ (c ||| 4#32).toNat / 2 % 2 = 0) := by
@@ -861,12 +861,12 @@ theorem R.skip (h : R kc kr a m) (p : W) (t : BitVec 8) : R kc kr { a with pc :=
   h.pcit p t
 
 /-- `vpusheq {s16-s31}` as the last instruction of an `it eq` block. When
-it is executed with CONTROL.FPCA clear, the machine sets FPCA, which the
-model does not: the excess of CONTROL grows by 4. -/
-theorem sim_vpush_eq (h : R kc kr a m) (hit : a.it = 8#8) (hsp : 64 ≤ a.sp.toNat) :
+it is executed the machine sets CONTROL.FPCA, and so does the model's
+`vpush` (`fpca`, since 2026-11-26). -/
+theorem sim_vpush_eq (h : R 0 kr a m) (hit : a.it = 8#8) (hsp : 64 ≤ a.sp.toNat) :
     ∃ a', execI (.vpush 16 16) 4#32 a = some a' ∧ a'.pc = a.pc + 4#32 ∧ a'.it = 0#8 ∧
       a'.sp.toNat = (if a.z then a.sp.toNat - 64 else a.sp.toNat) ∧
-      R (if a.z then kc + fex a else kc) kr a' (i_vpush_eq m) := by
+      R 0 kr a' (i_vpush_eq m) := by
   rw [execI_it hit (by decide) (by simp) (by simp)]
   have hz := h.z
   have ht : itAdvance 8#8 = 0#8 := by decide
@@ -894,10 +894,12 @@ theorem sim_vpush_eq (h : R kc kr a m) (hit : a.it = 8#8) (hsp : 64 ≤ a.sp.toN
     rkeep h
     case sp => show m.sp - 64 = _; rw [e, h.sp]; omega
     case control =>
-      show m.control + (kc + fex a) = (((a.control ||| 4#32).toNat : Nat) : Int)
-      rw [o4.1, ← h.control]
-      unfold fex
-      omega
+      show fpca m.control + 0 = (((a.control ||| 4#32).toNat : Nat) : Int)
+      have hc := h.control
+      have hb := h.cb
+      rw [o4.1]
+      unfold fpca
+      split_ifs <;> omega
     case spal => show (a.sp - BitVec.ofNat 32 64).toNat % 4 = 0; rw [e]; omega
     case cb => exact o4.2
     case mem =>
@@ -922,10 +924,10 @@ theorem sim_vpush_eq (h : R kc kr a m) (hit : a.it = 8#8) (hsp : 64 ≤ a.sp.toN
         exact hm
 
 /-- `vpopeq {s16-s31}` as the last instruction of an `it eq` block. -/
-theorem sim_vpop_eq (h : R kc kr a m) (hit : a.it = 8#8) (hsp : a.sp.toNat + 64 < 4294967296) :
+theorem sim_vpop_eq (h : R 0 kr a m) (hit : a.it = 8#8) (hsp : a.sp.toNat + 64 < 4294967296) :
     ∃ a', execI (.vpop 16 16) 4#32 a = some a' ∧ a'.pc = a.pc + 4#32 ∧ a'.it = 0#8 ∧
       a'.sp.toNat = (if a.z then a.sp.toNat + 64 else a.sp.toNat) ∧
-      R (if a.z then kc + fex a else kc) kr a' (i_vpop_eq m) := by
+      R 0 kr a' (i_vpop_eq m) := by
   rw [execI_it hit (by decide) (by simp) (by simp)]
   have hz := h.z
   have ht : itAdvance 8#8 = 0#8 := by decide
@@ -954,10 +956,12 @@ theorem sim_vpop_eq (h : R kc kr a m) (hit : a.it = 8#8) (hsp : a.sp.toNat + 64 
       show m.sp + 64 = (((a.sp + BitVec.ofNat 32 64).toNat : Nat) : Int)
       rw [e, hsp']; omega
     case control =>
-      show m.control + (kc + fex a) = (((a.control ||| 4#32).toNat : Nat) : Int)
-      rw [o4.1, ← h.control]
-      unfold fex
-      omega
+      show fpca m.control + 0 = (((a.control ||| 4#32).toNat : Nat) : Int)
+      have hc := h.control
+      have hb := h.cb
+      rw [o4.1]
+      unfold fpca
+      split_ifs <;> omega
     case spal => show (a.sp + BitVec.ofNat 32 64).toNat % 4 = 0; rw [e]; omega
     case cb => exact o4.2
     case fp =>

@@ -16,9 +16,7 @@ any halfwords that are a `bl` (`IsBl`) and a `b.w` (`IsBw`); that the
 target is the symbol the source names is `cargo xtask stubs`'s check.
 
 `rsk_busfault_entry` and `rsk_usagefault_entry` are the same code
-(`faultCode`). `rsk_timer_entry` is linked in no binary (nothing refers to
-it): `timerCode` is its source assembled by hand from the encodings of the
-same instructions in the other stubs, and is not compared with a binary.
+(`faultCode`).
 
 The theorems were written by a script from the decoder's output and are
 checked here; the script is not kept. -/
@@ -40,9 +38,6 @@ def mmCode (c1 c2 u1 u2 : Nat) : List Nat :=
 
 def faultCode (c1 c2 u1 u2 : Nat) : List Nat :=
   [0xB510, 0xF3EF, 0x8010, 0xF01E, 0x0F08, 0xBF08, 0x2001, c1, c2, 0xE8BD, 0x4010, 0xB108, u1, u2, 0xF3BF, 0x8F4F, 0x4770]
-
-def timerCode (c1 c2 u1 u2 : Nat) : List Nat :=
-  [0xB510, c1, c2, 0xE8BD, 0x4010, 0xB108, u1, u2, 0xF3BF, 0x8F4F, 0x4770]
 
 /-- Proves a decode fact at a concrete offset of a concrete halfword. -/
 macro "fetch_tac" k:num : tactic =>
@@ -562,40 +557,5 @@ theorem fault_f28 (base : W) (c1 c2 u1 u2 : Nat) :
 theorem fault_f32 (base : W) (c1 c2 u1 u2 : Nat) :
     fetch (codeAt base (faultCode c1 c2 u1 u2)) (base + 32#32) = some (.bx 14, 2#32) := by
   fetch_tac 32
-
-/-- `push {r4, lr}` -/
-theorem timer_f0 (base : W) (c1 c2 u1 u2 : Nat) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 0#32) = some (.push 16400, 2#32) := by
-  fetch_tac 0
-
-theorem timer_f2 (base : W) (c1 c2 u1 u2 : Nat) (h : IsBl c1 c2) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 2#32) = some (.bl (brOff c1 c2), 4#32) := by
-  rw [fetch_at _ _ 2 (by decide) (by decide)]
-  simp [timerCode, (decode_bl h).1, (decode_bl h).2]
-
-/-- `pop.w {r4, lr}` -/
-theorem timer_f6 (base : W) (c1 c2 u1 u2 : Nat) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 6#32) = some (.pop 16400, 4#32) := by
-  fetch_tac 6
-
-/-- `cbz r0, 0x10c <rsk_busfault_entry+0x1c>` -/
-theorem timer_f10 (base : W) (c1 c2 u1 u2 : Nat) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 10#32) = some (.cbz false 0 0x00000002#32, 2#32) := by
-  fetch_tac 10
-
-theorem timer_f12 (base : W) (c1 c2 u1 u2 : Nat) (h : IsBw u1 u2) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 12#32) = some (.b (brOff u1 u2), 4#32) := by
-  rw [fetch_at _ _ 12 (by decide) (by decide)]
-  simp [timerCode, (decode_bw h).1, (decode_bw h).2]
-
-/-- `dsb sy` -/
-theorem timer_f16 (base : W) (c1 c2 u1 u2 : Nat) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 16#32) = some (.dsb, 4#32) := by
-  fetch_tac 16
-
-/-- `bx lr` -/
-theorem timer_f20 (base : W) (c1 c2 u1 u2 : Nat) :
-    fetch (codeAt base (timerCode c1 c2 u1 u2)) (base + 20#32) = some (.bx 14, 2#32) := by
-  fetch_tac 20
 
 end Stub
