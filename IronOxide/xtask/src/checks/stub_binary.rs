@@ -212,6 +212,87 @@ pub fn objdump() -> Option<std::path::PathBuf> {
     None
 }
 
+/// The machine code of the stubs as the Lean proof has it
+/// (`Sched/StubPaths.lean` runs the machine of `Sched/Arm.lean` on these
+/// halfwords; 2026-11-26).
+pub const LEAN_CODE: &str = "proofs/aeneas/lean/Sched/StubCode.lean";
+
+/// Each stub and the Lean definition that holds its halfwords.
+pub const LEAN_CODES: [(&str, &str); 7] = [
+    ("rsk_irq_entry", "irqCode"),
+    ("rsk_svc_entry", "svcCode"),
+    ("rsk_unwind", "unwindCode"),
+    ("rsk_timer_entry", "timerCode"),
+    ("rsk_memmanage_entry", "mmCode"),
+    ("rsk_busfault_entry", "faultCode"),
+    ("rsk_usagefault_entry", "faultCode"),
+];
+
+/// The halfwords of the Lean definition `def <name> (...) : List Nat := [...]`,
+/// as written: a hexadecimal literal, or the name of a parameter.
+pub fn lean_code(lean: &str, name: &str) -> Option<Vec<String>> {
+    let start = lean.find(&format!("def {name} ("))?;
+    let rest = &lean[start..];
+    let open = rest.find('[')?;
+    let close = rest[open..].find(']')? + open;
+    Some(rest[open + 1..close].split(',').map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).collect())
+}
+
+/// The halfwords `llvm-objdump -d` printed for the first `insns`
+/// instructions at addresses in `[start, end)`.
+pub fn raw_halfwords(text: &str, start: u32, end: u32, insns: usize) -> Vec<u32> {
+    let mut out = Vec::new();
+    let mut seen = 0;
+    for line in text.lines() {
+        let Some((addr, rest)) = line.split_once(':') else { continue };
+        let Ok(a) = u32::from_str_radix(addr.trim(), 16) else { continue };
+        if a < start || a >= end || seen == insns {
+            continue;
+        }
+        let words: Vec<u32> = rest
+            .split('\t')
+            .next()
+            .unwrap_or("")
+            .split_whitespace()
+            .map_while(|w| if w.len() == 4 { u32::from_str_radix(w, 16).ok() } else { None })
+            .collect();
+        if words.is_empty() {
+            continue;
+        }
+        seen += 1;
+        out.extend(words);
+    }
+    out
+}
+
+/// The differences between the Lean file's halfwords of a stub and the
+/// binary's. A parameter `c1`, `c2` stands for the two halfwords of a `bl`
+/// and `u1`, `u2` for those of a `b.w` (they hold the distance to the
+/// target, which is the binary's own): the binary's halfwords there have
+/// to be such an instruction.
+pub fn compare_words(stub: &str, lean: &[String], binary: &[u32]) -> Vec<String> {
+    let mut out = Vec::new();
+    if lean.len() != binary.len() {
+        out.push(format!("`{stub}`: {LEAN_CODE} has {} halfwords, the binary {}", lean.len(), binary.len()));
+        return out;
+    }
+    for (i, (l, b)) in lean.iter().zip(binary.iter()).enumerate() {
+        let next = binary.get(i + 1).copied().unwrap_or(0);
+        let ok = match l.as_str() {
+            // 11110 S imm10 | 11 J1 1 J2 imm11
+            "c1" => b / 2048 == 30 && next / 16384 == 3 && (next / 4096) % 2 == 1,
+            // 11110 S imm10 | 10 J1 1 J2 imm11
+            "u1" => b / 2048 == 30 && next / 16384 == 2 && (next / 4096) % 2 == 1,
+            "c2" | "u2" => true,
+            lit => lit.strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok()) == Some(*b),
+        };
+        if !ok {
+            out.push(format!("`{stub}` halfword {}: {LEAN_CODE} has {l}, the binary {b:#06x}", i + 1));
+        }
+    }
+    out
+}
+
 /// The prefix of an error that is the disassembler's absence or failure,
 /// not a difference.
 pub const TOOL: &str = "tool: ";
@@ -225,6 +306,7 @@ pub fn check_binary(root: &Path, elf_path: &Path) -> Result<(Vec<String>, Vec<St
     let tool = objdump().ok_or_else(|| vec![format!("{TOOL}llvm-objdump was not found in any installed toolchain (rustup component add llvm-tools)")])?;
     let syms = sym_operands(&src);
     let stubs = stubs_of(&src);
+    let lean = std::fs::read_to_string(root.join(LEAN_CODE)).ok();
     let (mut compared, mut absent, mut diffs) = (Vec::new(), Vec::new(), Vec::new());
     let names: Vec<&str> = STUB_MODELS.iter().map(|(n, _)| *n).chain(NOT_MODELLED.iter().map(|(n, _)| *n)).collect();
     for name in names {
@@ -248,9 +330,33 @@ pub fn check_binary(root: &Path, elf_path: &Path) -> Result<(Vec<String>, Vec<St
         let named = |n: &str| syms.iter().find(|(k, _)| k == n).map(|(_, s)| s.clone());
         let source = source_insns(lines, &named);
         let binary = disassembled_insns(&String::from_utf8_lossy(&out.stdout), start, end);
-        let d = compare(name, &source, &binary, &syms, lines);
+        let mut d = compare(name, &source, &binary, &syms, lines);
+        // The halfwords are those the Lean proof runs (2026-11-26).
+        let mut words = 0;
+        if let Some((_, def)) = LEAN_CODES.iter().find(|(n, _)| *n == name) {
+            match lean.as_deref().and_then(|l| lean_code(l, def)) {
+                None => d.push(format!("`{name}`: {LEAN_CODE} has no `{def}`")),
+                Some(expected) => {
+                    let raw = Command::new(&tool)
+                        .args(["-d", &format!("--start-address={start}"), &format!("--stop-address={end}")])
+                        .arg(elf_path)
+                        .output()
+                        .map_err(|e| vec![format!("{TOOL}{}: {e}", tool.display())])?;
+                    if !raw.status.success() {
+                        return Err(vec![format!("{TOOL}{} failed on {}", tool.display(), elf_path.display())]);
+                    }
+                    let found = raw_halfwords(&String::from_utf8_lossy(&raw.stdout), start, end, source.len());
+                    words = found.len();
+                    d.extend(compare_words(name, &expected, &found));
+                }
+            }
+        }
         if d.is_empty() {
-            compared.push(format!("{name} ({} instructions)", source.len()));
+            compared.push(if words == 0 {
+                format!("{name} ({} instructions)", source.len())
+            } else {
+                format!("{name} ({} instructions, {words} halfwords as the Lean proof has them)", source.len())
+            });
         }
         diffs.extend(d);
     }
@@ -271,6 +377,26 @@ pub fn check_binary(root: &Path, elf_path: &Path) -> Result<(Vec<String>, Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_halfwords_of_the_lean_file_and_of_a_disassembly_are_compared() {
+        let lean = "def svcCode (c1 c2 u1 u2 : Nat) : List Nat :=\n  [0xF01E, 0x0F04, c1, c2, u1, u2, 0x4770]\n";
+        let code = lean_code(lean, "svcCode").unwrap();
+        assert_eq!(code, ["0xF01E", "0x0F04", "c1", "c2", "u1", "u2", "0x4770"]);
+        let dump = "     1b8: f01e 0f04    \ttst.w\tlr, #0x4\n     1bc: f00b fd41    \tbl\t0xbc50 <rsk_svc_rust>\n     1c0: f000 b804    \tb.w\t0x1e0 <rsk_unwind>\n     1c4: 4770         \tbx\tlr\n     1c6: d4d4         \tbmi\t0x172\n";
+        let words = raw_halfwords(dump, 0x1b8, 0x1c8, 4);
+        assert_eq!(words, [0xf01e, 0x0f04, 0xf00b, 0xfd41, 0xf000, 0xb804, 0x4770]);
+        assert!(compare_words("rsk_svc_entry", &code, &words).is_empty());
+        // Another word, another length, and a parameter that is not the branch it stands for.
+        let mut other = words.clone();
+        other[1] = 0x0f08;
+        assert_eq!(compare_words("rsk_svc_entry", &code, &other).len(), 1);
+        assert_eq!(compare_words("rsk_svc_entry", &code, &words[..6]).len(), 1);
+        let mut not_bl = words.clone();
+        not_bl[3] = 0xb804;
+        assert_eq!(compare_words("rsk_svc_entry", &code, &not_bl).len(), 1);
+        assert!(lean_code(lean, "irqCode").is_none());
+    }
 
     fn s(text: &str) -> Insn {
         insn(text, &|n| if n == "svc" { Some("rsk_svc_rust".to_string()) } else { None })

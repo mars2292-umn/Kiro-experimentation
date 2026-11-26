@@ -193,6 +193,18 @@ unwind, and kept by a dispatch vector and a supervisor call), and
 start's frame, the floating-point access; over `HSpec2`). BASEPRI over an
 interrupt entry is not proven in Lean.
 
+`lean/Sched/Arm.lean`, `lean/Sched/StubCode.lean`, `lean/Sched/StubRefine.lean`
+and `lean/Sched/StubPaths.lean` (2026-11-26) prove the assembly stubs'
+machine code: a semantics and a decoder of the Armv7-M instructions the
+stubs use, the stubs' halfwords with what each decodes to, the simulation
+of each instruction form of the stub model (`lean/Sched/StubModel.lean`) by
+the machine, and each path of each stub. To refresh `StubCode.lean` after
+a change of `unsafe_module/stubs.rs`: disassemble a linked Flight_Build
+with `llvm-objdump -d --disassemble-symbols=<stub>`, put the halfwords in
+the stub's definition (`c1`, `c2` for a `bl`, `u1`, `u2` for a `b.w` out of
+the stub), restate the decode theorems, and run `cargo xtask stubs <binary>`,
+which compares the binary's halfwords with the file.
+
 `lean/Sched/Plan.lean` (2026-11-26) proves the contracts of `plan.rs` on
 the extracted functions (`frame_in_stack`, `plan_frame`, `compare_target`,
 `top_active`) and that the Endpoint storage keeps every word between two

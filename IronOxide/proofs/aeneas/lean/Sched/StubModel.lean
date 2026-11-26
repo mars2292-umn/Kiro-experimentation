@@ -31,8 +31,12 @@ records across every entry (`world`, `arch_inv`), which rests on ghost
 state of `ArchState` that the extraction erases. What links a record to its
 stub here is `Sched/Record.lean`.
 
-Assumed, as in Verus: the instruction semantics of the `i_*` functions, the
-exception model, and AAPCS for the compiled Rust halves (`call`). -/
+Assumed, as in Verus: the exception model, and AAPCS for the compiled Rust
+halves (`call`). The instruction semantics of the `i_*` functions was
+assumed until 2026-11-26; `Sched/StubPaths.lean` now proves it of the
+stubs' machine code under a semantics of the Armv7-M instructions
+(`Sched/Arm.lean`), with one difference it states: `vpush` and `vpop` here
+leave CONTROL, where the processor sets CONTROL.FPCA. -/
 
 namespace Stub
 

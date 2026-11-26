@@ -3636,3 +3636,33 @@ find = "  intervalEnd ram ≤ 0xFFFF_FFFF ∧ (intervalEnd ram ≤ base ∨ base
 replace = "  True ∧ (intervalEnd ram ≤ base ∨ base + total ≤ ram.base.val)\n"
 expect = ["Tools/CcImageProofs.lean"]
 prover = "lean"
+
+# 2026-11-26, last: the assembly stubs' machine code against a semantics
+# of the Armv7-M instructions.
+
+[[mutation]]
+id = "lean-arm-push-highest-register-first"
+kills = "eff_push_a, sim_push_a, irq_to_call_run (Sched/StubRefine.lean, Sched/StubPaths.lean, 2026-11-26; Property 2): the stub model's push puts the lowest register at the lowest address because the machine's does; with the machine storing the registers in the other order the model is not the machine"
+file = "proofs/aeneas/lean/Sched/Arm.lean"
+find = "    else some { s with mem := wrws s.mem a (rs.map (getR s)), sp := a, pc := next }\n"
+replace = "    else some { s with mem := wrws s.mem a (rs.reverse.map (getR s)), sp := a, pc := next }\n"
+expect = ["Sched/StubRefine.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-stub-code-halfword-changed"
+kills = "irq_f32 (Sched/StubCode.lean, 2026-11-26): each instruction of a stub is what the decoder reads from the stub's halfwords; with one halfword of rsk_irq_entry changed (sub sp, #28 for sub sp, #24) the code is not the instructions the paths are proven of"
+file = "proofs/aeneas/lean/Sched/StubCode.lean"
+find = "0x46F0, 0xB086, 0xAC02"
+replace = "0x46F0, 0xB087, 0xAC02"
+expect = ["Sched/StubCode.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-arm-fp-instruction-leaves-fpca"
+kills = "sim_vpush_eq, sim_vpop_eq (Sched/StubRefine.lean, 2026-11-26; B1.5.7): the excess of CONTROL over the model after a floating-point instruction is the FPCA bit the machine sets; with a machine that leaves CONTROL the stated excess is wrong"
+file = "proofs/aeneas/lean/Sched/Arm.lean"
+find = "  else some (if s.aspen then { s with control := s.control ||| 4#32 } else s)\n"
+replace = "  else some s\n"
+expect = ["Sched/StubRefine.lean"]
+prover = "lean"
