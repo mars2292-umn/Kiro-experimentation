@@ -148,11 +148,27 @@ Budget slot is the executing Job's in every state the run reaches
 (`kreachb_bo`), from which the premises of the run's Budget transitions
 about the slot follow (`budget_slot_top`, `KStep.served_bevent_reach`).
 
-`lean/Sched/Deadline.lean` proves an invariant Verus does not state:
+`lean/Sched/Deadline.lean` proves an invariant Verus did not state until
+2026-11-25 (`Kernel::deadline_slots_owned`):
 outside the safe state, an armed deadline slot belongs to a Task with a
 Release pending or a Job in progress (`kreachs_di`), so the Job of a
 served deadline slot is not complete (`deadline_slot_incomplete`,
 `KStep.served_deadline_reach`).
+
+`lean/Sched/Restore.lean` (2026-11-25) has two statements Verus proves
+over its ghost history: the System_Ceiling is restored by the unlock that
+matches a lock across whatever other Jobs did in between
+(`ceiling_restored`, over the run of `Sched/Run.lean`), and deadlock
+freedom (`deadlock_free`, `kreach_deadlock_free`).
+
+`lean/Sched/MaskFrame.lean` and `lean/Sched/Intakes.lean` (2026-11-25)
+have Property 9 (R19.1): a source's mask is lifted only once its MIT
+window has passed (`KM`, one theorem per function of the run), every
+outcome of an intake masks the source (`intake_release_chain`), and two
+effective intakes of a source are at least one MIT apart, with the count
+bound (`irun_spaced`, `irun_count`). `MaskFrame.lean` is generated from
+`SpFrame.lean` with the relation in place of the equalities, then kept by
+hand.
 
 Since 2026-11-17 no transition of the run is modelled by hand: each one
 that changes the Kernel's state carries the extracted function's result.

@@ -1267,13 +1267,13 @@ mod timebase {
     }
 
     pub fn now() -> u64 {
-        timer0::now(&mut Mmio::new(), &mut Clock)
+        timer0::now(&mut Mmio::new(), &mut Clock::new())
     }
 
     /// `timer0::arm`; on the rig the capture after the write is recorded
     /// (the distance the hardware is left with, HW-12, ASM-19).
     pub fn arm(at: u64) {
-        let post = timer0::arm(&mut Mmio::new(), &mut Clock, at);
+        let post = timer0::arm(&mut Mmio::new(), &mut Clock::new(), at);
         #[cfg(feature = "trace-ram")]
         super::super::stats_arm(at, post);
         let _ = post;
@@ -1289,7 +1289,7 @@ mod timebase {
 
     /// `timer0::rearm`, recorded on the rig as `arm`.
     pub fn rearm(at: u64) {
-        let post = timer0::rearm(&mut Mmio::new(), &mut Clock, at);
+        let post = timer0::rearm(&mut Mmio::new(), &mut Clock::new(), at);
         #[cfg(feature = "trace-ram")]
         super::super::stats_arm(at, post);
         let _ = post;

@@ -114,8 +114,20 @@ pub trait Regs {
 
 /// The extension of the 32-bit counter to the 64-bit time base (DD-05):
 /// the Kernel_Arch state that counts the counter's wraps.
-pub trait Extend {
-    fn extend(&mut self, low: u32) -> u64;
+///
+/// What an extension returns for a counter reading and the state it
+/// leaves are the two specification functions (2026-11-25), so that the
+/// drivers below can say which reading they extended, as the Lean proofs
+/// of the same functions do (`Hw/Model.lean`, `now_spec`): nothing is said
+/// of the functions themselves here (the rule behind `Clock`'s is proven
+/// on `ArchState::extend`, plan.rs).
+pub trait Extend: Sized {
+    spec fn reads(&self, low: u32) -> u64;
+
+    spec fn then(&self, low: u32) -> Self;
+
+    fn extend(&mut self, low: u32) -> (t: u64)
+        ensures t == old(self).reads(low), *final(self) == old(self).then(low);
 }
 
 /// The memory-mapped registers as a register file. Trusted
@@ -159,9 +171,31 @@ impl Regs for Mmio {
 
 /// The Kernel_Arch state's count of the counter's wraps
 /// (`unsafe_module::extend`).
-pub struct Clock;
+/// Its two specification functions are uninterpreted functions of a ghost
+/// value standing for that state: no property of them is assumed.
+pub struct Clock {
+    pub model: Ghost<int>,
+}
+
+pub uninterp spec fn clock_reads(m: int, low: u32) -> u64;
+
+pub uninterp spec fn clock_then(m: int, low: u32) -> int;
+
+impl Clock {
+    pub fn new() -> Clock {
+        Clock { model: Ghost(arbitrary()) }
+    }
+}
 
 impl Extend for Clock {
+    open spec fn reads(&self, low: u32) -> u64 {
+        clock_reads(self.model@, low)
+    }
+
+    open spec fn then(&self, low: u32) -> Self {
+        Clock { model: Ghost(clock_then(self.model@, low)) }
+    }
+
     #[verifier::external_body]
     #[inline(always)]
     fn extend(&mut self, low: u32) -> u64 {
@@ -393,6 +427,9 @@ pub mod timer0 {
     #[inline]
     pub fn now<R: Regs, E: Extend>(r: &mut R, e: &mut E) -> (t: u64)
         ensures final(r).st() == with_mem(old(r).st(), (addr::NRF_TIMER0 + TASKS_CAPTURE1) as u32, 1),
+            // The reading extended is the capture register's (2026-11-25).
+            t == old(e).reads(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
+            *final(e) == old(e).then(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
     {
         let t = addr::NRF_TIMER0;
         r.write(t + TASKS_CAPTURE1, 1);
@@ -429,6 +466,10 @@ pub mod timer0 {
         } else {
             armed(old(r).st(), at)
         },
+            // The reading that decides is the capture register's, read once
+            // after the writes and extended (2026-11-25).
+            post == old(e).reads(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
+            *final(e) == old(e).then(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
     {
         let t = addr::NRF_TIMER0;
         r.write(t + CC0, at as u32);
@@ -501,6 +542,8 @@ pub mod timer0 {
         } else {
             rearmed(old(r).st(), at)
         },
+            post == old(e).reads(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
+            *final(e) == old(e).then(old(r).st().mem[(addr::NRF_TIMER0 + CC1) as u32]),
     {
         let t = addr::NRF_TIMER0;
         r.write(t + INTENCLR, 1 << 16);

@@ -3463,3 +3463,39 @@ find = "    &&& forall|i: int| 0 <= i < es.len() ==> slots_step(&(#[trigger] es[
 replace = ""
 expect = ["entry.rs"]
 package = "rsk-kernel"
+
+[[mutation]]
+id = "timer-now-extends-the-compare-register"
+kills = "`timer0::now`'s statement of the reading it extends (2026-11-25, as `now_spec` of Hw/Model.lean): the time base returned is the extension of the capture register CC[1]; with CC[0], the compare register, read instead, the instant an arm compares against is the instant armed and not the counter"
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+find = "        let low = r.read(t + CC1);\n"
+replace = "        let low = r.read(t + CC0);\n"
+expect = ["drivers.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "lean-restore-stretch-may-dip-below-the-lock"
+kills = "above_prefix, ceiling_restored (Sched/Restore.lean, 2026-11-25): the ceiling is restored by the unlock that matches a lock only when the lock stack never went below the locked entry in between; without that condition on a stretch, the entries below are not known to be the same"
+file = "proofs/aeneas/lean/Sched/Restore.lean"
+find = "      (hn : n ≤ c.s.lock_len.val) : Above cfg P n a c\n"
+replace = "      (hn : True) : Above cfg P n a c\n"
+expect = ["Sched/Restore.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-unmask-event-without-the-window-test"
+kills = "unmask_km, serve_slot_km (Sched/MaskFrame.lean, 2026-11-25): the unmask event lifts a source's mask only with the Kernel's instant at or past `mask_until`; without the comparison the mask could be lifted inside the MIT window and a second effective intake taken"
+file = "proofs/aeneas/lean/Sched/MaskFrame.lean"
+find = "    (hm : tm.mask_until.index_usize (UScalar.cast .Usize t) = ok m) (hn : n >= m) :\n"
+replace = "    (hm : tm.mask_until.index_usize (UScalar.cast .Usize t) = ok m) (hn : True) :\n"
+expect = ["Sched/MaskFrame.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-effective-intake-from-a-masked-source"
+kills = "irun_inv, irun_spaced (Sched/Intakes.lean, 2026-11-25; Property 9, R19.1): two effective intakes are one MIT apart because an effective intake finds its source unmasked; counting intakes of a masked source (a Release_Signal raise) the spacing does not hold"
+file = "proofs/aeneas/lean/Sched/Intakes.lean"
+find = "      (h0 : mk y.k.timing t.val = false) (h1 : mk z.k.timing t.val = true) :\n      IRun"
+replace = "      (h0 : True) (h1 : mk z.k.timing t.val = true) :\n      IRun"
+expect = ["Sched/Intakes.lean"]
+prover = "lean"

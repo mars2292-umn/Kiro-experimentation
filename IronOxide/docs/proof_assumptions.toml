@@ -152,9 +152,12 @@ evidence = "vstd's specification of `str::chars` (the iterator's remaining eleme
 # are verified against a register file's specification (`RegState`,
 # `write_step`). `Mmio`, the memory-mapped registers as that file, is the
 # trusted surface below them: three volatile accesses. `Clock::extend` is
-# the Kernel_Arch state's wrap count; the trait method carries no
-# specification, the rule behind it is proven since 2026-11-21
-# (`ArchState::extend`, plan.rs).
+# the Kernel_Arch state's wrap count; since 2026-11-25 the trait method
+# says what it returns and what state it leaves by two specification
+# functions (`reads`, `then`), which for `Clock` are uninterpreted
+# functions of a ghost value: no property of them is assumed, and the
+# drivers' statements say only which reading was extended. The rule behind
+# it is proven since 2026-11-21 (`ArchState::extend`, plan.rs).
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
