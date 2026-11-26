@@ -170,6 +170,18 @@ bound (`irun_spaced`, `irun_count`). `MaskFrame.lean` is generated from
 `SpFrame.lean` with the relation in place of the equalities, then kept by
 hand.
 
+`lean/Sched/Contain.lean` (2026-11-25) has the Health_Monitor's
+containment: a fault's event first (`fault_first`), what a response is
+(`apply_response_cases`), that its steps are of its Partition's Tasks and
+leave the others alone (`apply_response_contained`, `csteps_cont`), the
+Partition ended after a stop or a restart (`end_partition_jobs_ended`),
+and the flags (`FL`, generated from `SpFrame.lean` like `MaskFrame.lean`).
+`lean/Sched/Nvic.lean` restates the Hardware_Model's interrupt controller
+and proves its statements against the extracted scheduler state.
+`lean/Sched/ArchHw.lean` proves what the entry cores write to the hardware
+(PRIMASK, the watchdog, BASEPRI after `apply_core` and the cores that end
+in it) over the contract of the `KernelArch` trait as a class (`HSpec`).
+
 Since 2026-11-17 no transition of the run is modelled by hand: each one
 that changes the Kernel's state carries the extracted function's result.
 `lean/Sched/Endpoint.lean` reads the Endpoint entry cores and `Bound`'s

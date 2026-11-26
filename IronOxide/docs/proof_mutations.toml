@@ -3499,3 +3499,30 @@ find = "      (h0 : mk y.k.timing t.val = false) (h1 : mk z.k.timing t.val = tru
 replace = "      (h0 : True) (h1 : mk z.k.timing t.val = true) :\n      IRun"
 expect = ["Sched/Intakes.lean"]
 prover = "lean"
+
+[[mutation]]
+id = "lean-response-kill-of-any-task"
+kills = "cstep_cont, csteps_cont (Sched/Contain.lean, 2026-11-25; R14.9): a response leaves the other Partitions' Tasks alone because each of its steps is of a Task of its Partition; a kill of any Task's Job does not leave the others' Jobs as they were"
+file = "proofs/aeneas/lean/Sched/Contain.lean"
+find = "  | kkill (s s' : logic.sched.Sched NT NR NL) (p : Usize) (hin : inP (stk s p.val))\n"
+replace = "  | kkill (s s' : logic.sched.Sched NT NR NL) (p : Usize) (hin : True)\n"
+expect = ["Sched/Contain.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-nvic-encoding-order-reversed"
+kills = "encode_lt, takes_iff_above, dispatch_takes_iff_elig (Sched/Nvic.lean, 2026-11-25; HW-01, DD-02): the NVIC takes a dispatch vector exactly when R7.1 admits its Task because a higher Priority encodes as a more urgent group priority; with the encoding rising with the Priority it does not"
+file = "proofs/aeneas/lean/Sched/Nvic.lean"
+find = "def encodeLevel (l : Nat) : Nat := if l = 0 then 0 else (8 - l) * 32\n"
+replace = "def encodeLevel (l : Nat) : Nat := if l = 0 then 0 else l * 32\n"
+expect = ["Sched/Nvic.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-primask-clear-counted-quiet"
+kills = "HQ.apply, svc_core_hq (Sched/ArchHw.lean, 2026-11-25; R40.6): a supervisor call does not touch PRIMASK because none of its actions sets or clears it; were clearing PRIMASK counted among the quiet actions, the frame would not follow from the model's step"
+file = "proofs/aeneas/lean/Sched/ArchHw.lean"
+find = "def QuietAct : arch.cm4.entry.Action → Prop\n  | .PrimaskSet => False\n  | .PrimaskClear => False\n"
+replace = "def QuietAct : arch.cm4.entry.Action → Prop\n  | .PrimaskSet => False\n  | .PrimaskClear => True\n"
+expect = ["Sched/ArchHw.lean"]
+prover = "lean"
