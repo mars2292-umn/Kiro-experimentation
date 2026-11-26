@@ -402,6 +402,134 @@ fn rd_row(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Result<Vec<bool>, Deco
     Ok(out)
 }
 
+// The loops of the decoders and of the comparisons are functions of their
+// own since 2026-11-26: Aeneas translates a `return` inside a loop only
+// when the loop is the last statement of its function
+// (`proofs/aeneas/lean/Tools/CcImage.lean`).
+
+/// `n` Task entries.
+fn rd_tasks(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Result<Vec<TaskCfg>, DecodeError>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Ok ==> r.unwrap()@.len() == n && read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_tasks(r.unwrap()@),
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<TaskCfg> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            read(bytes@, *pos) == start + enc_tasks(out@),
+        decreases n - i,
+    {
+        let ghost before = out@;
+        let t = match rd_task(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
+        out.push(t);
+        proof {
+            assert(out@.drop_last() =~= before);
+            assert(read(bytes@, *pos) =~= start + enc_tasks(out@));
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// `n` Resource entries.
+fn rd_resources(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Option<Vec<ResourceCfg>>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Some ==> r.unwrap()@.len() == n && read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_resources(r.unwrap()@),
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<ResourceCfg> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            read(bytes@, *pos) == start + enc_resources(out@),
+        decreases n - i,
+    {
+        let ghost before = out@;
+        let ghost at = read(bytes@, *pos);
+        let ceiling = match rd_u8(bytes, pos) { Some(v) => v, None => { return None; } };
+        let partition = match rd_u8(bytes, pos) { Some(v) => v, None => { return None; } };
+        let res = ResourceCfg { ceiling, partition };
+        out.push(res);
+        proof {
+            assert(read(bytes@, *pos) =~= at + enc_resource(res));
+            assert(out@.drop_last() =~= before);
+            assert(read(bytes@, *pos) =~= start + enc_resources(out@));
+        }
+        i += 1;
+    }
+    Some(out)
+}
+
+/// `n` rows of `m` flags.
+fn rd_rows(bytes: &[u8], pos: &mut usize, n: usize, m: usize) -> (r: Result<Vec<Vec<bool>>, DecodeError>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Ok ==> {
+            &&& r.unwrap()@.len() == n
+            &&& forall|k: int| 0 <= k < n ==> (#[trigger] r.unwrap()@[k])@.len() == m
+            &&& read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_rows(rows_view(r.unwrap()@))
+        },
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<Vec<bool>> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            forall|k: int| 0 <= k < i ==> (#[trigger] out@[k])@.len() == m,
+            read(bytes@, *pos) == start + enc_rows(rows_view(out@)),
+        decreases n - i,
+    {
+        let ghost before = rows_view(out@);
+        let row = match rd_row(bytes, pos, m) { Ok(v) => v, Err(e) => { return Err(e); } };
+        let ghost row_v = row@;
+        out.push(row);
+        proof {
+            assert(rows_view(out@).drop_last() =~= before);
+            assert(rows_view(out@).last() == row_v);
+            assert(read(bytes@, *pos) =~= start + enc_rows(rows_view(out@)));
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// `n` Partition entries.
+fn rd_partitions(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Option<Vec<PartitionCfg>>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Some ==> r.unwrap()@.len() == n && read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_partitions(r.unwrap()@),
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<PartitionCfg> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            read(bytes@, *pos) == start + enc_partitions(out@),
+        decreases n - i,
+    {
+        let ghost before = out@;
+        let p = match rd_partition(bytes, pos) { Some(v) => v, None => { return None; } };
+        out.push(p);
+        proof {
+            assert(out@.drop_last() =~= before);
+            assert(read(bytes@, *pos) =~= start + enc_partitions(out@));
+        }
+        i += 1;
+    }
+    Some(out)
+}
+
 /// R26.4: the tables of a `CONFIG` image. Returns for every input; what it
 /// accepts is exactly the encoding of what it returns.
 pub fn decode_tables(bytes: &[u8]) -> (r: Result<Tables, DecodeError>)
@@ -421,87 +549,13 @@ pub fn decode_tables(bytes: &[u8]) -> (r: Result<Tables, DecodeError>)
     let ghost head = read(bytes@, pos);
     assert(head =~= enc_u32(nt32) + enc_u32(nr32) + enc_u32(np32));
 
-    let mut tasks: Vec<TaskCfg> = Vec::new();
-    let mut i: usize = 0;
-    while i < nt
-        invariant
-            i <= nt, tasks@.len() == i, pos <= bytes@.len(),
-            read(bytes@, pos) == head + enc_tasks(tasks@),
-        decreases nt - i,
-    {
-        let ghost before = tasks@;
-        let t = match rd_task(bytes, &mut pos) { Ok(v) => v, Err(e) => { return Err(e); } };
-        tasks.push(t);
-        proof {
-            assert(tasks@.drop_last() =~= before);
-            assert(read(bytes@, pos) =~= head + enc_tasks(tasks@));
-        }
-        i += 1;
-    }
+    let tasks = match rd_tasks(bytes, &mut pos, nt) { Ok(v) => v, Err(e) => { return Err(e); } };
     let ghost after_tasks = read(bytes@, pos);
-
-    let mut resources: Vec<ResourceCfg> = Vec::new();
-    let mut i: usize = 0;
-    while i < nr
-        invariant
-            i <= nr, resources@.len() == i, pos <= bytes@.len(),
-            read(bytes@, pos) == after_tasks + enc_resources(resources@),
-        decreases nr - i,
-    {
-        let ghost before = resources@;
-        let ghost start = read(bytes@, pos);
-        let ceiling = match rd_u8(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        let partition = match rd_u8(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        let res = ResourceCfg { ceiling, partition };
-        resources.push(res);
-        proof {
-            assert(read(bytes@, pos) =~= start + enc_resource(res));
-            assert(resources@.drop_last() =~= before);
-            assert(read(bytes@, pos) =~= after_tasks + enc_resources(resources@));
-        }
-        i += 1;
-    }
+    let resources = match rd_resources(bytes, &mut pos, nr) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost after_resources = read(bytes@, pos);
-
-    let mut access: Vec<Vec<bool>> = Vec::new();
-    let mut i: usize = 0;
-    while i < nt
-        invariant
-            i <= nt, access@.len() == i, pos <= bytes@.len(),
-            forall|k: int| 0 <= k < i ==> (#[trigger] access@[k])@.len() == nr,
-            read(bytes@, pos) == after_resources + enc_rows(rows_view(access@)),
-        decreases nt - i,
-    {
-        let ghost before = rows_view(access@);
-        let row = match rd_row(bytes, &mut pos, nr) { Ok(v) => v, Err(e) => { return Err(e); } };
-        let ghost row_v = row@;
-        access.push(row);
-        proof {
-            assert(rows_view(access@).drop_last() =~= before);
-            assert(rows_view(access@).last() == row_v);
-            assert(read(bytes@, pos) =~= after_resources + enc_rows(rows_view(access@)));
-        }
-        i += 1;
-    }
+    let access = match rd_rows(bytes, &mut pos, nt, nr) { Ok(v) => v, Err(e) => { return Err(e); } };
     let ghost after_access = read(bytes@, pos);
-
-    let mut partitions: Vec<PartitionCfg> = Vec::new();
-    let mut i: usize = 0;
-    while i < np
-        invariant
-            i <= np, partitions@.len() == i, pos <= bytes@.len(),
-            read(bytes@, pos) == after_access + enc_partitions(partitions@),
-        decreases np - i,
-    {
-        let ghost before = partitions@;
-        let p = match rd_partition(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        partitions.push(p);
-        proof {
-            assert(partitions@.drop_last() =~= before);
-            assert(read(bytes@, pos) =~= after_access + enc_partitions(partitions@));
-        }
-        i += 1;
-    }
+    let partitions = match rd_partitions(bytes, &mut pos, np) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost after_partitions = read(bytes@, pos);
 
     let operating_duration = match rd_u64(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
@@ -572,6 +626,87 @@ fn task_agrees(a: &TaskCfg, b: &TaskCfg) -> (r: bool)
         && a.mit_policy == b.mit_policy && a.fpu == b.fpu
 }
 
+fn tasks_agree(a: &Vec<TaskCfg>, b: &Vec<TaskCfg>) -> (r: bool)
+    ensures r ==> a@ == b@,
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k] == b@[k],
+        decreases a@.len() - i,
+    {
+        if !task_agrees(&a[i], &b[i]) {
+            return false;
+        }
+        i += 1;
+    }
+    assert(a@ =~= b@);
+    true
+}
+
+fn resources_agree(a: &Vec<ResourceCfg>, b: &Vec<ResourceCfg>) -> (r: bool)
+    ensures r ==> a@ == b@,
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k] == b@[k],
+        decreases a@.len() - i,
+    {
+        if a[i].ceiling != b[i].ceiling || a[i].partition != b[i].partition {
+            return false;
+        }
+        i += 1;
+    }
+    assert(a@ =~= b@);
+    true
+}
+
+fn rows_agree(a: &Vec<Vec<bool>>, b: &Vec<Vec<bool>>) -> (r: bool)
+    ensures r ==> rows_view(a@) == rows_view(b@),
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k]@ == b@[k]@,
+        decreases a@.len() - i,
+    {
+        if !flags_agree(&a[i], &b[i]) {
+            return false;
+        }
+        i += 1;
+    }
+    assert(rows_view(a@) =~= rows_view(b@));
+    true
+}
+
+fn partitions_agree(a: &Vec<PartitionCfg>, b: &Vec<PartitionCfg>) -> (r: bool)
+    ensures r ==> a@ == b@,
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k] == b@[k],
+        decreases a@.len() - i,
+    {
+        let (p, q) = (&a[i], &b[i]);
+        if p.level != q.level || p.fault_response != q.fault_response || p.overrun_response != q.overrun_response || p.deadline_response != q.deadline_response || p.mit_threshold != q.mit_threshold {
+            return false;
+        }
+        i += 1;
+    }
+    assert(a@ =~= b@);
+    true
+}
+
 /// R26.4: `true` only when the two tables agree in every field of every
 /// entry.
 pub fn tables_agree(a: &Tables, b: &Tables) -> (r: bool)
@@ -580,58 +715,14 @@ pub fn tables_agree(a: &Tables, b: &Tables) -> (r: bool)
     if a.tasks.len() != b.tasks.len() || a.resources.len() != b.resources.len() || a.access.len() != b.access.len() || a.partitions.len() != b.partitions.len() {
         return false;
     }
-    let mut i: usize = 0;
-    while i < a.tasks.len()
-        invariant i <= a.tasks@.len(), a.tasks@.len() == b.tasks@.len(), forall|k: int| 0 <= k < i ==> a.tasks@[k] == b.tasks@[k],
-        decreases a.tasks@.len() - i,
-    {
-        if !task_agrees(&a.tasks[i], &b.tasks[i]) {
-            return false;
-        }
-        i += 1;
-    }
-    let mut i: usize = 0;
-    while i < a.resources.len()
-        invariant i <= a.resources@.len(), a.resources@.len() == b.resources@.len(), forall|k: int| 0 <= k < i ==> a.resources@[k] == b.resources@[k],
-        decreases a.resources@.len() - i,
-    {
-        if a.resources[i].ceiling != b.resources[i].ceiling || a.resources[i].partition != b.resources[i].partition {
-            return false;
-        }
-        i += 1;
-    }
-    let mut i: usize = 0;
-    while i < a.access.len()
-        invariant i <= a.access@.len(), a.access@.len() == b.access@.len(), forall|k: int| 0 <= k < i ==> a.access@[k]@ == b.access@[k]@,
-        decreases a.access@.len() - i,
-    {
-        if !flags_agree(&a.access[i], &b.access[i]) {
-            return false;
-        }
-        i += 1;
-    }
-    let mut i: usize = 0;
-    while i < a.partitions.len()
-        invariant i <= a.partitions@.len(), a.partitions@.len() == b.partitions@.len(), forall|k: int| 0 <= k < i ==> a.partitions@[k] == b.partitions@[k],
-        decreases a.partitions@.len() - i,
-    {
-        let (p, q) = (&a.partitions[i], &b.partitions[i]);
-        if p.level != q.level || p.fault_response != q.fault_response || p.overrun_response != q.overrun_response || p.deadline_response != q.deadline_response || p.mit_threshold != q.mit_threshold {
-            return false;
-        }
-        i += 1;
+    if !tasks_agree(&a.tasks, &b.tasks) || !resources_agree(&a.resources, &b.resources) || !rows_agree(&a.access, &b.access) || !partitions_agree(&a.partitions, &b.partitions) {
+        return false;
     }
     if a.operating_duration != b.operating_duration || a.slot_count != b.slot_count {
         return false;
     }
     if !bytes_agree(&a.slot_release, &b.slot_release) || !bytes_agree(&a.slot_deadline, &b.slot_deadline) || !bytes_agree(&a.slot_budget, &b.slot_budget) {
         return false;
-    }
-    proof {
-        assert(a.tasks@ =~= b.tasks@);
-        assert(a.resources@ =~= b.resources@);
-        assert(a.partitions@ =~= b.partitions@);
-        assert(rows_view(a.access@) =~= rows_view(b.access@));
     }
     true
 }
@@ -790,6 +881,38 @@ fn rd_interval(bytes: &[u8], pos: &mut usize) -> (r: Option<IntervalImg>)
     Some(i)
 }
 
+/// The `MAX_WINDOWS` window slots of a Partition's layout.
+fn rd_windows(bytes: &[u8], pos: &mut usize) -> (r: Result<Vec<(u32, u8, bool)>, DecodeError>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Ok ==> r.unwrap()@.len() == MAX_WINDOWS && read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_windows(r.unwrap()@),
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<(u32, u8, bool)> = Vec::new();
+    let mut i: usize = 0;
+    while i < MAX_WINDOWS
+        invariant
+            i <= MAX_WINDOWS, out@.len() == i, *pos <= bytes@.len(),
+            read(bytes@, *pos) == start + enc_windows(out@),
+        decreases MAX_WINDOWS - i,
+    {
+        let ghost before = out@;
+        let ghost at = read(bytes@, *pos);
+        let base = match rd_u32(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
+        let size_log2 = match rd_u8(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
+        let ro = match rd_flag(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
+        out.push((base, size_log2, ro));
+        proof {
+            assert(read(bytes@, *pos) =~= at + enc_window((base, size_log2, ro)));
+            assert(out@.drop_last() =~= before);
+            assert(read(bytes@, *pos) =~= start + enc_windows(out@));
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
 fn rd_partition_layout(bytes: &[u8], pos: &mut usize) -> (r: Result<PartitionLayoutImg, DecodeError>)
     requires *old(pos) <= bytes@.len(),
     ensures
@@ -802,32 +925,78 @@ fn rd_partition_layout(bytes: &[u8], pos: &mut usize) -> (r: Result<PartitionLay
     let stack_size = match rd_u32(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let window_count = match rd_u8(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost head = read(bytes@, *pos);
-    let mut windows: Vec<(u32, u8, bool)> = Vec::new();
-    let mut i: usize = 0;
-    while i < MAX_WINDOWS
-        invariant
-            i <= MAX_WINDOWS, windows@.len() == i, *pos <= bytes@.len(),
-            read(bytes@, *pos) == head + enc_windows(windows@),
-        decreases MAX_WINDOWS - i,
-    {
-        let ghost before = windows@;
-        let ghost at = read(bytes@, *pos);
-        let base = match rd_u32(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        let size_log2 = match rd_u8(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        let ro = match rd_flag(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
-        windows.push((base, size_log2, ro));
-        proof {
-            assert(read(bytes@, *pos) =~= at + enc_window((base, size_log2, ro)));
-            assert(windows@.drop_last() =~= before);
-            assert(read(bytes@, *pos) =~= head + enc_windows(windows@));
-        }
-        i += 1;
-    }
+    let windows = match rd_windows(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
     let p = PartitionLayoutImg { code, ram, stack_size, window_count, windows };
     proof {
         assert(read(bytes@, *pos) =~= start + enc_partition_layout(p@));
     }
     Ok(p)
+}
+
+/// The `MAX_KERNEL_WINDOWS` Kernel window slots.
+fn rd_kernel_windows(bytes: &[u8], pos: &mut usize) -> (r: Option<Vec<(u32, u8)>>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Some ==> r.unwrap()@.len() == MAX_KERNEL_WINDOWS && read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_kernel_windows(r.unwrap()@),
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<(u32, u8)> = Vec::new();
+    let mut i: usize = 0;
+    while i < MAX_KERNEL_WINDOWS
+        invariant
+            i <= MAX_KERNEL_WINDOWS, out@.len() == i, *pos <= bytes@.len(),
+            read(bytes@, *pos) == start + enc_kernel_windows(out@),
+        decreases MAX_KERNEL_WINDOWS - i,
+    {
+        let ghost before = out@;
+        let ghost at = read(bytes@, *pos);
+        let base = match rd_u32(bytes, pos) { Some(v) => v, None => { return None; } };
+        let size_log2 = match rd_u8(bytes, pos) { Some(v) => v, None => { return None; } };
+        out.push((base, size_log2));
+        proof {
+            assert(read(bytes@, *pos) =~= at + enc_kernel_window((base, size_log2)));
+            assert(out@.drop_last() =~= before);
+            assert(read(bytes@, *pos) =~= start + enc_kernel_windows(out@));
+        }
+        i += 1;
+    }
+    Some(out)
+}
+
+/// `n` Partition layouts.
+fn rd_partition_layouts(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Result<Vec<PartitionLayoutImg>, DecodeError>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Ok ==> {
+            &&& r.unwrap()@.len() == n
+            &&& forall|k: int| 0 <= k < n ==> (#[trigger] r.unwrap()@[k])@.windows.len() == MAX_WINDOWS
+            &&& read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_partition_layouts(parts_view(r.unwrap()@))
+        },
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<PartitionLayoutImg> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            forall|k: int| 0 <= k < i ==> (#[trigger] out@[k])@.windows.len() == MAX_WINDOWS,
+            read(bytes@, *pos) == start + enc_partition_layouts(parts_view(out@)),
+        decreases n - i,
+    {
+        let ghost before = parts_view(out@);
+        let p = match rd_partition_layout(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
+        let ghost pv = p@;
+        out.push(p);
+        proof {
+            assert(parts_view(out@).drop_last() =~= before);
+            assert(parts_view(out@).last() == pv);
+            assert(read(bytes@, *pos) =~= start + enc_partition_layouts(parts_view(out@)));
+        }
+        i += 1;
+    }
+    Ok(out)
 }
 
 /// R26.4, R16.7: the `LAYOUT` image. Returns for every input; what it
@@ -843,26 +1012,7 @@ pub fn decode_layout_image(bytes: &[u8]) -> (r: Result<LayoutImg, DecodeError>)
     let kernel_window_count = match rd_u8(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost head = read(bytes@, pos);
     assert(head =~= enc_interval(kernel_flash) + enc_interval(shared_code) + enc_interval(kernel_ram) + seq![kernel_window_count]);
-    let mut kernel_windows: Vec<(u32, u8)> = Vec::new();
-    let mut i: usize = 0;
-    while i < MAX_KERNEL_WINDOWS
-        invariant
-            i <= MAX_KERNEL_WINDOWS, kernel_windows@.len() == i, pos <= bytes@.len(),
-            read(bytes@, pos) == head + enc_kernel_windows(kernel_windows@),
-        decreases MAX_KERNEL_WINDOWS - i,
-    {
-        let ghost before = kernel_windows@;
-        let ghost at = read(bytes@, pos);
-        let base = match rd_u32(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        let size_log2 = match rd_u8(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
-        kernel_windows.push((base, size_log2));
-        proof {
-            assert(read(bytes@, pos) =~= at + enc_kernel_window((base, size_log2)));
-            assert(kernel_windows@.drop_last() =~= before);
-            assert(read(bytes@, pos) =~= head + enc_kernel_windows(kernel_windows@));
-        }
-        i += 1;
-    }
+    let kernel_windows = match rd_kernel_windows(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost after_windows = read(bytes@, pos);
     let np32 = match rd_u32(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     if np32 > 255 {
@@ -870,26 +1020,7 @@ pub fn decode_layout_image(bytes: &[u8]) -> (r: Result<LayoutImg, DecodeError>)
     }
     let np = np32 as usize;
     let ghost after_count = read(bytes@, pos);
-    let mut partitions: Vec<PartitionLayoutImg> = Vec::new();
-    let mut i: usize = 0;
-    while i < np
-        invariant
-            i <= np, partitions@.len() == i, pos <= bytes@.len(),
-            forall|k: int| 0 <= k < i ==> (#[trigger] partitions@[k])@.windows.len() == MAX_WINDOWS,
-            read(bytes@, pos) == after_count + enc_partition_layouts(parts_view(partitions@)),
-        decreases np - i,
-    {
-        let ghost before = parts_view(partitions@);
-        let p = match rd_partition_layout(bytes, &mut pos) { Ok(v) => v, Err(e) => { return Err(e); } };
-        let ghost pv = p@;
-        partitions.push(p);
-        proof {
-            assert(parts_view(partitions@).drop_last() =~= before);
-            assert(parts_view(partitions@).last() == pv);
-            assert(read(bytes@, pos) =~= after_count + enc_partition_layouts(parts_view(partitions@)));
-        }
-        i += 1;
-    }
+    let partitions = match rd_partition_layouts(bytes, &mut pos, np) { Ok(v) => v, Err(e) => { return Err(e); } };
     if pos != bytes.len() {
         return Err(DecodeError::Trailing(bytes.len() - pos));
     }
@@ -931,6 +1062,47 @@ fn windows_agree(a: &Vec<(u32, u8, bool)>, b: &Vec<(u32, u8, bool)>) -> (r: bool
     true
 }
 
+fn kernel_windows_agree(a: &Vec<(u32, u8)>, b: &Vec<(u32, u8)>) -> (r: bool)
+    ensures r ==> a@ == b@,
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k] == b@[k],
+        decreases a@.len() - i,
+    {
+        if a[i].0 != b[i].0 || a[i].1 != b[i].1 {
+            return false;
+        }
+        i += 1;
+    }
+    assert(a@ =~= b@);
+    true
+}
+
+fn parts_agree(a: &Vec<PartitionLayoutImg>, b: &Vec<PartitionLayoutImg>) -> (r: bool)
+    ensures r ==> parts_view(a@) == parts_view(b@),
+{
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < a.len()
+        invariant i <= a@.len(), a@.len() == b@.len(), forall|k: int| 0 <= k < i ==> a@[k]@ == b@[k]@,
+        decreases a@.len() - i,
+    {
+        let (p, q) = (&a[i], &b[i]);
+        if !interval_agrees(&p.code, &q.code) || !interval_agrees(&p.ram, &q.ram) || p.stack_size != q.stack_size || p.window_count != q.window_count || !windows_agree(&p.windows, &q.windows) {
+            return false;
+        }
+        i += 1;
+    }
+    assert(parts_view(a@) =~= parts_view(b@));
+    true
+}
+
 /// R26.4: `true` only when the two layouts agree in every field.
 pub fn layouts_agree(a: &LayoutImg, b: &LayoutImg) -> (r: bool)
     ensures r ==> a@ == b@,
@@ -941,32 +1113,7 @@ pub fn layouts_agree(a: &LayoutImg, b: &LayoutImg) -> (r: bool)
     if a.kernel_window_count != b.kernel_window_count || a.kernel_windows.len() != b.kernel_windows.len() || a.partitions.len() != b.partitions.len() {
         return false;
     }
-    let mut i: usize = 0;
-    while i < a.kernel_windows.len()
-        invariant i <= a.kernel_windows@.len(), a.kernel_windows@.len() == b.kernel_windows@.len(), forall|k: int| 0 <= k < i ==> a.kernel_windows@[k] == b.kernel_windows@[k],
-        decreases a.kernel_windows@.len() - i,
-    {
-        if a.kernel_windows[i].0 != b.kernel_windows[i].0 || a.kernel_windows[i].1 != b.kernel_windows[i].1 {
-            return false;
-        }
-        i += 1;
-    }
-    let mut i: usize = 0;
-    while i < a.partitions.len()
-        invariant i <= a.partitions@.len(), a.partitions@.len() == b.partitions@.len(), forall|k: int| 0 <= k < i ==> a.partitions@[k]@ == b.partitions@[k]@,
-        decreases a.partitions@.len() - i,
-    {
-        let (p, q) = (&a.partitions[i], &b.partitions[i]);
-        if !interval_agrees(&p.code, &q.code) || !interval_agrees(&p.ram, &q.ram) || p.stack_size != q.stack_size || p.window_count != q.window_count || !windows_agree(&p.windows, &q.windows) {
-            return false;
-        }
-        i += 1;
-    }
-    proof {
-        assert(a.kernel_windows@ =~= b.kernel_windows@);
-        assert(parts_view(a.partitions@) =~= parts_view(b.partitions@));
-    }
-    true
+    kernel_windows_agree(&a.kernel_windows, &b.kernel_windows) && parts_agree(&a.partitions, &b.partitions)
 }
 
 /// R26.4, R16.7: `true` only when `bytes` is, byte for byte, the `LAYOUT`
@@ -1091,26 +1238,7 @@ fn rd_endpoint(bytes: &[u8], pos: &mut usize) -> (r: Result<EndpointCfg, DecodeE
     let storage = match rd_u32(bytes, pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     let ghost head = read(bytes@, *pos);
     assert(head =~= start + seq![capacity] + enc_u16(payload) + seq![roles] + tasks@ + partitions@ + enc_flags(release@) + enc_u32(storage));
-    let mut validates: Vec<Vec<bool>> = Vec::new();
-    let mut i: usize = 0;
-    while i < MAX_ROLES
-        invariant
-            i <= MAX_ROLES, validates@.len() == i, *pos <= bytes@.len(),
-            forall|k: int| 0 <= k < i ==> (#[trigger] validates@[k])@.len() == MAX_ROLES,
-            read(bytes@, *pos) == head + enc_rows(rows_view(validates@)),
-        decreases MAX_ROLES - i,
-    {
-        let ghost before = rows_view(validates@);
-        let row = match rd_row(bytes, pos, MAX_ROLES) { Ok(v) => v, Err(e) => { return Err(e); } };
-        let ghost row_v = row@;
-        validates.push(row);
-        proof {
-            assert(rows_view(validates@).drop_last() =~= before);
-            assert(rows_view(validates@).last() == row_v);
-            assert(read(bytes@, *pos) =~= head + enc_rows(rows_view(validates@)));
-        }
-        i += 1;
-    }
+    let validates = match rd_rows(bytes, pos, MAX_ROLES, MAX_ROLES) { Ok(v) => v, Err(e) => { return Err(e); } };
     let e = EndpointCfg { capacity, payload, roles, tasks, partitions, release, storage, validates };
     proof {
         let v = e@;
@@ -1118,6 +1246,41 @@ fn rd_endpoint(bytes: &[u8], pos: &mut usize) -> (r: Result<EndpointCfg, DecodeE
         assert(read(bytes@, *pos) =~= start + enc_endpoint(v));
     }
     Ok(e)
+}
+
+/// `n` Endpoint entries.
+fn rd_endpoints(bytes: &[u8], pos: &mut usize, n: usize) -> (r: Result<Vec<EndpointCfg>, DecodeError>)
+    requires *old(pos) <= bytes@.len(),
+    ensures
+        *final(pos) <= bytes@.len(),
+        r is Ok ==> {
+            &&& r.unwrap()@.len() == n
+            &&& forall|k: int| 0 <= k < n ==> endpoint_wf((#[trigger] r.unwrap()@[k])@)
+            &&& read(bytes@, *final(pos)) == read(bytes@, *old(pos)) + enc_endpoints(endpoints_view(r.unwrap()@))
+        },
+{
+    let ghost start = read(bytes@, *pos);
+    let mut out: Vec<EndpointCfg> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, out@.len() == i, *pos <= bytes@.len(),
+            forall|k: int| 0 <= k < i ==> endpoint_wf((#[trigger] out@[k])@),
+            read(bytes@, *pos) == start + enc_endpoints(endpoints_view(out@)),
+        decreases n - i,
+    {
+        let ghost before = endpoints_view(out@);
+        let e = match rd_endpoint(bytes, pos) { Ok(v) => v, Err(e) => { return Err(e); } };
+        let ghost ev = e@;
+        out.push(e);
+        proof {
+            assert(endpoints_view(out@).drop_last() =~= before);
+            assert(endpoints_view(out@).last() == ev);
+            assert(read(bytes@, *pos) =~= start + enc_endpoints(endpoints_view(out@)));
+        }
+        i += 1;
+    }
+    Ok(out)
 }
 
 /// R26.4: the Endpoint image. Returns for every input; what it accepts is
@@ -1139,26 +1302,7 @@ pub fn decode_endpoint_image(bytes: &[u8]) -> (r: Result<(Vec<EndpointCfg>, u32)
     }
     let n = n32 as usize;
     let ghost head = read(bytes@, pos);
-    let mut out: Vec<EndpointCfg> = Vec::new();
-    let mut i: usize = 0;
-    while i < n
-        invariant
-            i <= n, out@.len() == i, pos <= bytes@.len(),
-            forall|k: int| 0 <= k < i ==> endpoint_wf((#[trigger] out@[k])@),
-            read(bytes@, pos) == head + enc_endpoints(endpoints_view(out@)),
-        decreases n - i,
-    {
-        let ghost before = endpoints_view(out@);
-        let e = match rd_endpoint(bytes, &mut pos) { Ok(v) => v, Err(e) => { return Err(e); } };
-        let ghost ev = e@;
-        out.push(e);
-        proof {
-            assert(endpoints_view(out@).drop_last() =~= before);
-            assert(endpoints_view(out@).last() == ev);
-            assert(read(bytes@, pos) =~= head + enc_endpoints(endpoints_view(out@)));
-        }
-        i += 1;
-    }
+    let out = match rd_endpoints(bytes, &mut pos, n) { Ok(v) => v, Err(e) => { return Err(e); } };
     let storage_bytes = match rd_u32(bytes, &mut pos) { Some(v) => v, None => { return Err(DecodeError::TooShort); } };
     if pos != bytes.len() {
         return Err(DecodeError::Trailing(bytes.len() - pos));
@@ -1370,27 +1514,36 @@ pub fn storage_placed_ok(layout: &LayoutImg, endpoints: &Vec<EndpointCfg>, base:
     if base % 4 != 0 {
         return false;
     }
+    // The loops end by a flag and not by a `return` since 2026-11-26:
+    // Aeneas does not translate a `return` inside a loop
+    // (`proofs/aeneas/lean/Tools/CcImage.lean`).
+    let mut ok = true;
     let mut e: usize = 0;
-    while e < endpoints.len()
+    while e < endpoints.len() && ok
         invariant e <= endpoints@.len(), forall|k: int| 0 <= k < e ==> endpoint_in_storage(#[trigger] endpoints_view(endpoints@)[k], total as int),
-        decreases endpoints@.len() - e,
+        decreases endpoints@.len() - e + (if ok { 1int } else { 0int }),
     {
         if !endpoint_in_storage_ok(&endpoints[e], total) {
-            return false;
+            ok = false;
+        } else {
+            e += 1;
         }
-        e += 1;
+    }
+    if !ok {
+        return false;
     }
     let mut p: usize = 0;
-    while p < layout.partitions.len()
+    while p < layout.partitions.len() && ok
         invariant p <= layout.partitions@.len(), forall|k: int| 0 <= k < p ==> ram_apart((#[trigger] layout@.partitions[k]).ram, base as int, total as int),
-        decreases layout.partitions@.len() - p,
+        decreases layout.partitions@.len() - p + (if ok { 1int } else { 0int }),
     {
         if !ram_apart_ok(&layout.partitions[p].ram, base, total) {
-            return false;
+            ok = false;
+        } else {
+            p += 1;
         }
-        p += 1;
     }
-    true
+    ok
 }
 
 // ------------------------------------------------------------------ CRC-32

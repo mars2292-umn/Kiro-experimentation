@@ -129,6 +129,47 @@ pub open spec fn accepted(tasks: Seq<TaskA>, levels: Seq<u8>, endpoints: Seq<End
     &&& forall|i: int| 0 <= i < ppi.len() ==> ppi_ok(#[trigger] ppi[i], i, levels.len() as int)
 }
 
+/// R42.4 on every edge from role `r` of one Endpoint. A function of its
+/// own, and the loops of this file end by a flag and not by a `return`,
+/// since 2026-11-26: Aeneas translates neither a `return` inside a loop nor
+/// a loop nested in another (`proofs/aeneas/lean/Tools/GenAccept.lean`).
+fn edges_accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, e: &EndpointA, r: usize) -> (ok: bool)
+    requires
+        r < e.roles@.len(), e.validates@.len() == e.roles@.len(),
+        forall|m: int| 0 <= m < e.roles@.len() ==> #[trigger] role_ok(tasks@, *e, m),
+        forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks@[i], levels.len() as int),
+    ensures ok == (forall|b: int| 0 <= b < e.roles@.len() ==> #[trigger] edge_ok(tasks@, levels@, *e, r as int, b)),
+{
+    let n = e.roles.len();
+    let mut ok = true;
+    let mut f: usize = 0;
+    while f < n && ok
+        invariant
+            r < n, f <= n, n == e.roles@.len(), e.validates@.len() == n,
+            forall|m: int| 0 <= m < n ==> #[trigger] role_ok(tasks@, *e, m),
+            forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks@[i], levels.len() as int),
+            forall|b: int| 0 <= b < f ==> #[trigger] edge_ok(tasks@, levels@, *e, r as int, b),
+            !ok ==> f < n && !edge_ok(tasks@, levels@, *e, r as int, f as int),
+        decreases n - f + (if ok { 1int } else { 0int }),
+    {
+        assert(role_ok(tasks@, *e, r as int));
+        assert(role_ok(tasks@, *e, f as int));
+        let tr = e.roles[r];
+        let tf = e.roles[f];
+        assert(task_ok(tasks@[tr as int], levels.len() as int));
+        assert(task_ok(tasks@[tf as int], levels.len() as int));
+        let up = tasks[tr].partition != tasks[tf].partition && levels[tasks[tr].partition] < levels[tasks[tf].partition];
+        let v = e.validates[r][f];
+        if (v && !up) || (e.plain && r != f && up && !v) {
+            assert(!edge_ok(tasks@, levels@, *e, r as int, f as int));
+            ok = false;
+        } else {
+            f = f + 1;
+        }
+    }
+    ok
+}
+
 fn endpoint_accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, e: &EndpointA) -> (ok: bool)
     requires forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks@[i], levels.len() as int),
     ensures ok == endpoint_ok(tasks@, levels@, *e),
@@ -137,54 +178,42 @@ fn endpoint_accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, e: &EndpointA) -> (ok: 
     if n < 2 || n > 4 || (e.plain && n != 2) || e.capacity < 1 || e.validates.len() != n {
         return false;
     }
+    let mut ok = true;
     let mut r: usize = 0;
-    while r < n
+    while r < n && ok
         invariant
             r <= n, n == e.roles@.len(), e.validates@.len() == n,
             forall|m: int| 0 <= m < r ==> #[trigger] role_ok(tasks@, *e, m),
-        decreases n - r,
+            !ok ==> r < n && !role_ok(tasks@, *e, r as int),
+        decreases n - r + (if ok { 1int } else { 0int }),
     {
         if e.roles[r] >= tasks.len() || e.validates[r].len() != n {
             assert(!role_ok(tasks@, *e, r as int));
-            return false;
+            ok = false;
+        } else {
+            r = r + 1;
         }
-        r = r + 1;
+    }
+    if !ok {
+        return false;
     }
     let mut r: usize = 0;
-    while r < n
+    while r < n && ok
         invariant
             r <= n, n == e.roles@.len(), e.validates@.len() == n,
             forall|m: int| 0 <= m < n ==> #[trigger] role_ok(tasks@, *e, m),
             forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks@[i], levels.len() as int),
             forall|a: int, b: int| 0 <= a < r && 0 <= b < n ==> #[trigger] edge_ok(tasks@, levels@, *e, a, b),
-        decreases n - r,
+            !ok ==> r < n && !(forall|b: int| 0 <= b < n ==> #[trigger] edge_ok(tasks@, levels@, *e, r as int, b)),
+        decreases n - r + (if ok { 1int } else { 0int }),
     {
-        let mut f: usize = 0;
-        while f < n
-            invariant
-                r < n, f <= n, n == e.roles@.len(), e.validates@.len() == n,
-                forall|m: int| 0 <= m < n ==> #[trigger] role_ok(tasks@, *e, m),
-                forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks@[i], levels.len() as int),
-                forall|b: int| 0 <= b < f ==> #[trigger] edge_ok(tasks@, levels@, *e, r as int, b),
-            decreases n - f,
-        {
-            assert(role_ok(tasks@, *e, r as int));
-            assert(role_ok(tasks@, *e, f as int));
-            let tr = e.roles[r];
-            let tf = e.roles[f];
-            assert(task_ok(tasks@[tr as int], levels.len() as int));
-            assert(task_ok(tasks@[tf as int], levels.len() as int));
-            let up = tasks[tr].partition != tasks[tf].partition && levels[tasks[tr].partition] < levels[tasks[tf].partition];
-            let v = e.validates[r][f];
-            if (v && !up) || (e.plain && r != f && up && !v) {
-                assert(!edge_ok(tasks@, levels@, *e, r as int, f as int));
-                return false;
-            }
-            f = f + 1;
+        if !edges_accept(tasks, levels, e, r) {
+            ok = false;
+        } else {
+            r = r + 1;
         }
-        r = r + 1;
     }
-    true
+    ok
 }
 
 /// Decides `accepted`.
@@ -194,52 +223,67 @@ pub fn accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, endpoints: &Vec<EndpointA>, 
     if levels.len() < 1 {
         return false;
     }
+    let mut ok = true;
     let mut i: usize = 0;
-    while i < tasks.len()
-        invariant i <= tasks.len(), forall|m: int| 0 <= m < i ==> task_ok(#[trigger] tasks@[m], levels.len() as int),
-        decreases tasks.len() - i,
+    while i < tasks.len() && ok
+        invariant
+            i <= tasks.len(),
+            forall|m: int| 0 <= m < i ==> task_ok(#[trigger] tasks@[m], levels.len() as int),
+            !ok ==> i < tasks.len() && !task_ok(tasks@[i as int], levels.len() as int),
+        decreases tasks.len() - i + (if ok { 1int } else { 0int }),
     {
         let t = &tasks[i];
         if !(1 <= t.priority && t.priority <= 7 && t.partition < levels.len() && t.period >= 1 && 1 <= t.deadline && t.deadline <= t.period && t.budget >= 1) {
             assert(!task_ok(tasks@[i as int], levels.len() as int));
-            return false;
+            ok = false;
+        } else {
+            i = i + 1;
         }
-        i = i + 1;
+    }
+    if !ok {
+        return false;
     }
     let mut j: usize = 0;
-    while j < endpoints.len()
+    while j < endpoints.len() && ok
         invariant
             j <= endpoints.len(),
             forall|m: int| 0 <= m < tasks.len() ==> task_ok(#[trigger] tasks@[m], levels.len() as int),
             forall|m: int| 0 <= m < j ==> endpoint_ok(tasks@, levels@, #[trigger] endpoints@[m]),
-        decreases endpoints.len() - j,
+            !ok ==> j < endpoints.len() && !endpoint_ok(tasks@, levels@, endpoints@[j as int]),
+        decreases endpoints.len() - j + (if ok { 1int } else { 0int }),
     {
         if !endpoint_accept(tasks, levels, &endpoints[j]) {
             assert(!endpoint_ok(tasks@, levels@, endpoints@[j as int]));
-            return false;
+            ok = false;
+        } else {
+            j = j + 1;
         }
-        j = j + 1;
+    }
+    if !ok {
+        return false;
     }
     if ppi.len() > ppi_limit {
         return false;
     }
     let mut k: usize = 0;
-    while k < ppi.len()
+    while k < ppi.len() && ok
         invariant
             k <= ppi.len(),
             forall|m: int| 0 <= m < k ==> ppi_ok(#[trigger] ppi@[m], m, levels.len() as int),
-        decreases ppi.len() - k,
+            !ok ==> k < ppi.len() && !ppi_ok(ppi@[k as int], k as int, levels.len() as int),
+        decreases ppi.len() - k + (if ok { 1int } else { 0int }),
     {
         let c = &ppi[k];
         let registers = 0x100 <= c.event_offset && c.event_offset < 0x200 && c.event_offset % 4 == 0 && c.task_offset < 0x100 && c.task_offset % 4 == 0;
         let fork = !c.fork || (c.fork_offset < 0x100 && c.fork_offset % 4 == 0 && c.fork_owner == c.event_owner);
         if !(c.channel as usize == k && registers && c.event_owner < levels.len() && c.task_owner == c.event_owner && fork) {
             assert(!ppi_ok(ppi@[k as int], k as int, levels.len() as int));
-            return false;
+            ok = false;
+        } else {
+            k = k + 1;
         }
-        k = k + 1;
     }
-    true
+    ok
 }
 
 } // verus!

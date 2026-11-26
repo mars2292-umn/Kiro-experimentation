@@ -400,6 +400,36 @@ cd ../rsk-confcheck
 cp /tmp/cc-out/Cc.lean ../../proofs/aeneas/lean/Tools/Cc.lean
 ```
 
+`lean/Tools/GenAccept.lean` and `lean/Tools/CcImage.lean` (2026-11-26) are
+the translations of the Generator's acceptance check
+(`crates/rsk-gen/src/accept_v.rs`) and of the Config_Checker's image
+functions (`crates/rsk-confcheck/src/image_v.rs`: the checksum, the three
+decoders and image checks, the storage-placement check).
+`lean/Tools/GenAcceptProofs.lean` and `lean/Tools/CcImageProofs.lean`
+(handwritten) prove what Verus proves of them; `lean/Tools/CrcSpec.lean`
+is the one definition of CRC-32 that the Config_Checker's checksum and the
+Kernel's (`lean/Sched/Crc.lean`) are proven against;
+`lean/Tools/FlagLoop.lean` has two loop rules. What Aeneas needed of these
+sources: no `return` inside a loop unless the loop is the last statement
+of its function, and no loop nested in another; the loops are functions of
+their own or end by a flag.
+
+```sh
+cd crates/rsk-gen
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from 'crate::accept_v::accept' --dest-file /tmp/acc.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/acc-out /tmp/acc.llbc
+cp /tmp/acc-out/Acc.lean ../../proofs/aeneas/lean/Tools/GenAccept.lean
+
+cd ../rsk-confcheck
+D='crate::image_v'
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from "$D::crc32,$D::image_is,$D::layout_image_is,$D::endpoint_image_is,$D::storage_placed_ok,$D::storage_in_kernel_ram_ok" \
+    --dest-file /tmp/img.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/img-out /tmp/img.llbc
+cp /tmp/img-out/Img.lean ../../proofs/aeneas/lean/Tools/CcImage.lean
+```
+
 ## No opaque function since 2026-11-20
 
 Until 2026-11-20 the translation kept eight functions opaque (`axiom`):

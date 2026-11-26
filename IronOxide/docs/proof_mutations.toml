@@ -2601,8 +2601,8 @@ package = "rsk-kernel"
 id = "confcheck-storage-alignment-not-checked"
 kills = "storage_placed_ok's contract (R16.1): the Endpoint storage of the binary starts at a word"
 file = "crates/rsk-confcheck/src/image_v.rs"
-find = "    if base % 4 != 0 {\n        return false;\n    }\n    let mut e: usize = 0;\n"
-replace = "    let mut e: usize = 0;\n"
+find = "    if base % 4 != 0 {\n        return false;\n    }\n    // The loops end by a flag"
+replace = "    // The loops end by a flag"
 expect = ["image_v.rs", "postcondition not satisfied"]
 package = "rsk-confcheck"
 
@@ -2926,8 +2926,8 @@ package = "rsk-analyzer"
 id = "gen-acceptance-takes-a-report-on-any-edge"
 kills = "accept (R42.4; 2026-11-22): the Kernel accepts a rejected-message report only on an edge from another Partition of lower Criticality_Level; the acceptance check decides `accepted` exactly"
 file = "crates/rsk-gen/src/accept_v.rs"
-find = "            if (v && !up) || (e.plain && r != f && up && !v) {\n"
-replace = "            if e.plain && r != f && up && !v { // (mutant)\n"
+find = "        if (v && !up) || (e.plain && r != f && up && !v) {\n"
+replace = "        if e.plain && r != f && up && !v { // (mutant)\n"
 expect = ["accept_v.rs", "invariant not satisfied"]
 package = "rsk-gen"
 
@@ -3596,4 +3596,43 @@ file = "proofs/aeneas/lean/Sched/Plan.lean"
 find = "    (hhi : base.val + total.val ≤ l.kernel_ram.base.val + isz l.kernel_ram) :\n"
 replace = "    (hhi : True) :\n"
 expect = ["Sched/Plan.lean"]
+prover = "lean"
+
+# 2026-11-26, later again: the checksums, the Config_Checker's image
+# functions and the Generator's acceptance check proven in Lean.
+
+[[mutation]]
+id = "lean-crc-polynomial-changed"
+kills = "crc_byte_loop_spec (Sched/Crc.lean) and crc32_inner_spec (Tools/CcImageProofs.lean), 2026-11-26; R12.3, R26.4: the Kernel's and the Config_Checker's checksums compute the one definition of Tools/CrcSpec.lean; with another polynomial in the definition neither function computes it"
+file = "proofs/aeneas/lean/Tools/CrcSpec.lean"
+find = "  if c &&& 1#32 = 1#32 then (c >>> 1) ^^^ 0xEDB88320#32 else c >>> 1\n"
+replace = "  if c &&& 1#32 = 1#32 then (c >>> 1) ^^^ 0xEDB88321#32 else c >>> 1\n"
+expect = ["Sched/Crc.lean", "Tools/CcImageProofs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-acceptance-deadline-after-the-period"
+kills = "tasks_loop_spec, accept_spec (Tools/GenAcceptProofs.lean, 2026-11-26; R22.1): accept answers true exactly when the acceptance conditions hold; with the deadline's bound dropped from the conditions the code refuses a declaration the conditions admit"
+file = "proofs/aeneas/lean/Tools/GenAcceptProofs.lean"
+find = "  1 ≤ t.deadline.val ∧ t.deadline.val ≤ t.period.val ∧ 1 ≤ t.budget.val\n"
+replace = "  1 ≤ t.deadline.val ∧ True ∧ 1 ≤ t.budget.val\n"
+expect = ["Tools/GenAcceptProofs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-image-word-bytes-swapped"
+kills = "le32_bytes, rd_u32_spec and the three decoders' contracts (Tools/CcImageProofs.lean, 2026-11-26; R26.4): what a decoder accepts is the encoding of what it returns because a word is read least significant byte first; with the encoding's first two bytes swapped the reader does not read the encoding"
+file = "proofs/aeneas/lean/Tools/CcImageProofs.lean"
+find = "  [v.setWidth 8, (v >>> 8).setWidth 8, (v >>> 16).setWidth 8, (v >>> 24).setWidth 8]\n\n/-- A `u64`"
+replace = "  [(v >>> 8).setWidth 8, v.setWidth 8, (v >>> 16).setWidth 8, (v >>> 24).setWidth 8]\n\n/-- A `u64`"
+expect = ["Tools/CcImageProofs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-ram-apart-without-the-address-space-bound"
+kills = "ram_apart_ok_spec, storage_placed_ok_spec (Tools/CcImageProofs.lean, 2026-11-26; R16.1): the placement check answers true exactly when the placement holds; with the bound on the RAM interval's end dropped from the statement the code refuses a layout the statement admits"
+file = "proofs/aeneas/lean/Tools/CcImageProofs.lean"
+find = "  intervalEnd ram ≤ 0xFFFF_FFFF ∧ (intervalEnd ram ≤ base ∨ base + total ≤ ram.base.val)\n"
+replace = "  True ∧ (intervalEnd ram ≤ base ∨ base + total ≤ ram.base.val)\n"
+expect = ["Tools/CcImageProofs.lean"]
 prover = "lean"
