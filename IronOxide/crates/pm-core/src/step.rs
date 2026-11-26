@@ -269,6 +269,18 @@ fn escape(p: &Params, st: &State, at: Micros) -> u32 {
 /// the smoothing made the interval longer, or shorter, than that.
 ///
 /// It is for the Marker stream and decides nothing of the timing.
+///
+/// Contract (2026-11-25): a set with none of stage E4's behaviour has no
+/// modifier; the value is one of the nine the Markers have (hysteresis or
+/// the sensor or neither, with Rate Smoothing Up or Down or neither); and
+/// each modifier comes only of what it names: hysteresis of an HRL
+/// interval in force, the sensor of a rate-adaptive Mode with a sensor
+/// interval, Rate Smoothing of a percentage programmed and a cycle known.
+#[cfg_attr(creusot, creusot_std::macros::ensures(plain(*p) ==> result@ == 0))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == 0 || result@ == 1 || result@ == 2 || result@ == 4 || result@ == 5 || result@ == 6 || result@ == 8 || result@ == 9 || result@ == 10))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == 1 || result@ == 5 || result@ == 9 ==> st.hysteresis_active && p.hrl@ > p.lrl@))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == 2 || result@ == 6 || result@ == 10 ==> p.mode.adaptive && st.sensor_known))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ >= 4 ==> (p.rate_smoothing_up@ != 0 || p.rate_smoothing_down@ != 0) && st.cycle_known))]
 #[inline(always)]
 #[must_use]
 pub fn escape_modifiers(p: &Params, st: &State, from: Micros) -> u8 {
@@ -379,6 +391,9 @@ const fn is_pvc(p: &Params, st: &State) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures(p2_rel(*p, *st, ^st, v)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(forall<t: Micros> p2_rel_a(*p, *st, ^st, t)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[1].seen && (^st).chamber@[1].last == v))]
+// PM13.1 and finding B42: a ventricular event begins a noisy cycle of the
+// ventricle and, in the ventricular-based cycle, of the atrium too.
+#[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[1].noisy && ((p.mode.paces == Chambers::V || p.mode.paces == Chambers::Both) ==> (^st).chamber@[0].noisy)))]
 #[inline(always)]
 fn ventricular_event(p: &Params, st: &mut State, v: Micros, paced: bool, pvc: bool) {
     let ch = &mut st.chamber[Chamber::V.index()];
@@ -995,6 +1010,15 @@ fn is_timing(p: &Params, c: Chamber) -> bool {
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).pvarp_extended == (*st).pvarp_extended && (^st).pvarp_extended_last_cycle == (*st).pvarp_extended_last_cycle))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[0].pending == (*st).chamber@[0].pending && (^st).chamber@[1].pending == (*st).chamber@[1].pending))]
 #[cfg_attr(creusot, creusot_std::macros::ensures((^st).chamber@[1].seen == (*st).chamber@[1].seen && (^st).chamber@[1].last == (*st).chamber@[1].last))]
+// The noise rule (PM13.1), as far as it is stated on the state: a service
+// is found noisy only in a cycle that is still noisy, only of a Chamber
+// the Mode senses, and only when it is close (several edges, or a service
+// before it); the cycle then stays noisy; and no service makes a cycle
+// noisy that was not: only the event that begins a cycle does.
+#[cfg_attr(creusot, creusot_std::macros::ensures(result ==> match chamber { Chamber::A => (*st).chamber@[0].noisy && (^st).chamber@[0].noisy, Chamber::V => (*st).chamber@[1].noisy && (^st).chamber@[1].noisy }))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result && edges@ <= 1 ==> match chamber { Chamber::A => (*st).chamber@[0].serviced, Chamber::V => (*st).chamber@[1].serviced }))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result ==> (p.mode.senses == Chambers::Both || (p.mode.senses == Chambers::A && chamber == Chamber::A) || (p.mode.senses == Chambers::V && chamber == Chamber::V))))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(((^st).chamber@[0].noisy ==> (*st).chamber@[0].noisy) && ((^st).chamber@[1].noisy ==> (*st).chamber@[1].noisy)))]
 #[inline(always)]
 fn serviced(p: &Params, st: &mut State, chamber: Chamber, at: Micros, edges: u32) -> bool {
     // A Chamber the Mode does not sense, and a blanked edge, leave no
@@ -1032,6 +1056,9 @@ fn serviced(p: &Params, st: &mut State, chamber: Chamber, at: Micros, edges: u32
 #[cfg_attr(creusot, creusot_std::macros::ensures(p1_params(*p) && p1_inv(*p, *before) ==> p1_inv(*p, result.0)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p.mode.response != Response::Triggered ==> p2_rel(*p, *before, result.0, at)))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(p.mode.response != Response::Triggered ==> p2_rel_a(*p, *before, result.0, at)))]
+// No Marker of a Sense is the noise Marker: that one is the step's, for a
+// service the noise rule found noisy.
+#[cfg_attr(creusot, creusot_std::macros::ensures(forall<t: Micros> result.1.markers.atrial != Some((Marker::Noise, t)) && result.1.markers.ventricular != Some((Marker::Noise, t))))]
 #[inline(always)]
 fn sense(p: &Params, before: &State, chamber: Chamber, at: Micros) -> (State, Arming) {
     let mut out = Arming::NONE;
@@ -1121,6 +1148,11 @@ fn sense(p: &Params, before: &State, chamber: Chamber, at: Micros) -> (State, Ar
 #[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Tick { now, .. } => !s.change_waiting && p1_params(*p) && (s.chamber@[1].seen ==> now.0@ >= s.chamber@[1].last.0@) && p1_inv(*p, *s) ==> p1_inv(*p, result.0), _ => true }))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Command(_) => true, _ => !s.change_waiting && p.mode.response != Response::Triggered ==> p2_rel(*p, *s, result.0, instant_of(e)) }))]
 #[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Command(_) => true, _ => !s.change_waiting && p.mode.response != Response::Triggered ==> p2_rel_a(*p, *s, result.0, instant_of(e)) }))]
+// PM13.1, PM13.2 (2026-11-25): a service found noisy arms nothing and
+// withdraws nothing, so the pending Paces stay where they are
+// (asynchronous pacing); and it is reported only of a Chamber the Mode
+// senses.
+#[cfg_attr(creusot, creusot_std::macros::ensures(match e { Event::Sense { chamber, at, .. } => result.1.markers.atrial == Some((Marker::Noise, at)) || result.1.markers.ventricular == Some((Marker::Noise, at)) ==> result.1.atrial == Pace::Keep && result.1.ventricular == Pace::Keep && (p.mode.senses == Chambers::Both || (p.mode.senses == Chambers::A && chamber == Chamber::A) || (p.mode.senses == Chambers::V && chamber == Chamber::V)), _ => true }))]
 #[inline(always)]
 #[must_use]
 pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming) {

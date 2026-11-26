@@ -481,10 +481,48 @@ fn at_ert_the_measured_data_and_the_markers_are_disabled() {
         let _ = answer(&mut l, Some(&framed(4, kind::SET_BATTERY, &[3])));
         assert_eq!(pacemaker_comms::proto::level(&l), u32::from(told.max(3)));
     }
+    // A record taken while the level was good, and the level then brought
+    // by `control`'s status before the record is told: not told.
+    for k in [data::MARKER, data::MEASURED, data::COUNTS] {
+        let mut l = Link::new();
+        record_in(&mut l, &[head(k, 0), 0, 0, 0, 0, 0]);
+        status_in(&mut l, &wire::Status { battery: 2, ..wire::Status::of_words(&[0; 4]) }.words());
+        let a = answer(&mut l, Some(&poll));
+        let off = k != data::COUNTS;
+        assert_eq!(a.kind == kind::RECORD, !off, "kind {k:#x}");
+        assert_eq!(l.withheld, u32::from(off));
+        assert!(wants_record(&l));
+    }
     // Back at BOL they are supplied again.
     let mut l = Link::new();
     let _ = answer(&mut l, Some(&framed(1, kind::SET_BATTERY, &[2])));
     let _ = answer(&mut l, Some(&framed(2, kind::SET_BATTERY, &[0])));
     let _ = take_request(&mut l);
     assert_eq!(status_of(&answer(&mut l, Some(&framed(3, kind::MEASURE, &[])))), (3, code::REQUESTED));
+}
+
+/// The protocol and the frame decoder agree on the kinds (2026-11-25):
+/// every kind of the DCM's that `answer` serves, at some length, is a
+/// kind `decode` lets through (`frame::kind_known`), or the command could
+/// never arrive (the fault the rig found when the kinds of task 22.4 were
+/// added); and the kinds `decode` lets through that are not served are
+/// the three listed.
+#[test]
+fn every_kind_the_protocol_serves_is_one_the_decoder_knows() {
+    let mut not_served = Vec::new();
+    for k in 0..0x80u8 {
+        let mut served = false;
+        for len in 0..=24u8 {
+            let f = Frame { seq: 1, kind: k, part: 0, len, payload: [0; 24] };
+            let mut l = Link::new();
+            let a = answer(&mut l, Some(&f));
+            served |= a.kind != kind::STATUS || a.payload[1] != code::NOT_SERVED;
+        }
+        if served {
+            assert!(pm_core::frame::kind_known(k), "kind {k:#x} is served and the decoder refuses it");
+        } else if pm_core::frame::kind_known(k) {
+            not_served.push(k);
+        }
+    }
+    assert_eq!(not_served, [kind::SET_CLOCK, kind::EGRAM_START, kind::EGRAM_STOP]);
 }

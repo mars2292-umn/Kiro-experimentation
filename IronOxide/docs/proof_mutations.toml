@@ -3168,3 +3168,253 @@ replace = ""
 expect = ["proof failed", "vc_resolve"]
 package = "pm-core-proof"
 prover = "creusot"
+
+[[mutation]]
+id = "pm-comms-ert-record-told-at-ert"
+kills = "finding A9's contract on `idle_or_part` and `answer` (PM17.7): with the check at the telling begun above ERT, a Marker or the measured data taken before the level was known is told at ERT"
+file = "apps/pacemaker/comms/src/proto.rs"
+find = "    if l.record_ready == 1 && level(l) >= ERT && disabled_at_ert("
+replace = "    if l.record_ready == 1 && level(l) > ERT && disabled_at_ert("
+expect = ["proof failed", "vc_idle_or_part"]
+package = "pacemaker-comms-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-comms-ert-request-handed-on"
+kills = "finding A9's contract on `answer` (PM17.7): with the decline begun above ERT, a read of the measured data or the start of the Marker transmission is handed to `diag` at ERT"
+file = "apps/pacemaker/comms/src/proto.rs"
+find = "        Requested::Is(r) if level(l) >= ERT && asks_disabled(&r) =>"
+replace = "        Requested::Is(r) if level(l) > ERT && asks_disabled(&r) =>"
+expect = ["proof failed", "vc_answer"]
+package = "pacemaker-comms-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-comms-ert-marker-not-disabled"
+kills = "`disabled_at_ert`'s contract (PM17.7 names the Markers beside the measured data): with the Marker left out, a Marker record is told at ERT"
+file = "apps/pacemaker/comms/src/proto.rs"
+find = "    kind == record::data::MEASURED || kind == record::data::MARKER\n"
+replace = "    kind == record::data::MEASURED\n"
+expect = ["proof failed", "vc_disabled_at_ert"]
+package = "pacemaker-comms-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-comms-level-ignores-status"
+kills = "`level`'s contract: with the level of `control`'s status left out, a `link` that has started again supplies the measured data at ERT until the DCM sets the level"
+file = "apps/pacemaker/comms/src/proto.rs"
+find = "    if told > l.battery { told } else { l.battery }\n}"
+replace = "    let _ = told;\n    l.battery\n}"
+expect = ["proof failed", "vc_level"]
+package = "pacemaker-comms-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-read-names-another-part"
+kills = "`History::read`'s contract (the record answers the part asked for; R42.4 through `request`): with part 0 named in every record's word 0, the DCM takes a part for another"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "        m[0] = record::head(kind, part);"
+replace = "        m[0] = record::head(kind, 0);"
+expect = ["proof failed", "vc_read"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-measured-not-marked-simulated"
+kills = "`History::read`'s contract for PM17.5: without the mark, the stand-ins of the measured data are told as measurements"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "                m[1] = record::SIMULATED;"
+replace = "                m[1] = 0;"
+expect = ["proof failed", "vc_read"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-bin-a-rate-low"
+kills = "`bin`'s contract (PM18.1): with every rate from 30 ppm counted one bin low, 30 to 39 ppm falls in the bin of the rates below 30"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "        ((ppm - 30) / 10) as usize + 1\n"
+replace = "        ((ppm - 30) / 10) as usize\n"
+expect = ["proof failed", "vc_bin"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-fixed-trend-written-when-full"
+kills = "`History::job`'s contract (PM18.3, a Fixed trend keeps its first samples): with one more sample written when the storage is full, the write is outside the storage"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "            if (self.trend_written as usize) < TREND {"
+replace = "            if (self.trend_written as usize) <= TREND {"
+expect = ["proof failed", "vc_job"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-reset-leaves-the-atr-count"
+kills = "`History::reset_histograms`' contract (PM18.2: the histograms and both counts cleared together): with the count of ATR episodes kept"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "        self.pvcs = 0;\n        self.atr_episodes = 0;\n"
+replace = "        self.pvcs = 0;\n"
+expect = ["proof failed", "vc_reset_histograms"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-diag-stream-from-the-buffer-s-first"
+kills = "`History::request`'s contract (the Marker transmission begins at the next record): begun at record 0, it sends what was in the buffer before its start"
+file = "apps/pacemaker/diag/src/history.rs"
+find = "            self.stream_next = self.markers_written;\n        } else if code == request::SET_IMPLANT"
+replace = "            self.stream_next = 0;\n        } else if code == request::SET_IMPLANT"
+expect = ["proof failed", "vc_request"]
+package = "pacemaker-diag-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-record-trend-a-part-short"
+kills = "`record::parts`' contract against `parts_of`, which `comms`'s validation function and `diag`'s read share: with 64 parts of the trend, its last two samples cannot be read"
+file = "crates/pm-core/src/record.rs"
+find = "    } else if kind == data::TREND {\n        65\n"
+replace = "    } else if kind == data::TREND {\n        64\n"
+expect = ["proof failed", "vc_parts"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-record-admitted-part-unchecked"
+kills = "`record::admitted`'s contract (R42.4, `comms`'s validation function for `diag`'s records): with the part only asked to be of a kind that is one, a record naming a part its kind has not is admitted"
+file = "crates/pm-core/src/record.rs"
+find = "    part < parts(kind)\n}"
+replace = "    parts(kind) != 0\n}"
+expect = ["proof failed", "vc_admitted"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-threshold-width-skips-settings"
+kills = "`threshold::lower_width`'s contract (PM17.4, one setting of Table 19-1 down): stepping by 0.2 ms, a width of 0.2 ms goes to 0"
+file = "crates/pm-core/src/threshold.rs"
+find = "        Some((us - 1) / 100 * 100)"
+replace = "        Some((us - 1) / 200 * 200)"
+expect = ["proof failed", "vc_lower_width"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-threshold-amplitude-below-the-lowest"
+kills = "`threshold::lower_amplitude`'s contract (PM17.4): with a step down from the lowest setting, the test paces at 0.4 V, which Table 19-1 has not"
+file = "crates/pm-core/src/threshold.rs"
+find = "    } else if tenths > 5 {\n        Some(tenths - 1)"
+replace = "    } else if tenths > 4 {\n        Some(tenths - 1)"
+expect = ["proof failed", "vc_lower_amplitude"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-threshold-step-changes-the-other-chamber"
+kills = "`threshold::step_down`'s contract (the set differs in the value under test alone): an atrial amplitude test lowers the ventricular amplitude too"
+file = "crates/pm-core/src/threshold.rs"
+find = "            Some(a) => next.amplitude = [a, p.amplitude[1]],"
+replace = "            Some(a) => next.amplitude = [a, a],"
+expect = ["proof failed", "vc_step_down"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-frame-decode-part-unchecked"
+kills = "`frame::decode`'s contract (a frame returned is well formed): with the part not checked, a frame naming a part no set has is a frame"
+file = "crates/pm-core/src/frame.rs"
+find = "    if !kind_known(b[1]) || len > PAYLOAD || b[2] as usize >= parts || b[28] != 0 || b[29] != 0 {"
+replace = "    if !kind_known(b[1]) || len > PAYLOAD || b[28] != 0 || b[29] != 0 {\n        let _ = parts;\n        return None;\n    }\n    if false {"
+expect = ["proof failed", "vc_decode"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-frame-decode-bytes-beyond-the-length"
+kills = "`frame::decode`'s contract (the bytes beyond the length were zero): accepted whatever they are, two blocks of bytes are one frame"
+file = "crates/pm-core/src/frame.rs"
+find = "        } else if b[4 + i] != 0 {\n            return None;\n        }"
+replace = "        }"
+expect = ["proof failed", "vc_decode"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-frame-kind-known-one-too-few"
+kills = "`frame::kind_known`'s contract against `known`: with the last kind of the DCM's left out (SET_DATA, 0x3B), the command is never heard (the fault of task 22.4, when the list had not the new kinds)"
+file = "crates/pm-core/src/frame.rs"
+find = "0x30..=0x3B | 0x80..=0x84)"
+replace = "0x30..=0x3A | 0x80..=0x84)"
+expect = ["proof failed", "vc_kind_known"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-b42-atrial-cycle-not-begun-noisy"
+kills = "`ventricular_event`'s contract for finding B42 (PM13.1): without the atrium's cycle begun noisy at the ventricular event, a storm on the atrial line is tracked at the URL in DDD"
+file = "crates/pm-core/src/step.rs"
+find = "        st.chamber[Chamber::A.index()].noisy = true;\n        if p.mode.paces(Chamber::A) {"
+replace = "        if p.mode.paces(Chamber::A) {"
+expect = ["proof failed", "vc_ventricular_event"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-noise-found-in-a-quiet-cycle"
+kills = "`serviced`'s contract (PM13.1: noisy only while every service of the cycle has been close): with the cycle's own mark left out, one close pair of edges after a quiet service makes the Sense no Sense"
+file = "crates/pm-core/src/step.rs"
+find = "    let noisy = counted && ch.noisy && close;"
+replace = "    let noisy = counted && close;"
+expect = ["proof failed", "vc_serviced"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-noise-withdraws-the-pace"
+kills = "the step's contract for PM13.2 (asynchronous pacing in noise: the pending Paces stay): with the ventricular Pace withdrawn at a noisy service, noise inhibits"
+file = "crates/pm-core/src/step.rs"
+find = "                set_marker(&mut out, chamber, Marker::Noise, at);\n                return (before, out);"
+replace = "                set_marker(&mut out, chamber, Marker::Noise, at);\n                out.ventricular = Pace::Withdraw;\n                return (before, out);"
+expect = ["proof failed", "vc_step"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-step-modifier-sensor-without-adaptation"
+kills = "`escape_modifiers`' contract (PM18.5: a modifier comes only of what it names): with the Mode not asked, a Pace of a Mode without rate adaptation is marked as a sensor-rate Pace"
+file = "crates/pm-core/src/step.rs"
+find = "    if p.mode.adaptive && st.sensor_known && st.sensor_interval < e {\n        e = st.sensor_interval;\n        m = modifier::SENSOR;"
+replace = "    if st.sensor_known && st.sensor_interval < e {\n        e = st.sensor_interval;\n        m = modifier::SENSOR;"
+expect = ["proof failed", "vc_escape_modifiers"]
+package = "pm-core-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-therapy-trip-keeps-the-state"
+kills = "`trip`'s contract (PM7.2, PM30.3: below the trip level the state is the Power-On Reset State with nothing pending): with the state kept, the Pace pending when the level fell is accounted when the level is back"
+file = "apps/pacemaker/therapy/src/lib.rs"
+find = "        *state = State::POWER_ON_RESET;\n        *ring = [Record::NONE; RING];"
+replace = "        *ring = [Record::NONE; RING];"
+expect = ["proof failed", "vc_trip"]
+package = "pacemaker-therapy-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-therapy-pace-accounted-below-the-trip-level"
+kills = "`on_pace`'s contract (below the trip level a Job changes nothing): with the check left out, a pulse that ended after the level fell is accounted and arms the next"
+file = "apps/pacemaker/therapy/src/lib.rs"
+find = "        if self.link.tripped != 0 {\n            return;\n        }\n"
+replace = "        if false {\n            return;\n        }\n"
+expect = ["proof failed", "vc_on_pace"]
+package = "pacemaker-therapy-nrf52840-proof"
+prover = "creusot"
+
+[[mutation]]
+id = "pm-therapy-control-steps-below-the-trip-level"
+kills = "`on_control`'s contract (`tripped_off` kept): with the mark of the level left standing in the Job that finds the level back, the step runs while the level is marked"
+file = "apps/pacemaker/therapy/src/lib.rs"
+find = "            } else {\n                link.tripped = 0;\n                if let Some(command) = command {"
+replace = "            } else {\n                if let Some(command) = command {"
+expect = ["proof failed", "vc_on_control"]
+package = "pacemaker-therapy-nrf52840-proof"
+prover = "creusot"

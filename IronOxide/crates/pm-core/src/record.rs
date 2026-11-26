@@ -12,6 +12,11 @@
 //!
 //! A batch is four words and up to [`BATCH`] records ([`batch`]).
 
+// The App_Prover's view operator (`@`) in the contracts below.
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use creusot_std::model::View;
+
 /// The words of a record, the records of a batch, the words of a batch.
 pub const RECORD_WORDS: usize = 3;
 pub const BATCH: usize = 8;
@@ -90,6 +95,7 @@ pub const fn word1(kind: u8, chamber: u8, modifiers: u8, augmentation: u8) -> u3
 /// The Marker of a record.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == r@[1]@ % 0x100))]
 pub const fn kind_of(r: &[u32; RECORD_WORDS]) -> u8 {
     (r[1] % 0x100) as u8
 }
@@ -97,6 +103,7 @@ pub const fn kind_of(r: &[u32; RECORD_WORDS]) -> u8 {
 /// The Chamber of a record.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == r@[1]@ / 0x100 % 0x100))]
 pub const fn chamber_of(r: &[u32; RECORD_WORDS]) -> u8 {
     (r[1] / 0x100 % 0x100) as u8
 }
@@ -104,6 +111,7 @@ pub const fn chamber_of(r: &[u32; RECORD_WORDS]) -> u8 {
 /// The modifiers of a record.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == r@[1]@ / 0x1_0000 % 0x100))]
 pub const fn modifiers_of(r: &[u32; RECORD_WORDS]) -> u8 {
     (r[1] / 0x1_0000 % 0x100) as u8
 }
@@ -111,6 +119,7 @@ pub const fn modifiers_of(r: &[u32; RECORD_WORDS]) -> u8 {
 /// The augmentation Marker of a record.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == r@[1]@ / 0x100_0000))]
 pub const fn augmentation_of(r: &[u32; RECORD_WORDS]) -> u8 {
     (r[1] / 0x100_0000) as u8
 }
@@ -171,9 +180,29 @@ pub const MEASURED_WORDS: usize = 5;
 /// The first word of the measured data: the values are stand-ins.
 pub const SIMULATED: u32 = 1;
 
+/// For the App_Prover: [`parts`], of the kind as a number.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn parts_of(kind: creusot_std::prelude::Int) -> creusot_std::prelude::Int {
+    use creusot_std::macros::pearlite;
+    pearlite! {
+        if 0x10 <= kind && kind < 0x14 { 4 } else if kind == 0x20 || kind == 0x50 || kind == 0x60 { 2 } else if kind == 0x30 { 65 } else if kind == 0x40 { 1 } else { 0 }
+    }
+}
+
+/// For the App_Prover: what [`admitted`] decides, of a record's word 0:
+/// a kind in the low byte, a part the kind has above it, nothing above.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn admitted_word(w: creusot_std::prelude::Int) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! { w <= 0xFFFF && w / 0x100 < parts_of(w % 0x100) }
+}
+
 /// The parts of a record of `kind`; 0 for a kind that is none.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@ == parts_of(kind@)))]
 pub const fn parts(kind: u8) -> u32 {
     if kind >= data::HISTOGRAM && kind < data::HISTOGRAM + 4 {
         4
@@ -201,6 +230,7 @@ pub const fn head(kind: u8, part: u8) -> u32 {
 /// is one of [`data`], the part one the kind has, and nothing is above them.
 #[inline(always)]
 #[must_use]
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == admitted_word(m@[0]@)))]
 pub const fn admitted(m: &[u32; DATA_WORDS]) -> bool {
     if m[0] > 0xFFFF {
         return false;

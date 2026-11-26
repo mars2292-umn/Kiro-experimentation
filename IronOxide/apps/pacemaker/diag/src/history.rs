@@ -18,6 +18,14 @@
 //! number and counted here (`lost`).
 
 use pm_core::record::{self, aug, data, kind, request};
+// The App_Prover's view operator (`@`) and its integers, in the contracts
+// below (2026-11-25).
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use rsk::creusot_std::model::View;
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use rsk::creusot_std::prelude::Int;
 
 /// The bins of a rate histogram: below 30 ppm, fifteen of 10 ppm from 30
 /// to 179 ppm, and 180 ppm or above (the programmable rates are 30 to
@@ -54,7 +62,8 @@ pub mod what {
 
 /// The fields are in the order written (`repr(C)`; every one is words, so
 /// there is no padding): the rig reads the store through the debug probe.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(creusot), derive(PartialEq, Eq))]
 #[repr(C)]
 pub struct History {
     /// Batches taken, records in them, and batches that did not arrive
@@ -150,6 +159,13 @@ pub mod measured {
 
 /// The bin of an interval in microseconds: of its rate, rounded down to a
 /// whole pulse a minute.
+///
+/// Contract: a bin of the histogram, and the one of the interval's rate:
+/// the first below 30 ppm, the last from 180 ppm and for no interval, and
+/// between them ten pulses a minute to a bin.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result@ < 17))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(interval_us@ == 0 ==> result@ == 16))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(interval_us@ > 0 ==> (60_000_000 / interval_us@ < 30 ==> result@ == 0) && (60_000_000 / interval_us@ >= 180 ==> result@ == 16) && (30 <= 60_000_000 / interval_us@ && 60_000_000 / interval_us@ < 180 ==> result@ == (60_000_000 / interval_us@ - 30) / 10 + 1)))]
 #[must_use]
 pub const fn bin(interval_us: u32) -> usize {
     if interval_us == 0 {
@@ -202,6 +218,13 @@ impl History {
     }
 
     /// One batch of the Endpoint `events`.
+    ///
+    /// Contract: the batch is counted, its sequence number is the one
+    /// known from now on, and what the DCM supplied and the Marker
+    /// transmission's switch are not touched.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).seq_known@ == 1 && (^self).dropped == batch@[2] && (^self).sensor_interval == batch@[3]))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).batches@ == (if (*self).batches@ == u32::MAX@ { u32::MAX@ } else { (*self).batches@ + 1 })))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).implant == (*self).implant && (^self).measured == (*self).measured && (^self).stream == (*self).stream && (^self).trend == (*self).trend && (^self).trend_written == (*self).trend_written))]
     pub fn take(&mut self, batch: &[u32; record::EVENTS_WORDS]) {
         let count = if batch[record::batch::COUNT] as usize > record::BATCH { record::BATCH } else { batch[record::batch::COUNT] as usize };
         let first = batch[record::batch::FIRST];
@@ -210,12 +233,18 @@ impl History {
             // sequence numbers, which wrap).
             self.lost = self.lost.saturating_add(first.wrapping_sub(self.next_seq));
         }
+        #[cfg(creusot)]
+        let old_self = rsk::creusot_std::macros::snapshot! { self };
         self.seq_known = 1;
         self.next_seq = first.wrapping_add(count as u32);
         self.batches = self.batches.saturating_add(1);
         self.dropped = batch[record::batch::DROPPED];
         self.sensor_interval = batch[record::batch::SENSOR];
         let mut k = 0;
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(record::BATCH@ - k@))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= 8 && count@ <= 8 && self.seq_known@ == 1 && self.dropped == batch@[2] && self.sensor_interval == batch@[3]))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(self.batches@ == (if (*old_self).batches@ == u32::MAX@ { u32::MAX@ } else { (*old_self).batches@ + 1 })))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(self.implant == (*old_self).implant && self.measured == (*old_self).measured && self.stream == (*old_self).stream && self.trend == (*old_self).trend && self.trend_written == (*old_self).trend_written))]
         while k < record::BATCH {
             if k < count {
                 let at = record::batch::RECORDS + record::RECORD_WORDS * k;
@@ -235,6 +264,12 @@ impl History {
     /// One event record: into the Marker buffer, and into its histogram
     /// and the counts if it is an event they count. A Refractory sense and
     /// noise are Markers and no event of a histogram.
+    ///
+    /// Contract: the record is the Marker buffer's newest, and only the
+    /// records, the counts, the histograms and the pacing interval change.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).markers_written@ == ((*self).markers_written@ + 1) % 0x1_0000_0000 && (^self).markers@[(*self).markers_written@ % 64] == r))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).seq_known == (*self).seq_known && (^self).dropped == (*self).dropped && (^self).sensor_interval == (*self).sensor_interval && (^self).batches == (*self).batches))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).implant == (*self).implant && (^self).measured == (*self).measured && (^self).stream == (*self).stream && (^self).trend == (*self).trend && (^self).trend_written == (*self).trend_written))]
     fn record(&mut self, r: [u32; record::RECORD_WORDS]) {
         self.records = self.records.saturating_add(1);
         self.markers[self.markers_written as usize % MARKERS] = r;
@@ -261,6 +296,12 @@ impl History {
     }
 
     /// PM18.2: every histogram and both counts cleared together.
+    ///
+    /// Contract: every bin of every histogram and both counts are zero,
+    /// and the Marker buffer and the trend are as they were.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).pvcs@ == 0 && (^self).atr_episodes@ == 0 && (forall<h: Int, b: Int> 0 <= h && h < 4 && 0 <= b && b < 17 ==> (^self).histogram@[h]@[b]@ == 0)))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).markers == (*self).markers && (^self).markers_written == (*self).markers_written && (^self).trend == (*self).trend && (^self).trend_written == (*self).trend_written && (^self).implant == (*self).implant && (^self).measured == (*self).measured))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).stream == (*self).stream && (^self).stream_next == (*self).stream_next))]
     pub fn reset_histograms(&mut self) {
         self.histogram = [[0; BINS]; HISTOGRAMS];
         self.pvcs = 0;
@@ -270,6 +311,12 @@ impl History {
 
     /// PM18.3: a trend begun now, Fixed or Continuous, of the pacing rate,
     /// the sensor data, or both.
+    ///
+    /// Contract: the trend is empty, stamped now, and its duration and its
+    /// content are ones the trend has, whatever was asked.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).trend_written@ == 0 && (^self).trend_stamp_ms == now_ms && (^self).trend_duration@ <= 1 && (^self).trend_what@ <= 2))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((duration@ == 1 ==> (^self).trend_duration@ == 1) && (what@ <= 2 ==> (^self).trend_what == what)))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).stream == (*self).stream && (^self).stream_next == (*self).stream_next && (^self).histogram == (*self).histogram && (^self).markers == (*self).markers && (^self).markers_written == (*self).markers_written && (^self).implant == (*self).implant && (^self).measured == (*self).measured))]
     pub fn start_trend(&mut self, duration: u32, what: u32, now_ms: u32) {
         self.trend_duration = if duration == duration::FIXED { duration::FIXED } else { duration::CONTINUOUS };
         self.trend_what = if what == what::PACING_RATE || what == what::SENSOR { what } else { what::BOTH };
@@ -280,6 +327,13 @@ impl History {
     }
 
     /// One Job of `history` at `now_ms`: every `TREND_JOBS` Jobs a sample.
+    ///
+    /// Contract (PM18.3): a Fixed trend never holds more than its storage
+    /// and, once full, is not written again: its samples and its stamp
+    /// stay.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).trend_duration@ == 1 && (*self).trend_written@ <= 128 ==> (^self).trend_written@ <= 128 && (^self).trend_stamp_ms == (*self).trend_stamp_ms))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).trend_duration@ == 1 && (*self).trend_written@ >= 128 ==> (^self).trend == (*self).trend && (^self).trend_written == (*self).trend_written))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).trend_duration == (*self).trend_duration && (^self).histogram == (*self).histogram && (^self).markers == (*self).markers))]
     pub fn job(&mut self, now_ms: u32) {
         self.jobs = self.jobs.saturating_add(1);
         if self.jobs < TREND_JOBS {
@@ -308,6 +362,17 @@ impl History {
 impl History {
     /// One request of the Endpoint `request` at `now_ms` (task 22.4):
     /// what it changes, and the record that answers it, if it asks for one.
+    ///
+    /// Contract: only a read is answered, with the part of the record it
+    /// named, which is a record `comms`'s validation function admits
+    /// (`pm_core::record::admitted`; R42.4); the measured data's first
+    /// part carries the mark that it is simulated (PM17.5); the Marker
+    /// transmission is switched by its request alone, and begins at the
+    /// next record.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(match result { Some(m) => r@[0]@ == 3 && m@[0]@ == r@[1]@ + r@[2]@ * 0x100 && record::admitted_word(m@[0]@) && (r@[1]@ == 0x60 && r@[2]@ == 0 ==> m@[1]@ == 1), None => true }))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(r@[0]@ != 3 ==> result == None))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(r@[0]@ == 4 ==> (^self).stream@ == (if r@[1]@ != 0 { 1 } else { 0 }) && (^self).stream_next == (*self).markers_written))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(r@[0]@ != 4 ==> (^self).stream == (*self).stream && (^self).stream_next == (*self).stream_next))]
     pub fn request(&mut self, r: &[u32; record::REQUEST_WORDS], now_ms: u32) -> Option<[u32; record::DATA_WORDS]> {
         let (code, a, b) = (r[0], r[1], r[2]);
         if code == request::RESET_HISTOGRAMS {
@@ -323,6 +388,9 @@ impl History {
         } else if code == request::SET_MEASURED && (a as usize) < record::MEASURED_WORDS {
             self.measured[a as usize] = b;
         } else if code == request::READ && a < 0x100 && b < record::parts(a as u8) {
+            // For the App_Prover: the kind and the part in the record's word 0.
+            #[cfg(creusot)]
+            rsk::creusot_std::macros::proof_assert! { b@ <= 65 && (a@ + b@ * 0x100) % 0x100 == a@ && (a@ + b@ * 0x100) / 0x100 == b@ };
             return Some(self.read(a as u8, b as u8));
         } else {
             self.unknown_requests = self.unknown_requests.saturating_add(1);
@@ -331,6 +399,8 @@ impl History {
     }
 
     /// Part `part` of the record of `kind` (both checked by the caller).
+    #[cfg_attr(creusot, rsk::creusot_std::macros::requires(part@ < record::parts_of(kind@)))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result@[0]@ == kind@ + part@ * 0x100 && (kind@ == 0x60 && part@ == 0 ==> result@[1]@ == 1)))]
     fn read(&self, kind: u8, part: u8) -> [u32; record::DATA_WORDS] {
         let mut m = [0u32; record::DATA_WORDS];
         m[0] = record::head(kind, part);
@@ -338,6 +408,8 @@ impl History {
         if kind >= data::HISTOGRAM && kind < data::HISTOGRAM + 4 {
             let h = &self.histogram[(kind - data::HISTOGRAM) as usize % HISTOGRAMS];
             let mut k = 0;
+            #[cfg_attr(creusot, rsk::creusot_std::macros::variant(5 - k@))]
+            #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= 5 && m@[0]@ == kind@ + part@ * 0x100))]
             while k < 5 {
                 if 5 * p + k < BINS {
                     m[1 + k] = h[5 * p + k];
@@ -370,6 +442,8 @@ impl History {
                 let held = if self.trend_written as usize > TREND { TREND } else { self.trend_written as usize };
                 let first = if self.trend_duration == duration::FIXED || self.trend_written as usize <= TREND { 0 } else { self.trend_written as usize % TREND };
                 let mut k = 0;
+                #[cfg_attr(creusot, rsk::creusot_std::macros::variant(2 - k@))]
+                #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= 2 && m@[0]@ == kind@ + part@ * 0x100))]
                 while k < 2 {
                     let n = 2 * (p - 1) + k;
                     if n < held {
@@ -382,6 +456,8 @@ impl History {
             }
         } else if kind == data::IMPLANT {
             let mut k = 0;
+            #[cfg_attr(creusot, rsk::creusot_std::macros::variant(5 - k@))]
+            #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= 5 && m@[0]@ == kind@ + part@ * 0x100))]
             while k < 5 {
                 m[1 + k] = self.implant[(5 * p + k) % record::IMPLANT_WORDS];
                 k += 1;
@@ -404,6 +480,12 @@ impl History {
     /// The next record of the Marker transmission, if it runs and one is
     /// waiting: its number and its three words. Records the buffer lost
     /// before they could be sent are passed over and counted.
+    ///
+    /// Contract: a record comes only while the transmission runs and one
+    /// is waiting; it is a Marker record, which `comms` admits, with its
+    /// number; and nothing is changed when none comes.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures(match result { Some(m) => (*self).stream@ != 0 && (*self).stream_next != (*self).markers_written && m@[0]@ == 0x40 && record::admitted_word(m@[0]@) && m@[5]@ == 0, None => ^self == *self && ((*self).stream@ == 0 || (*self).stream_next == (*self).markers_written) }))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^self).stream == (*self).stream && (^self).markers == (*self).markers && (^self).markers_written == (*self).markers_written))]
     pub fn next_marker(&mut self) -> Option<[u32; record::DATA_WORDS]> {
         if self.stream == 0 || self.stream_next == self.markers_written {
             return None;

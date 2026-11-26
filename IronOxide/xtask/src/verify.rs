@@ -1352,16 +1352,17 @@ mod creusot_members_tests {
     }
 
     /// docs/pacemaker tasks 9.6 and 15.3: after the P1 demo's twenty-three,
-    /// the proof workspace holds the PACEMAKER experiment's five members
+    /// the proof workspace holds the PACEMAKER experiment's six members
     /// (the therapy logic, the hardware layer, the Therapy_Partition on
-    /// each Target, and the Partition `comms` on the board), which the job
+    /// each Target, and the Partitions `comms` and `diag` on the board,
+    /// `diag` since 2026-11-25), which the job
     /// proves by name like the others.
     #[test]
     fn the_pacemaker_members_follow_the_demos() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
         let rest: Vec<(&str, &str)> = members.iter().skip(23).map(|(d, p)| (d.as_str(), p.as_str())).collect();
-        assert_eq!(rest, [("pm-core", "pm-core-proof"), ("pm-hw", "pm-hw-proof"), ("therapy", "pacemaker-therapy-proof"), ("therapy-nrf52840", "pacemaker-therapy-nrf52840-proof"), ("comms-nrf52840", "pacemaker-comms-nrf52840-proof")]);
+        assert_eq!(rest, [("pm-core", "pm-core-proof"), ("pm-hw", "pm-hw-proof"), ("therapy", "pacemaker-therapy-proof"), ("therapy-nrf52840", "pacemaker-therapy-nrf52840-proof"), ("comms-nrf52840", "pacemaker-comms-nrf52840-proof"), ("diag-nrf52840", "pacemaker-diag-nrf52840-proof")]);
     }
 }
 

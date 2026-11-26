@@ -53,6 +53,9 @@ use pm_core::WORDS;
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use rsk::creusot_std::model::View;
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use rsk::creusot_std::prelude::Int;
 
 /// The device model ("PMG1") and, until a device has its own, the serial
 /// number of the rig's pulse generator (PM20.3).
@@ -219,6 +222,12 @@ pub fn wants_record(l: &Link) -> bool {
 /// level of ERT or below a Marker and the measured data are not taken
 /// (PM17.7): one asked for before the level fell, or one of a Marker
 /// transmission `diag` has not yet been told to end.
+///
+/// Contract (2026-11-25): at ERT or below a record the level disables
+/// leaves no record waiting that was not; any other is the one waiting.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(level_of(*l) >= 2 && disabled_kind(m@[0]@ % 0x100) ==> (^l).record_ready == (*l).record_ready && (^l).record == (*l).record))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(!(level_of(*l) >= 2 && disabled_kind(m@[0]@ % 0x100)) ==> (^l).record_ready@ == 1 && (^l).record == *m))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(level_of(^l) == level_of(*l)))]
 pub fn record_in(l: &mut Link, m: &[u32; DATA_WORDS]) {
     if level(l) >= ERT && disabled_at_ert((m[0] % 0x100) as u8) {
         l.withheld = l.withheld.saturating_add(1);
@@ -237,15 +246,53 @@ pub const ERT: u32 = 2;
 /// of the one the DCM last set and the one in `control`'s last status. The
 /// first is 0 after a restart of `comms`, the second after a restart of
 /// `therapy` until the level has been sent again.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result@ == level_of(*l)))]
 #[must_use]
 pub fn level(l: &Link) -> u32 {
-    let told = if l.have_status == 1 { (l.status[0] / 0x1_0000) & 0xFF } else { 0 };
+    let told = if l.have_status == 1 { (l.status[0] / 0x1_0000) % 0x100 } else { 0 };
     if told > l.battery { told } else { l.battery }
+}
+
+/// For the App_Prover: [`level`].
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn level_of(l: Link) -> Int {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! {
+        if l.have_status@ == 1 && l.status@[0]@ / 0x1_0000 % 0x100 > l.battery@ { l.status@[0]@ / 0x1_0000 % 0x100 } else { l.battery@ }
+    }
+}
+
+/// For the App_Prover: [`disabled_at_ert`], of the kind as a number, and
+/// [`asks_disabled`].
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn disabled_kind(kind: Int) -> bool {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! { kind == 0x60 || kind == 0x40 }
+}
+
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn asks_disabled_of(r: [u32; REQUEST_WORDS]) -> bool {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! { (r@[0]@ == 3 && (r@[1]@ == 0x60 || r@[1]@ == 0x40)) || (r@[0]@ == 4 && r@[1]@ != 0) }
+}
+
+/// For the App_Prover, PM17.7 as a statement about `link`'s state: the
+/// record waiting to be told and the request waiting to be handed to
+/// `diag` are none the level disables.
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn told_ok(level: Int, l: Link) -> bool {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! { level >= 2 && l.record_ready@ == 1 ==> !disabled_kind(l.record@[0]@ % 0x100) }
 }
 
 /// Whether a record of `kind` is one a battery level of ERT or below
 /// disables: the measured data and a Marker (PM17.7). The histograms, the
 /// counts, the trend and the implant data are neither.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result == disabled_kind(kind@)))]
 #[must_use]
 pub const fn disabled_at_ert(kind: u8) -> bool {
     kind == record::data::MEASURED || kind == record::data::MARKER
@@ -254,6 +301,7 @@ pub const fn disabled_at_ert(kind: u8) -> bool {
 /// Whether `r` asks `diag` for what a battery level of ERT or below
 /// disables: a read of the measured data or of a Marker, or the start of
 /// the Marker transmission. Its end is not.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result == asks_disabled_of(*r)))]
 fn asks_disabled(r: &[u32; REQUEST_WORDS]) -> bool {
     (r[0] == record::request::READ && (r[1] == record::data::MEASURED as u32 || r[1] == record::data::MARKER as u32))
         || (r[0] == record::request::MARKERS && r[1] != 0)
@@ -311,6 +359,8 @@ fn put_word(p: &mut [u8; 24], at: usize, w: u32) {
 }
 
 /// The next part of a read in progress, or IDLE.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result.kind@ == 0x84 ==> (*l).record_ready@ == 1 && (level_of(*l) < 2 || !disabled_kind((*l).record@[0]@ % 0x100))))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^l).battery == (*l).battery && (^l).have_status == (*l).have_status && (^l).status == (*l).status && (^l).request_ready == (*l).request_ready && (^l).request == (*l).request))]
 fn idle_or_part(l: &mut Link, seq: u8) -> Frame {
     if l.read_next >= 1 && l.read_next < PARTS as u32 && l.have_set == 1 {
         let part = l.read_next as u8;
@@ -320,7 +370,13 @@ fn idle_or_part(l: &mut Link, seq: u8) -> Frame {
         }
     }
     l.read_next = 0;
-    // A record of `diag`'s.
+    // A record of `diag`'s. One the battery level disables (PM17.7) is not
+    // told: it was taken before the level was known to have fallen
+    // (`control`'s status brings the level too, after the record).
+    if l.record_ready == 1 && level(l) >= ERT && disabled_at_ert((l.record[0] % 0x100) as u8) {
+        l.record_ready = 0;
+        l.withheld = l.withheld.saturating_add(1);
+    }
     if l.record_ready == 1 {
         l.record_ready = 0;
         l.records = l.records.wrapping_add(1);
@@ -347,6 +403,14 @@ fn idle_or_part(l: &mut Link, seq: u8) -> Frame {
 
 /// The frame to send after `got`, the frame of the last transfer (`None`
 /// when its bytes were no frame, or no transfer ended).
+///
+/// Contract (2026-11-25; PM17.7, finding A9): at a battery level of ERT
+/// or below ([`level`], as it was when the frame came) a RECORD frame is
+/// sent only of a record the level does not disable, and no request the
+/// level disables is put for `diag` (one waiting from before stays as it
+/// was).
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result.kind@ == 0x84 ==> (*l).record_ready@ == 1 && (level_of(*l) < 2 || !disabled_kind((*l).record@[0]@ % 0x100))))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(level_of(*l) >= 2 && (^l).request_ready@ == 1 ==> !asks_disabled_of((^l).request) || ((*l).request_ready@ == 1 && (^l).request == (*l).request)))]
 #[must_use]
 pub fn answer(l: &mut Link, got: Option<&Frame>) -> Frame {
     let seq = (l.sent & 0xFF) as u8;

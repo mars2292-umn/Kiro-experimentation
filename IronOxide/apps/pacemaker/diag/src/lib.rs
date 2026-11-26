@@ -20,6 +20,9 @@ pub mod history;
 pacemaker_decl::rsk_partition_diag!();
 
 pub use history::History;
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use rsk::creusot_std::model::View;
 
 /// The batches `history` takes in a Job (the Endpoint's `ops`): `control`
 /// sends at most one in each of its periods, five of which are one of
@@ -32,8 +35,11 @@ pub const BATCHES: usize = 2;
 /// holds two and `link` takes one in each of its periods, two in one of
 /// this Task's: one a Job never finds it full); and the trend's sample.
 #[cfg(feature = "nrf52840")]
+#[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::history_pre(&cx)))]
 pub fn history(mut cx: rsk_ctx::History) {
     let mut k = 0;
+    #[cfg_attr(creusot, rsk::creusot_std::macros::variant(BATCHES@ - k@))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(k@ <= BATCHES@))]
     while k < BATCHES {
         k += 1;
         match cx.events.recv() {

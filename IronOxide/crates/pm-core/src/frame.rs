@@ -32,6 +32,9 @@ use crate::validate::WORDS;
 #[cfg(creusot)]
 #[allow(unused_imports)]
 use creusot_std::model::View;
+#[cfg(creusot)]
+#[allow(unused_imports)]
+use creusot_std::prelude::Int;
 
 /// The bytes of a frame, and of its payload.
 pub const FRAME: usize = 32;
@@ -99,7 +102,25 @@ pub mod kind {
 /// The parts a RECORD frame may name: the most a record has (the trend's).
 pub const RECORD_PARTS: usize = 65;
 
+/// For the App_Prover: [`kind_known`], of the kind as a number.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn known(k: creusot_std::prelude::Int) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! { (0x01 <= k && k <= 0x03) || (0x10 <= k && k <= 0x13) || (0x20 <= k && k <= 0x22) || (0x30 <= k && k <= 0x3B) || (0x80 <= k && k <= 0x84) }
+}
+
+/// For the App_Prover: what a frame is besides its CRC: a kind that is
+/// one, a length within the payload, a part its kind may have.
+#[cfg(creusot)]
+#[creusot_std::macros::logic(open)]
+pub fn well_formed(f: Frame) -> bool {
+    use creusot_std::macros::pearlite;
+    pearlite! { known(f.kind@) && f.len@ <= 24 && f.part@ < (if f.kind@ == 0x84 { 65 } else { 5 }) }
+}
+
 /// Whether `k` is a kind of frame.
+#[cfg_attr(creusot, creusot_std::macros::ensures(result == known(k@)))]
 #[inline(always)]
 #[must_use]
 pub const fn kind_known(k: u8) -> bool {
@@ -152,6 +173,12 @@ pub fn crc16(bytes: &[u8; FRAME]) -> u16 {
 
 /// The 32 bytes of `f`. A `len` above [`PAYLOAD`] is sent as [`PAYLOAD`],
 /// and the payload beyond `len` as zero, so that what is encoded decodes.
+///
+/// Contract (2026-11-25): the header and the payload in use are the
+/// frame's, byte for byte; the payload beyond the length and bytes 28 and
+/// 29 are zero.
+#[cfg_attr(creusot, creusot_std::macros::ensures(result@[0] == f.seq && result@[1] == f.kind && result@[2] == f.part && result@[3]@ == (if f.len@ > 24 { 24 } else { f.len@ }) && result@[28]@ == 0 && result@[29]@ == 0))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(forall<i: Int> 0 <= i && i < 24 ==> (i < f.len@ ==> result@[4 + i] == f.payload@[i]) && (i >= f.len@ ==> result@[4 + i]@ == 0)))]
 #[inline(always)]
 #[must_use]
 pub fn encode(f: &Frame) -> [u8; FRAME] {
@@ -164,6 +191,8 @@ pub fn encode(f: &Frame) -> [u8; FRAME] {
     let mut i = 0;
     #[cfg_attr(creusot, creusot_std::macros::variant(PAYLOAD@ - i@))]
     #[cfg_attr(creusot, creusot_std::macros::invariant(i@ <= 24 && b@.len() == 32 && len@ <= 24))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(b@[0] == f.seq && b@[1] == f.kind && b@[2] == f.part && b@[3]@ == len@ && b@[28]@ == 0 && b@[29]@ == 0))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(forall<j: Int> 0 <= j && j < 24 ==> (j < i@ && j < len@ ==> b@[4 + j] == f.payload@[j]) && (j >= i@ || j >= len@ ==> b@[4 + j]@ == 0)))]
     while i < PAYLOAD {
         if i < len {
             b[4 + i] = f.payload[i];
@@ -179,6 +208,18 @@ pub fn encode(f: &Frame) -> [u8; FRAME] {
 /// The frame `b` is, or `None`: a wrong CRC, an unknown kind, a length
 /// above [`PAYLOAD`], a part that no set has, or a byte that must be zero
 /// and is not.
+///
+/// Contract (2026-11-25): a frame returned is well formed (a known kind,
+/// a length within the payload, a part its kind may have); its header and
+/// its payload in use are the bytes', its payload beyond the length is
+/// zero, and so were the bytes there and bytes 28 and 29. And bytes that
+/// are well formed in all of this are refused only by the CRC: with
+/// [`encode`]'s contract, what is encoded of a well-formed frame decodes
+/// to it if the CRC of the same bytes is the same twice (it is a function
+/// of them; the round trip itself is tested over every kind, part and
+/// length, `tests/frame.rs`).
+#[cfg_attr(creusot, creusot_std::macros::ensures(match result { Some(f) => well_formed(f) && f.seq == b@[0] && f.kind == b@[1] && f.part == b@[2] && f.len == b@[3] && b@[28]@ == 0 && b@[29]@ == 0, None => true }))]
+#[cfg_attr(creusot, creusot_std::macros::ensures(match result { Some(f) => forall<i: Int> 0 <= i && i < 24 ==> (i < f.len@ ==> f.payload@[i] == b@[4 + i]) && (i >= f.len@ ==> f.payload@[i]@ == 0 && b@[4 + i]@ == 0), None => true }))]
 #[inline(always)]
 #[must_use]
 pub fn decode(b: &[u8; FRAME]) -> Option<Frame> {
@@ -197,6 +238,7 @@ pub fn decode(b: &[u8; FRAME]) -> Option<Frame> {
     let mut i = 0;
     #[cfg_attr(creusot, creusot_std::macros::variant(PAYLOAD@ - i@))]
     #[cfg_attr(creusot, creusot_std::macros::invariant(i@ <= 24 && payload@.len() == 24 && len@ <= 24))]
+    #[cfg_attr(creusot, creusot_std::macros::invariant(forall<j: Int> 0 <= j && j < 24 ==> (j < i@ && j < len@ ==> payload@[j] == b@[4 + j]) && (j < i@ && j >= len@ ==> b@[4 + j]@ == 0) && (j >= i@ || j >= len@ ==> payload@[j]@ == 0)))]
     while i < PAYLOAD {
         if i < len {
             payload[i] = b[4 + i];
@@ -225,6 +267,7 @@ pub const fn words_in_part(part: usize) -> usize {
 /// Part `part` of the set `words` as a frame of `kind`
 /// ([`kind::PROGRAM_PART`], [`kind::TEMPORARY_PART`] or
 /// [`kind::PARAM_PART`]); `None` for a part the set does not have.
+#[cfg_attr(creusot, creusot_std::macros::ensures(match result { Some(f) => f.seq == seq && f.kind == kind && f.part == part && part@ < 5, None => part@ >= 5 }))]
 #[inline(always)]
 #[must_use]
 pub fn set_part(seq: u8, kind: u8, words: &[u32; WORDS], part: u8) -> Option<Frame> {

@@ -27,6 +27,8 @@ members = [
     "pm-core", "pm-hw", "therapy", "therapy-nrf52840",
     # The Partition `comms` (task 15.3): the Task `link` and its protocol.
     "comms-nrf52840",
+    # The Partition `diag` (2026-11-25): the Task `history` and what it keeps.
+    "diag-nrf52840",
 ]
 
 # `cargo creusot` with no package proves the QEMU pair; a HIL member is

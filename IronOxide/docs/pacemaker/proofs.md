@@ -26,6 +26,7 @@ A mutant, from the workspace root: `cargo xtask mutations --only <id>` applies i
 | `pacemaker-therapy-proof` | `apps/pacemaker/therapy/src/` (QEMU board) | 86 |
 | `pacemaker-therapy-nrf52840-proof` | `apps/pacemaker/therapy/src/` (nRF52840 board) | 88 |
 | `pacemaker-comms-nrf52840-proof` | `apps/pacemaker/comms/src/` (nRF52840 board) | 41 |
+| `pacemaker-diag-nrf52840-proof` (since 2026-11-25) | `apps/pacemaker/diag/src/` (nRF52840 board) | 26 |
 
 ## The therapy logic: `pm-core`
 
@@ -47,9 +48,30 @@ Supporting statements about the Mode, used by the above: `Chambers::has` (`mode.
 
 **The MSR and the URL (2026-11-25).** P1 supposes `url_floor`: no escape interval the set allows is shorter than its URL interval, which in a rate-adaptive Mode asks that the MSR interval is not. On the user's decision `validate` now refuses a set of VDDR or DDDR, the two rate-adaptive Modes the URL limits, whose MSR is above its URL: the limit is part of `spec::limits` and so of P5, with the mutant `pm-validate-p5-msr-above-url-admitted` and a host test over every pair of values that also compares the two intervals of each set returned. That `validate`'s result satisfies `url_floor` is not stated as a contract: it follows from P5's limits (MSR ≤ URL, LRL ≤ URL) through the conversion of a rate to its interval, and is tested, not proven. In the rate-adaptive Modes that do not track the supposition stays one.
 
-**ATR's change of Mode and stage E5 (2026-11-25).** The Mode now changes at the ventricular event at which Fallback begins or ends (finding B41): the tick foresees the event and marks a change as waiting, and the event goes through `switched`. No contract changed and none states ATR: P1 and P2 are stated for events at which no change is waiting, as before, and the events of ATR's changes are now among those at which one is. The event record of stage E5 (`record.rs`, `escape_modifiers`, and in `therapy` the ring, the batch and the Marks) is proven free of run-time errors with the rest of the two crates and has no contract of its own but `record::word1`'s. `diag` (level D) has no member. Tasks 22.4 to 22.6 added, under the same proof and with no contract of their own, the requests and records (`record.rs`), the threshold test's settings (`threshold.rs`), the step's command `StepTemporary` (which keeps the State: P4 is proven over it with the rest), the link's handling of them in `comms`, and `control`'s count of the test's cycles. The file counts above are of 2026-11-25, each member proven with each pair of solvers alone; `pm-hw-proof` was last proven by the job of the same day, before these changes, which do not touch it.
+**ATR's change of Mode and stage E5 (2026-11-25).** The Mode now changes at the ventricular event at which Fallback begins or ends (finding B41): the tick foresees the event and marks a change as waiting, and the event goes through `switched`. No contract changed and none states ATR: P1 and P2 are stated for events at which no change is waiting, as before, and the events of ATR's changes are now among those at which one is. The event record of stage E5 (`record.rs`, `escape_modifiers`, and in `therapy` the ring, the batch and the Marks) is proven free of run-time errors with the rest of the two crates and has no contract of its own but `record::word1`'s. `diag` (level D) has no member. Tasks 22.4 to 22.6 added, under the same proof and with no contract of their own, the requests and records (`record.rs`), the threshold test's settings (`threshold.rs`), the step's command `StepTemporary` (which keeps the State: P4 is proven over it with the rest), the link's handling of them in `comms`, and `control`'s count of the test's cycles. The file counts above are of 2026-11-25, each member proven with each pair of solvers alone; `pm-hw-proof` was last proven by the job of the same day, before these changes, which do not touch it. **Later the same day** this paragraph's "no contract of their own" and "`diag` has no member" stopped being true: the records, the threshold test's settings, the frames, `escape_modifiers`, the noise rule and the ERT rule have the contracts of the sections below, `diag` has the member `pacemaker-diag-nrf52840-proof`, and all six members, `pm-hw-proof` among them, were proven again with each pair of solvers alone, with the 40 mutants of this experiment each killed.
 
-**The noise rule is tested, not proven (finding B42, 2026-11-25).** No contract states PM13.1; a defect in it (the atrium's cycle in the dual-chamber Modes) was found on the rig and passed every proof before and after its fix.
+**The noise rule, in part (PM13.1, PM13.2; finding B42; contracts of 2026-11-25).** Until this date no contract stated the noise rule, and the defect of finding B42 passed every proof before and after its fix. Now stated and proven:
+
+| What is proven | Stated on | Mutant |
+|---|---|---|
+| A ventricular event begins a noisy cycle of the ventricle and, in the ventricular-based cycle, of the atrium too (the fix of B42) | `ventricular_event` | `pm-step-b42-atrial-cycle-not-begun-noisy` |
+| A service is found noisy only in a cycle still noisy, only of a Chamber the Mode senses, and only when it reports several edges or a service came before it; the cycle then stays noisy; and no service makes noisy a cycle that was not | `serviced` | `pm-step-noise-found-in-a-quiet-cycle` |
+| A service found noisy arms nothing and withdraws nothing: the pending Paces stay (PM13.2, asynchronous pacing); the noise Marker is given only of a Chamber the Mode senses, and no Sense gives it | `step`; `sense` | `pm-step-noise-withdraws-the-pace` |
+
+Not proven of the noise rule: the time. "Close" is within PM-PAR-12 of the service before, and "after the refractory period" is by the instants; no contract states either, nor that a cycle with one service that is not close is quiet from then on to its end in terms of what is paced. The host tests (`tests/rate.rs`) and the rig's storms have those.
+
+**The modifiers of a Pace (PM18.5; contract of 2026-11-25).** `escape_modifiers` returns one of the nine values the Markers have (hysteresis or the sensor or neither, with Rate Smoothing Up or Down or neither); none for a set without stage E4's behaviour; and each modifier only of what it names: hysteresis of an HRL interval in force, the sensor of a rate-adaptive Mode with a sensor interval, Rate Smoothing of a percentage programmed and a cycle known. Mutant `pm-step-modifier-sensor-without-adaptation`. Not proven: that the modifiers agree with the interval `escape` returns (the two functions compose the interval in the same order, each on its own).
+
+**The records, the threshold test and the frames (contracts of 2026-11-25).**
+
+| What is proven | Stated on | Mutant |
+|---|---|---|
+| The parts each kind of record has (`parts_of`), and that `admitted`, `comms`'s validation function for `diag`'s records, admits exactly a known kind with a part it has and nothing above (`admitted_word`); the fields of a record's word 1 | `record.rs`: `parts`, `admitted`, `kind_of`, `chamber_of`, `modifiers_of`, `augmentation_of` | `pm-record-trend-a-part-short`, `pm-record-admitted-part-unchecked` |
+| The next lower pulse width and amplitude are lower, are settings of Table 19-1, are at most one step of the table away, and are none exactly at or below the lowest (PM17.4) | `threshold.rs`: `lower_width`, `lower_amplitude` | `pm-threshold-width-skips-settings`, `pm-threshold-amplitude-below-the-lowest` |
+| The set a step of the threshold test gives differs from the set before in the value under test alone, which is lower; the Mode, the rates and the refractory periods are the same | `threshold.rs`: `step_down` | `pm-threshold-step-changes-the-other-chamber` |
+| A frame `decode` returns is well formed (a kind of the 27, a length within the payload, a part its kind may have), and its fields and payload are the bytes', with zero beyond the length and in bytes 28 and 29. What `encode` returns has the frame's fields and payload byte for byte, zero beyond the length. `kind_known` is the list `known` | `frame.rs`: `decode`, `encode`, `kind_known`, `set_part` | `pm-frame-decode-part-unchecked`, `pm-frame-decode-bytes-beyond-the-length`, `pm-frame-kind-known-one-too-few` |
+
+Not proven: that what is encoded decodes to itself. The two contracts give it but for the CRC, which `decode` computes again over the same bytes; nothing states that the CRC of the same bytes is the same, nor what the CRC detects. Tested instead, over every one of the 256 kinds with every part and every length (`tests/frame.rs`, `the_round_trip_over_every_kind_part_and_length`), and the other way over 200,000 blocks (`what_is_decoded_encodes_to_the_same_bytes`). That the protocol serves no kind the decoder refuses, which was the fault of task 22.4, is a test of `comms` (`every_kind_the_protocol_serves_is_one_the_decoder_knows`).
 
 **How the orderings became provable, and what P1 and P2 still do not have.** Until 2026-11-24 an instant had the timer's 32 bits and two instants were compared by the sign of their difference; the prover gives the cast to a signed number no meaning from 2^31 up, so only equalities and one direction of a comparison could be proven. An instant now has 64 bits, counts from the start of the Partition and does not wrap (`time.rs`): `is_before` is a comparison of integers with a contract in both directions, and a sum saturates at the top of the range, which the contracts name through `time::sum`. The timer's 32 bits are the hardware layer's (below). Not stated or proven: the events at which a change of State comes into force (the set in force changes there; `switched` starts the new Mode's cycle from the event); commands (after Pace-Now the bound runs from the next tick); the atrial Pace of a dual-chamber Mode, which hangs on the ventricular one by the AV delay; The suppositions of P1 are stated, not discharged: `validate` checks the URL against the LRL for VDD and DDD (and P5 is its proof), and that a tick is not before the last ventricular event is a fact about time no contract of the hardware layer gives. When the hardware layer moves an arming, the Partition tells the state through `rearmed`, outside the step: the Pace is then later by at most the lead (500 µs). The generated runs of `crates/pm-core/tests/step_dual.rs` and `step.rs` go on checking both properties after every event, the changes of State included.
 
@@ -76,6 +98,16 @@ In `apps/pacemaker/therapy/src/`, members `pacemaker-therapy-proof` and `pacemak
 
 The board trait's methods have no contract, so these proofs hold whatever values the registers return.
 
+**Below the trip level (PM7.2, PM30.3; contracts of 2026-11-25).** Until this date `control`'s behaviour below the trip level was tested on the rig only.
+
+| What is proven | Stated on | Mutant |
+|---|---|---|
+| The first Job below the level leaves the state off (`off`: the Power-On Reset State, nothing programmed, no Pace pending in either Chamber), the ring empty, and the level marked; a later one changes nothing | `trip` | `pm-therapy-trip-keeps-the-state` |
+| While the level is marked, a Job of `pace` and a Job of a sense Task change nothing at all | `Timing::on_pace`, `Timing::on_sense` | `pm-therapy-pace-accounted-below-the-trip-level` |
+| Once the Partition has started, a Job of `control` keeps `tripped_off` (the state is off whenever the level is marked), and the Job in which the level is first marked ends with the state off and the ring empty | `Timing::on_control`, with `heard`, `taken` and `threshold` leaving the mark alone | `pm-therapy-control-steps-below-the-trip-level` |
+
+So by the three Tasks' contracts together, from the Partition's start the state is off for as long as the level is marked, and the step is given no event. Not proven: that the hardware has nothing armed. `trip` calls `disarm` for both Chambers, but the hardware trait has no contract, so the proof does not see what `disarm` does; a pulse already begun ends at its own end compare. That part stays the rig's (`e3_states.py battery`).
+
 ## The Partition `comms`
 
 In `apps/pacemaker/comms/src/`, member `pacemaker-comms-nrf52840-proof` (task 15.3).
@@ -84,7 +116,31 @@ In `apps/pacemaker/comms/src/`, member `pacemaker-comms-nrf52840-proof` (task 15
 |---|---|---|
 | **P10** The Task of `comms` does not panic, overflow or index out of bounds | The Task body `link` (`lib.rs` 86) under the precondition rsk generates (`rsk_spec::link_pre`), with `take_back` (70), its loop over the Endpoint `status` and the protocol it calls: `proto::answer` (`proto.rs` 210), `idle_or_part` (188), `status` (157), `put_word` (180, with its bound on the position) and `pm-core`'s frame functions as instantiated in the Partition | the member |
 
-Nothing is proven about what `link` answers or forwards (the tests of `apps/pacemaker/comms/tests/proto.rs` and of `tools/dcm-stub` show it), nor that an encoded frame decodes to itself, nor that the validation function of `program` admits a set exactly when `validate` does (`crates/pm-core/tests/wire.rs` tests it).
+**The battery level and the records (PM17.7, finding A9; contracts of 2026-11-25).**
+
+| What is proven | Stated on | Mutant |
+|---|---|---|
+| At a battery level of ERT or below (`level_of`: the worse of the DCM's last and the one in `control`'s status, as it was when the frame came), a RECORD frame is sent only of a record the level does not disable (neither a Marker nor the measured data) | `proto::answer`, `idle_or_part`; `level`, `disabled_at_ert` | `pm-comms-ert-record-told-at-ert`, `pm-comms-ert-marker-not-disabled`, `pm-comms-level-ignores-status` |
+| At that level no request the level disables is put for `diag` (a read of the measured data or of a Marker, the start of the Marker transmission); one waiting from before stays as it was | `proto::answer`; `asks_disabled` | `pm-comms-ert-request-handed-on` |
+| At that level a disabled record that comes from `diag` does not become the record waiting | `proto::record_in` | |
+
+Not proven: that the RECORD frame's payload is the waiting record's words (the kind is taken from the state, not from the frame's bytes); that the SET_BATTERY which brings the level to ERT ends a Marker transmission (tested). Otherwise nothing is proven about what `link` answers or forwards (the tests of `apps/pacemaker/comms/tests/proto.rs` and of `tools/dcm-stub` show it), nor that the validation function of `program` admits a set exactly when `validate` does (`crates/pm-core/tests/wire.rs` tests it).
+
+## The Partition `diag`
+
+In `apps/pacemaker/diag/src/`, member `pacemaker-diag-nrf52840-proof` (2026-11-25; until then `diag` had no proof).
+
+| Property | What is proven | Where | Mutant |
+|---|---|---|---|
+| **P10** The Task of `diag` does not panic, overflow or index out of bounds | The Task body `history` under the precondition rsk generates (`rsk_spec::history_pre`), its loop over the Endpoint `events` bounded by `BATCHES`, and everything of `history.rs` | `lib.rs`, `history.rs` | `pm-diag-fixed-trend-written-when-full` |
+| What `diag` sends, `comms` admits (R42.4) | A request is answered only if it is a read, with the part of the record it named, which satisfies `pm_core::record::admitted_word`; a record of the Marker transmission is a Marker record, sent only while the transmission runs and one is waiting, and nothing changes when none is sent | `History::request`, `read`, `next_marker` | `pm-diag-read-names-another-part` |
+| The measured data is marked as simulated (PM17.5) | Part 0 of the measured data has `SIMULATED` as its first word | `History::read`, `request` | `pm-diag-measured-not-marked-simulated` |
+| The histograms' bins (PM18.1) | `bin` returns a bin of the histogram: the first below 30 ppm, the last from 180 ppm and for no interval, ten pulses a minute to a bin between | `bin` | `pm-diag-bin-a-rate-low` |
+| The reset (PM18.2) | Every bin of every histogram and both counts are zero after it; the Marker buffer, the trend and the supplied data are as they were | `History::reset_histograms` | `pm-diag-reset-leaves-the-atr-count` |
+| The trend (PM18.3) | A trend begun is empty, stamped, of a duration and content the trend has; a Fixed trend never holds more than its storage and is not written once full | `History::start_trend`, `job` | `pm-diag-fixed-trend-written-when-full` |
+| The Marker buffer and the transmission (PM18.5, PM20.1) | A record taken is the buffer's newest; a batch is counted and its sequence number known; the transmission is switched by its request alone and begins at the next record | `History::record`, `take`, `request` | `pm-diag-stream-from-the-buffer-s-first` |
+
+Not proven of `diag`: which histogram and which count a record is counted in (`record`'s contract states the buffer and what is left alone, not the counting); the loss counted from the sequence numbers; the samples a read of the trend returns and their order; the words a read of a histogram, the counts or the supplied data returns beyond word 0 (the host tests of `apps/pacemaker/diag/tests/history.rs` and the rig's comparison of the store with the capture have these). The misbehaving build (`misbehave`) is not the member's.
 
 ## The change to rsk: fixed PPI channels
 

@@ -540,8 +540,31 @@ fn event<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32,
     cycle(marks, &was, state);
 }
 
+/// For the App_Prover (PM7.2, PM30.3): the therapy's state is off: the
+/// Power-On Reset State, nothing programmed, and no Pace pending in either
+/// Chamber, so the step has nothing to arm.
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn off(st: State) -> bool {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! { st.therapy == Therapy::PowerOnReset && !st.programmed && !st.chamber@[0].pending.armed && !st.chamber@[1].pending.armed }
+}
+
+/// For the App_Prover: below the trip level the state is off. Every Job
+/// of the Partition keeps it (the contracts of `on_pace`, `on_sense` and
+/// `on_control`).
+#[cfg(creusot)]
+#[rsk::creusot_std::macros::logic(open)]
+pub fn tripped_off(t: Timing) -> bool {
+    use rsk::creusot_std::macros::pearlite;
+    pearlite! { t.link.tripped@ != 0 ==> off(t.state) }
+}
+
 impl Timing {
     /// `pace`: the Paces whose pulses have ended, the earlier first.
+    ///
+    /// Contract: below the trip level the Job changes nothing.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).link.tripped@ != 0 ==> ^self == *self))]
     fn on_pace(&mut self) {
         // Below the trip level nothing is accounted: the state is the
         // Power-On Reset State with nothing pending (`on_control`).
@@ -565,6 +588,9 @@ impl Timing {
     }
 
     /// `sense_a`, `sense_v`: one service of the Chamber's sense line.
+    ///
+    /// Contract: below the trip level the Job changes nothing.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).link.tripped@ != 0 ==> ^self == *self))]
     fn on_sense(&mut self, c: Chamber) {
         let Timing { state, driver, board, ring, written, drained, marks, counts, started, hw_fault, .. } = self;
         if !*started || *hw_fault || self.link.tripped != 0 {
@@ -616,6 +642,14 @@ impl Timing {
     /// `trip`, `status_of` below), each a function of its own: as one
     /// body its verification condition was at the solvers' limit after
     /// stage E4 (findings B40).
+    ///
+    /// Contract (2026-11-25; PM7.2, PM30.3): a Job that finds the battery
+    /// below the trip level, on hardware without a fault, ends with the
+    /// level marked; and once the Partition has started, the state is off
+    /// whenever the level is marked ([`tripped_off`]) after the Job if it
+    /// was before.
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).started && tripped_off(*self) ==> tripped_off(^self)))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).started && (*self).link.tripped@ == 0 && (^self).link.tripped@ != 0 ==> off((^self).state) && (^self).written@ == 0 && (^self).drained@ == 0))]
     fn on_control(&mut self, inbox: &Inbox) -> [u32; pm_core::wire::STATUS_WORDS] {
         use pm_core::wire::{code, code_of, seq_of, verdict};
         if !self.started {
@@ -674,6 +708,8 @@ impl Timing {
 /// up from a Job that had a message until `LINK_LOST_JOBS` Jobs have had
 /// none or the Endpoint reports its peer changed; a refused message is
 /// counted and answered.
+// For `on_control`'s contract: the mark of the trip level is `trip`'s and `on_control`'s alone.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^link).tripped == (*link).tripped))]
 fn heard(link: &mut LinkSide, inbox: &Inbox) {
     if inbox.peer_changed {
         link.up = 0;
@@ -697,6 +733,8 @@ fn heard(link: &mut LinkSide, inbox: &Inbox) {
 /// The command of the Job's message, if it has one for the step, and
 /// whether the message is answered already: the battery level and the
 /// activity value are kept by the link's side and answered here.
+// For `on_control`'s contract: the mark of the trip level is `trip`'s and `on_control`'s alone.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^link).tripped == (*link).tripped))]
 fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool) {
     use pm_core::wire::{code, code_of, set_of};
     let mut command = None;
@@ -740,6 +778,12 @@ fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool)
 /// begun ends at its own end compare), and the state is the Power-On
 /// Reset State with empty histories, which is the State entered when the
 /// level is back. Done once, in the first Job below the level.
+///
+/// Contract (2026-11-25): the first Job below the level leaves the
+/// Power-On Reset State with no Pace pending, an empty ring and the level
+/// marked; a later one changes nothing.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*link).tripped@ == 0 ==> off(^state) && (^written)@ == 0 && (^drained)@ == 0 && (^link).tripped@ == 1))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*link).tripped@ != 0 ==> ^state == *state && ^link == *link && ^written == *written && ^drained == *drained && ^ring == *ring && ^marks == *marks && ^counts == *counts))]
 fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
     if link.tripped == 0 {
         let mut k = 0;
@@ -765,6 +809,8 @@ fn trip<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, 
 /// of the timing Chamber) the temporary set is replaced by the set with
 /// the value under test one setting lower; at the lowest setting the test
 /// stays there.
+// For `on_control`'s contract: the mark of the trip level is `trip`'s and `on_control`'s alone.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^link).tripped == (*link).tripped))]
 fn threshold<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, link: &mut LinkSide, hw: &mut H) {
     if link.test == 0 {
         return;

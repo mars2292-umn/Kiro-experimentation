@@ -236,3 +236,73 @@ fn assembly_of_parts_out_of_order_repeated_and_broken() {
     long.len = 24;
     assert_eq!(a.accept(&long), None);
 }
+
+/// The round trip over every header (2026-11-25): each of the 256 kinds
+/// with each of the 256 parts and every length from 0 to 25 and 255, the
+/// payload full. What is encoded decodes exactly when the kind is one of
+/// the 27 and the part is one its kind may have, and then to the frame
+/// with its length within the payload and nothing beyond the length.
+/// `decode`'s contract (the App_Prover's) states the fields and the
+/// payload byte for byte; the CRC's part of the round trip is here.
+#[test]
+fn the_round_trip_over_every_kind_part_and_length() {
+    let mut decoded = 0u32;
+    for k in 0..=255u8 {
+        let known = KINDS.contains(&k);
+        assert_eq!(kind_known(k), known, "kind {k:#x}");
+        for part in 0..=255u8 {
+            let fits = (part as usize) < if k == kind::RECORD { RECORD_PARTS } else { PARTS };
+            for len in (0..=25u8).chain([255]) {
+                let f = Frame { seq: k ^ part, kind: k, part, len, payload: [0xA5; PAYLOAD] };
+                let got = decode(&encode(&f));
+                if known && fits {
+                    let n = (len as usize).min(PAYLOAD);
+                    let mut want = Frame { len: n as u8, ..f };
+                    want.payload[n..].fill(0);
+                    assert_eq!(got, Some(want), "kind {k:#x} part {part} len {len}");
+                    decoded += 1;
+                } else {
+                    assert_eq!(got, None, "kind {k:#x} part {part} len {len}");
+                }
+            }
+        }
+    }
+    assert_eq!(decoded, (26 * PARTS as u32 + RECORD_PARTS as u32) * 27);
+}
+
+/// Every frame `decode` returns encodes to the bytes it came from: over
+/// bytes that are frames by construction and over a sample of 200,000
+/// blocks with a right CRC and anything else.
+#[test]
+fn what_is_decoded_encodes_to_the_same_bytes() {
+    let mut x = 2_463_534_242u32;
+    let mut frames = 0u32;
+    for n in 0..200_000u32 {
+        let mut b = [0u8; FRAME];
+        for byte in b.iter_mut().take(28) {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            *byte = (x >> 11) as u8;
+        }
+        // Half of them with a header that can be a frame's, so that the
+        // payload's rule decides.
+        if n % 2 == 0 {
+            b[1] = KINDS[(x >> 3) as usize % KINDS.len()];
+            b[2] %= 5;
+            b[3] %= 26;
+            let len = b[3] as usize;
+            if n % 4 == 0 && len < PAYLOAD {
+                b[4 + len..28].fill(0);
+            }
+        }
+        let crc = crc16(&b);
+        b[30] = (crc >> 8) as u8;
+        b[31] = crc as u8;
+        if let Some(f) = decode(&b) {
+            assert_eq!(encode(&f), b, "block {n}");
+            frames += 1;
+        }
+    }
+    assert!(frames > 40_000, "{frames}");
+}
