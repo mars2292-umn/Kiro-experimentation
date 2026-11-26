@@ -374,10 +374,10 @@ pub trait KernelOps: Sized {
     /// initial state and computes the Partition views (A6, A11).
     fn init(&mut self)
         requires old(self).valid(),
-        ensures final(self).inv(), final(self).spec_depth() == 0;
+        ensures final(self).inv(), final(self).spec_deadline_owned(), final(self).spec_depth() == 0;
     fn start(&mut self)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn started(&self) -> bool;
@@ -435,7 +435,7 @@ pub trait KernelOps: Sized {
         ensures e == ((t as int) < self.task_count_spec() && self.task_eligible(t as int));
     fn dispatch(&mut self, t: u8, preempted_cycles: u32)
         requires old(self).inv(),
-        ensures final(self).inv(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
             // The dispatched Job goes on top of the stack, or nothing changes.
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(),
             forall|i: int| 0 <= i < old(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i),
@@ -445,19 +445,19 @@ pub trait KernelOps: Sized {
             final(self).spec_dispatch_guard();
     fn job_return(&mut self, elapsed_cycles: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             old(self).spec_depth() > 0 ==> final(self).spec_depth() == old(self).spec_depth() - 1;
     fn svc_lock(&mut self, r: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
             // 2026-11-15: a lock admits no Task that was not admitted and arms no Budget event.
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn svc_unlock(&mut self, r: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn ceiling(&self) -> (c: u8)
@@ -477,13 +477,20 @@ pub trait KernelOps: Sized {
     /// (`settle`, called by `entry::apply_core`), so a Budget event has no
     /// timer entry of its own ahead of a pending dispatch.
     spec fn spec_dispatch_guard(&self) -> bool;
+    /// Outside the safe state, a timer slot armed with the deadline kind is
+    /// the deadline slot of a Task with a Release pending or a Job in
+    /// progress (`Kernel::deadline_slots_owned`, 2026-11-25). `init`
+    /// establishes it and every operation that changes the Kernel's state
+    /// keeps it, so it holds between the Kernel's entries
+    /// (`entry::theorem_entries_run`).
+    spec fn spec_deadline_owned(&self) -> bool;
     /// The selection of `select`, with the executing Job's Budget event
     /// settled for it (`Kernel::settle`): disarmed when a Job is selected
     /// (the second component: a slot was disarmed, and a compare pended
     /// for it is to be cancelled).
     fn settle(&mut self) -> (r: (Option<u8>, bool))
         requires old(self).inv(),
-        ensures final(self).inv(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(),
             final(self).spec_depth() == old(self).spec_depth(),
             forall|i: int| 0 <= i < old(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i),
@@ -499,7 +506,7 @@ pub trait KernelOps: Sized {
     /// raise or an Endpoint send.
     fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             // R10.5, R10.1 to R10.3 (2026-11-21): the state left is the
             // outcome of that one Release_Source event.
@@ -513,11 +520,11 @@ pub trait KernelOps: Sized {
     spec fn spec_intake_of(&self, old: &Self, t: int, source_partition: int, offender: int, now: u64) -> bool;
     fn timer_event(&mut self, now: u64, running_cycles: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     fn fault(&mut self, kind: u8, kernel: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             kernel ==> final(self).spec_depth() == old(self).spec_depth(),
             // R14.4, R11.5: a fault attributed to the Kernel, or one with no
@@ -545,14 +552,14 @@ pub trait KernelOps: Sized {
         requires self.inv();
     fn take_reinit(&mut self, p: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_safe() == old(self).spec_safe(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn take_stop_dma(&mut self, p: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_safe() == old(self).spec_safe(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
@@ -580,7 +587,7 @@ pub trait KernelOps: Sized {
     /// R12.2: records the failed boot checks (bit set) before the safe state.
     fn boot_failed(&mut self, failed: u32)
         requires old(self).inv(),
-        ensures final(self).inv(),
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
             // R12.2 (2026-11-21): the Kernel is in its safe state.
             final(self).spec_safe(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
@@ -588,7 +595,7 @@ pub trait KernelOps: Sized {
     /// Logs the debug state and a watchdog reset at boot (ORQ-30, ORQ-31).
     fn boot_info(&mut self, debugger: bool, watchdog_reset: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// Whether Partition `p` is stopped (R14.5): its interrupt sources stay disabled.
     /// R14.5: Partition `p` is stopped (a Partition index beyond the
@@ -622,16 +629,33 @@ pub trait KernelOps: Sized {
         requires old(self).inv(),
         ensures (t as int) < old(self).task_count_spec()
                 ==> final(self).spec_last_event() == (kind as int, t as int, old(self).spec_part()[t as int]),
-            final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+            final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// R42.4 (task 21.4): a fault of Task `t`'s Partition raised by another
     /// Partition's Job (a rejected message): the event against `t` and
     /// `t`'s Partition's fault response.
     fn fault_of(&mut self, kind: u8, t: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     spec fn partition_count_spec(&self) -> int;
+}
+
+impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const NS: usize, const NE: usize>
+    Bound<NT, NR, NP, NL, NS, NE>
+{
+    /// What `entry::theorem_entries_run` says of the linked Kernel
+    /// (2026-11-25): the state an entry leaves is quieted (while the
+    /// Budget event of the Job on top is armed, R7.1 admits no Task:
+    /// `Kernel::quieted`), and outside the safe state every timer slot
+    /// armed with the deadline kind is the deadline slot of a Task with a
+    /// Release pending or a Job in progress.
+    pub proof fn lemma_entry_leaves(&self)
+        requires KernelOps::inv(self), self.spec_dispatch_guard(), self.spec_deadline_owned(),
+        ensures self.kernel.quieted(&self.cfg), self.kernel.deadline_slots_owned(&self.cfg),
+    {
+        self.kernel.lemma_guard_quieted(&self.cfg);
+    }
 }
 
 impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const NS: usize, const NE: usize> KernelOps
@@ -761,6 +785,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 p <= NP,
                 self.cfg == old(self).cfg, self.layout == old(self).layout,
                 self.cfg.wf(), self.layout.wf(), self.kernel.inv(&self.cfg),
+                self.kernel.deadline_slots_owned(&self.cfg),
                 forall|q: int| 0 <= q < p ==> self.layout.is_view_of(q, &self.views[q]),
             decreases NP - p,
         {
@@ -942,6 +967,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn spec_dispatch_guard(&self) -> bool {
         self.kernel.dispatch_guard(&self.cfg)
+    }
+
+    open spec fn spec_deadline_owned(&self) -> bool {
+        self.kernel.deadline_slots_owned(&self.cfg)
     }
 
     fn settle(&mut self) -> (r: (Option<u8>, bool)) {

@@ -42,7 +42,7 @@ file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "intake"
 tool = "verus"
 says = "Called on a valid Kernel state for a sporadic Task, the function leaves a valid state, only adds to the history, never lengthens the Job stack, and its result is one of the outcomes `intake_outcome` lists; the last accepted instants of all sporadic Tasks stay at least one MIT apart."
-reviewed = "bd16fd16522976e2"
+reviewed = "7b37100a5ef45fe6"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -116,7 +116,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "irq_entry_core"
 tool = "verus"
 says = "Among its postconditions since 2026-11-22: when the vector taken is bound as an intake vector, the entry is `intake_entry` for the Task and the Partition the binding names; and a vector that is not a Kernel vector leaves the watchdog unfed."
-reviewed = "cba03622cf04fc27"
+reviewed = "96eeba5a4b77831d"
 
 [[row.other]]
 kind = "tested-rig"
@@ -140,7 +140,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "raise_core"
 tool = "verus"
 says = "The function keeps the Kernel's invariant and the Jobs in progress, leaves the priority mask, the interrupt mask and the loaded view as they were, and returns true exactly when `raise_accepts` holds of the state before it. When it returns true, the state left is, for some instant, what `spec_intake_of` says of the state before: the Release_Source event of the Task the signal is bound to, attributed to the Partition that declares the signal, with the Job that was executing as the one a threshold response is for."
-reviewed = "a1b1895fc16dfdfb"
+reviewed = "265131fe7f807e33"
 
 
 [[row.statement]]
@@ -157,7 +157,7 @@ name = "intake"
 tool = "verus"
 after = "pub trait KernelOps"
 says = "The Kernel operation the entry code calls for a Release_Source event keeps the invariant, the Tasks' priorities and Partitions, never lengthens the Job stack, and leaves the state `spec_intake_of` describes for the Task, source Partition, offender and instant it was given."
-reviewed = "9c69fa6aedffbb55"
+reviewed = "6bab3403717de06d"
 
 
 [[row.statement]]
@@ -186,14 +186,14 @@ file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "fault"
 tool = "verus"
 says = "From a valid state: if the fault is the Kernel's, or no Job is executing, the result is the safe state with no Release pending and the Jobs as they were. Otherwise the executing Job's Partition receives its declared fault response, as `response_applied` defines it. The MIT history is kept. Since 2026-11-22 it also ensures `fault_recorded`: the fault's event is the log's newest entry on the state as found, with the executing Job's Task and Partition or (0xFF, 0xFF) for the Kernel, before the response is applied to that state."
-reviewed = "6b1b2289c3267fc1"
+reviewed = "d31b3e88416f91ea"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "apply_response"
 tool = "verus"
 says = "From a valid state the function leaves a valid state in which the given response has been applied to the given Partition as `response_applied` defines; it charges no Task's Budget account, and resets accounts only."
-reviewed = "6c4a887968de2b06"
+reviewed = "a76571bb4813a3d2"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -224,7 +224,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "fault_core"
 tool = "verus"
 says = "Among its postconditions since 2026-11-22: there is a state that is the fault's outcome on the state the entry found, the fault being the Kernel's exactly when the stub's flag is set, the kind is a HardFault or no Job executes, and the state returned keeps that state's Jobs in progress, levels and safe-state flag; and the entry does not feed the watchdog."
-reviewed = "c8ee64b4021faf85"
+reviewed = "84a0b73730674ea0"
 
 [[row.other]]
 kind = "tested-rig"
@@ -428,7 +428,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_check_core"
 tool = "verus"
 says = "At a supervisor call the Kernel either changes nothing and serves the call, in which case, if the call came from a Job, the frame on the process stack lies inside the stack region of the executing Job's Partition; or it treats the stack pointer as a stack violation: the Partition's fault response is applied, the loaded view is unchanged and the pending stacking fault is discarded. So the Kernel reads a Job's frame only inside that Job's Partition's stack region."
-reviewed = "00de91bc26def708"
+reviewed = "04ebd601ba70ca8e"
 
 
 # ---------------------------------------------------------------- R17
@@ -484,7 +484,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_request_core"
 tool = "verus"
 says = "The Kernel's invariant is preserved and the Job stack does not grow. The request is accepted exactly when `dma_accepts` holds of the state it was called in. If accepted, the Kernel's state is as before and the model's list of programmed transfers has one more entry: this channel's pointer register, the buffer, this channel's count register, the length. If refused, that list is unchanged. The record of register writes made for Partitions is unchanged either way, as are the interrupt mask level, the MPU view and the global interrupt mask."
-reviewed = "61d51cf573608817"
+reviewed = "3d4f5baf55177675"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -499,7 +499,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_write_core"
 tool = "verus"
 says = "The Kernel's invariant is preserved. If the write is performed: the channel exists and belongs to the Partition of the Job on top; the offset is a word inside the 4 KiB window; the register addressed is `dma_reg_unmediated`; the model's record of register writes has exactly one more entry, that register and that value; and the Kernel's state is as before. If it is refused, the record is unchanged. Either way the record of programmed transfers is unchanged: this service never programs a transfer."
-reviewed = "dd137dbf48701f8f"
+reviewed = "46ae4991810131cd"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -614,21 +614,21 @@ file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "timer_event"
 tool = "verus"
 says = "Outside the safe state, after the entry every Task's Budget account is either what it was, or (for the Job executing at entry only) what it was plus the cycles passed in, or zero. Every periodic Task due at the entry's reading has its Release served and every other is left alone. In the safe state nothing changes."
-reviewed = "5d87d24f25e5725c"
+reviewed = "453b79b850ce823d"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "budget_event"
 tool = "verus"
 says = "The event charges no account. If an Overrun was already reported for this Job, the log, the accounts and the scheduler are unchanged. If the Job on top is this Task's, is unreported, and its account exceeds its Budget, then afterwards the Overrun is marked reported, or the account has been reset because the response ended the Partition."
-reviewed = "9030572535810bba"
+reviewed = "a6c55e5dc7b8852e"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "settle"
 tool = "verus"
 says = "The last step of every Kernel entry changes nothing but, at most, the executing Job's Budget slot; it returns the Task the scheduling rule admits, if any; and whenever a Task is admitted, no Budget event is left armed."
-reviewed = "1ad81a7cda388d08"
+reviewed = "ae392daf05290ef2"
 
 [[row.statement]]
 file = "proofs/aeneas/lean/Sched/KRun.lean"
@@ -856,14 +856,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "irq_entry_core"
 tool = "verus"
 says = "Whatever interrupt vector is taken, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; a vector that dispatches a Job ends so unconditionally."
-reviewed = "cba03622cf04fc27"
+reviewed = "96eeba5a4b77831d"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_core"
 tool = "verus"
 says = "Whatever service a supervisor call asks for, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; lock and unlock end so unconditionally."
-reviewed = "8ad465c98459f439"
+reviewed = "6a65219637d34120"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/sched.rs"
@@ -1005,7 +1005,7 @@ file = "crates/rsk-logic/src/logic/kernel.rs"
 name = "timer_event"
 tool = "verus"
 says = "Outside the safe state, every periodic Task whose nominal instant is due at the entry's reading has its Release served by this entry, and every other periodic Task's slot, instant and absent Release are as they were; sporadic Releases that become due keep their MIT spacing; in the safe state nothing happens."
-reviewed = "5d87d24f25e5725c"
+reviewed = "453b79b850ce823d"
 
 [[row.statement]]
 file = "proofs/aeneas/lean/Sched/Time.lean"
@@ -1092,7 +1092,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dispatch_job_core"
 tool = "verus"
 says = "Among its guarantees when a Job is dispatched: the hardware model's floating-point access flag equals the declared FPU flag of the dispatched Task; the Partition's memory view is loaded; the priority mask matches the Kernel's state; the entry invariant holds."
-reviewed = "0c57e65600a3ca44"
+reviewed = "642fd5d1291d5947"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -1127,7 +1127,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "epilogue_core"
 tool = "verus"
 says = "Among its postconditions: when the unwind stops (no further level to unwind, no safe state) and a Job is in progress, the hardware model's floating-point access flag equals the declared floating-point use of the Task on top of the Kernel's Job stack, the Job being resumed. The others concern the view, the priority mask, the level records and the invariant of the entry code."
-reviewed = "b795a0bff5726dc4"
+reviewed = "edeea0bcd37c2903"
 
 
 # ---------------------------------------------------------------- R12
@@ -1160,7 +1160,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "boot_core"
 tool = "verus"
 says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. If it reports failure: no interrupt has been enabled or pended, no timer compare armed, and the time base not started; and (since 2026-11-21) either the Kernel is in its safe state or the Kernel's state is exactly what it was before the call."
-reviewed = "8aa65d90d070b4e2"
+reviewed = "71e0acf3cd5b537d"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/bound.rs"
@@ -1354,14 +1354,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged. If the send is accepted, the message's first word is appended to the channel's label sequence, and (2026-11-21) under the layout premise the whole message is appended to the channel's messages (`send_message_ok`, see R39). If it is not accepted, nothing is written into the Endpoint storage and every channel's queue is as it was. If the buffer was full and a Job is executing, the newest entry of the event log is the buffer-full event against that Job's Task and that Task's Partition. The executing Job's charge point is not moved. The peer-state flag of the role (2026-11-21): a send that reports it found it set, clears that one flag and changes no channel, no stored word and nothing of the Kernel; a send with any result but that report and a refusal found the flag clear; and the flags are unchanged unless reported. Since 2026-11-22 it also states what an accepted send does to the Kernel's state (`send_release`): when the arriving message is the receiving role's Task's Release_Source, exactly that Task's Release_Source event, attributed to the sending role's Partition; otherwise nothing."
-reviewed = "4e797797b89f63bb"
+reviewed = "6b8ad3185f330141"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The invariants are preserved; a receive that is not refused leaves the Kernel's state exactly as it was; if it succeeds, it takes the oldest label of the channel's sequence and delivers that word first, and (2026-11-21) changes no word outside the receiver's buffer and, under the layout premise, delivers every word of the oldest message and leaves the other messages in order (`recv_message_ok`, see R39); the charge point is not moved. The peer-state flag of the role is treated as in the send: reported only when set, cleared by the report, and a receive that goes ahead found it clear."
-reviewed = "0a87789fb33382a7"
+reviewed = "0cb24072ba032a34"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/endpoint.rs"
@@ -1684,7 +1684,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "For the peer-state error: a send that returns the report found the role's flag set, clears that flag alone and changes no channel, no stored word and nothing of the Kernel; a send that returns anything but the report and a refusal found the flag clear; unless the report is returned the flags are unchanged. For the copy: see R39 and R40."
-reviewed = "4e797797b89f63bb"
+reviewed = "6b8ad3185f330141"
 
 
 [[row.statement]]
@@ -1692,7 +1692,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The same three clauses for a receive: the report only when the role's flag was set, with that flag cleared and nothing else changed; no message delivered to a role whose flag is set; the flags unchanged unless reported."
-reviewed = "0a87789fb33382a7"
+reviewed = "0cb24072ba032a34"
 
 
 [[row.statement]]
@@ -2386,7 +2386,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "boot_core"
 tool = "verus"
 says = "Stated for any Kernel binding, any implementor of the hardware interface and any tables: a successful boot leaves the Kernel's invariant, the boot flags of the model, the entry invariant, matching vector tables and every vector with its priority and enable; a failed boot has enabled or pended no interrupt, armed no compare and not started the time base, and leaves the Kernel in its safe state or untouched."
-reviewed = "8aa65d90d070b4e2"
+reviewed = "71e0acf3cd5b537d"
 
 [[row.other]]
 kind = "checked"

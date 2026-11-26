@@ -3418,3 +3418,48 @@ replace = "            } else {\n                if let Some(command) = command 
 expect = ["proof failed", "vc_on_control"]
 package = "pacemaker-therapy-nrf52840-proof"
 prover = "creusot"
+
+[[mutation]]
+id = "deadline-owned-forced-end-keeps-the-slot"
+kills = "`Kernel::deadline_slots_owned`, kept by `end_top_release` (2026-11-25; the statement of Sched/Deadline.lean on the source): with the ended Job's deadline slot kept under a deferred Release (the defect of 2026-11-17, on the forced end), an armed deadline slot is left whose Task has neither a Release pending nor a Job in progress"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);\n        }\n        if self.sched.release[t as usize] != REL_PENDING {"
+replace = "            self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);\n        }\n        if self.sched.release[t as usize] == REL_NONE {"
+expect = ["kernel.rs", "deadline_kept"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "deadline-owned-cleared-release-keeps-the-slot"
+kills = "`Kernel::deadline_slots_owned`, where the exemption of a stopped or restarted Partition's Tasks ends (`clear_partition_releases`, 2026-11-25): with the deadline slot of a cleared Release left armed, a deadline event stays for a Task with no Release and no Job"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "                } else {\n                    self.slots.disarm(cfg.slot_deadline[t] as usize);\n                    proof {\n                        Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_deadline[t as int] as int);\n                    }\n                }\n"
+replace = "                }\n"
+expect = ["kernel.rs", "SLOT_DEADLINE"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "deadline-owned-safe-state-not-excluded"
+kills = "the exclusion of the safe state from `Kernel::deadline_slots_owned_but` (2026-11-25): `enter_safe_state` drops every Release and disarms no slot, so without the exclusion the statement is not kept"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        !self.safe_state ==> forall|i: int| 0 <= i < NS && (#[trigger] self.slots.slots[i]).armed"
+replace = "        forall|i: int| 0 <= i < NS && (#[trigger] self.slots.slots[i]).armed"
+expect = ["kernel.rs", "deadline_kept"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "quieted-without-the-budget-slot-invariant"
+kills = "`Kernel::lemma_guard_quieted` (2026-11-25): the state every entry leaves is the quieted state of the Lean run because an armed Budget slot is the top Job's (`budget_slots_owned`, in `inv`); with the scheduler's invariant alone the two statements differ"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        requires self.inv(cfg),\n        ensures self.dispatch_guard(cfg) <==> self.quieted(cfg),"
+replace = "        requires self.sched.inv(cfg),\n        ensures self.dispatch_guard(cfg) <==> self.quieted(cfg),"
+expect = ["kernel.rs"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "entries-run-without-the-cores-step"
+kills = "`entry::theorem_entries_run` (2026-11-25): that every entry leaves the Kernel quieted with its deadline slots owned rests on each core's `slots_step`; a run whose entries are not calls of the cores has neither"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    &&& forall|i: int| 0 <= i < es.len() ==> slots_step(&(#[trigger] es[i]).k0, &es[i].k1)\n"
+replace = ""
+expect = ["entry.rs"]
+package = "rsk-kernel"

@@ -6,6 +6,8 @@ This is a read-only survey; no prover was run for it. It is taken from the proje
 
 The two provers look at different things. Verus proves the Rust source against a model. Lean proves the same functions as extracted from the compiled crate (Aeneas, ghost code erased). The hand-written Lean files listed contain no `sorry` and no `axiom`.
 
+Changed since: on 2026-11-25 two items of the Lean-only table were proven in Verus as well and moved to the first table (the quieted state every entry leaves, and the deadline slots' statement). For those two Verus was run: `rsk-logic` 350 verified, `rsk-kernel` 380 verified, five mutants killed. The deadline slots' statement is not a clause of `Kernel::inv`, as this survey first suggested: it is false for a few statements inside three Kernel functions, between which `inv` is required, so it is carried beside `inv` with the exempt Task named. The hold was not ported and stays in the Lean-only table.
+
 The columns "can it be proven on the other platform" and "would it be useful" are judgments made for this survey from the same sources, not results: nothing in them was attempted. "Useful" weighs what the second proof would add against what already stands in for it.
 
 ## Proven in both Verus and Lean
@@ -31,14 +33,15 @@ The columns "can it be proven on the other platform" and "would it be useful" ar
 | Generator arithmetic (`rsk-gen` `derive_v`) | Priority byte, ceilings, region size, time scaling, timer-slot plan |
 | Config_Checker core (`rsk-confcheck` `derive_v`) | Level encoding, ceilings, checked sums, timer slots, alignment, disjointness |
 | Protocol_Checker (`rsk-protocol`) | A multiparty Protocol the checker accepts has no reachable deadlocked configuration |
+| Kernel logic and entry cores, the timer slots (added 2026-11-25) | Every entry leaves the Kernel quieted: while the Budget event of the Job on top is armed, R7.1 admits no Task (Verus: `Kernel::quieted`, `lemma_guard_quieted`, `entry::theorem_entries_run`; Lean: `Sched/Quiet.lean`) |
+| | Outside the safe state, an armed deadline slot is the deadline slot of a Task with a Release pending or a Job in progress, in every state between entries (Verus: `Kernel::deadline_slots_owned`, kept by every function of the Kernel and every entry core, `entry::theorem_entries_run`; Lean: `Sched/Deadline.lean`) |
 
 ## Proven in Lean only
 
 | Component | Property | Can Verus prove it? | Would it be useful? |
 |---|---|---|---|
 | Kernel and Analyzer together | Property 18: a Task the Analyzer reports schedulable with bound R has every Job finished within R, over the run of the Kernel's extracted functions, also cut into Kernel entries | In principle, over the ghost history. In practice hard: the argument is an induction over a run with a busy-window count, and it joins two crates that Verus verifies apart | No. The Lean proof is already on the compiled code of both crates; a second proof on the source adds little |
-| Run of the Kernel | Every entry of the linked Kernel leaves it "quieted"; a pending Kernel-level event waits at most one handler with its unwind | Yes for "quieted", as a postcondition of each entry core. The hold is a statement about a run and has the difficulty of the row above | Little. Both serve Property 18 only |
-| Deadline slots | An armed deadline slot belongs to a Job pending or in progress, as an invariant over the run (Verus has it only as two postconditions) | Yes: a clause of `Kernel::inv`, as its Budget-slot twin `budget_slots_owned` already is | Yes, and small. A defect was found here on 2026-11-17; as a clause of the invariant it would be checked at every edit of the source, where the Lean proof is checked only when the translation is rebuilt |
+| Run of the Kernel, the hold | A pending Kernel-level event waits at most one handler with its unwind (`Sched/Hold.lean`). The other half of this row, "every entry leaves the Kernel quieted", is in both since 2026-11-25 | Not as it stands. The statement is about the run's timing model (the units a Kernel section still takes), whose steps are the extracted functions' results; Verus has no such model and cannot name an executable function in a specification. A port would restate every step as a relation first | Little. It serves Property 18 only, and Property 18 does not use it |
 | Register drivers (`arch/cm4/drivers.rs`) | What each driver does to a register file (86 theorems), and that each returns | Yes, with a specification of the register trait inside Verus; the drivers are already generic over it | Moderately. It would join the drivers to the Verus hardware model: today the step from an `Action`'s specification to the driver that performs it is by reading |
 | Generated table accessors | Each returns for every argument, in each of the 14 configurations | Only if the generated code were put under Verus, which it is not | No |
 | `Bound::init`, ghost helpers | They return once validation passed | Not applicable: the ghost helpers are Verus's own constructs, and Verus already checks `init`'s arithmetic | No |

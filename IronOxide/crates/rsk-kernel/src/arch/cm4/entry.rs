@@ -816,6 +816,70 @@ proof fn lemma_a1_run_upto<K: KernelOps>(es: Seq<EntryStep<K>>, i: int)
     }
 }
 
+/// What every entry of the Kernel does to the two statements about the
+/// timer slots (2026-11-25): an entry that finds no Budget event armed
+/// with a dispatch pending (`spec_dispatch_guard`, the quieted state of
+/// `Kernel::lemma_guard_quieted`) leaves none, and an entry that finds
+/// every armed deadline slot owned by a Task with a Release pending or a
+/// Job in progress (`spec_deadline_owned`) leaves them so. Each core the
+/// shells call ensures it of its own call, as for `a1_step`.
+pub open spec fn slots_step<K: KernelOps>(k0: &K, k1: &K) -> bool {
+    &&& k0.spec_dispatch_guard() ==> k1.spec_dispatch_guard()
+    &&& k0.spec_deadline_owned() ==> k1.spec_deadline_owned()
+}
+
+/// A run of Kernel entries from the start of the system, for the slots'
+/// statements: the first entry is `start_core`'s, called on the state
+/// `boot_core` left (which has the deadline slots' statement) and
+/// returning a quieted state; every entry is a call of a core
+/// (`slots_step`); and between two entries the Kernel's state does not
+/// change. The last is the trust base `a1_run` names (the cores run one at
+/// a time, and nothing between them writes the Kernel's memory). An entry
+/// that ends in the safe state needs no exception here: both statements
+/// are stated of the safe state too (the deadline slots' holds there
+/// vacuously).
+pub open spec fn entries_run<K: KernelOps>(es: Seq<EntryStep<K>>) -> bool {
+    &&& es.len() > 0
+    &&& es[0].k0.spec_deadline_owned()
+    &&& es[0].k1.spec_dispatch_guard()
+    &&& forall|i: int| 0 <= i < es.len() ==> slots_step(&(#[trigger] es[i]).k0, &es[i].k1)
+    &&& forall|i: int| 0 < i < es.len() ==> (#[trigger] es[i]).k0 == es[i - 1].k1
+}
+
+/// **Every entry leaves the Kernel quieted, with its deadline slots owned
+/// (2026-11-25; in Lean `Sched/Quiet.lean` and `Sched/Deadline.lean`'s
+/// `kreachs_di`).** In a run of Kernel entries from the start of the
+/// system, the state at the return of every entry, and so the state every
+/// later entry finds, has no Budget event armed with a dispatch pending,
+/// and every timer slot armed with the deadline kind is the deadline slot
+/// of a Task with a Release pending or a Job in progress (outside the safe
+/// state).
+pub proof fn theorem_entries_run<K: KernelOps>(es: Seq<EntryStep<K>>)
+    requires entries_run(es),
+    ensures
+        forall|i: int| 0 <= i < es.len() ==> (#[trigger] es[i]).k1.spec_dispatch_guard() && es[i].k1.spec_deadline_owned(),
+        forall|i: int| 0 < i < es.len() ==> (#[trigger] es[i]).k0.spec_dispatch_guard() && es[i].k0.spec_deadline_owned(),
+{
+    assert forall|i: int| 0 <= i < es.len() implies (#[trigger] es[i]).k1.spec_dispatch_guard() && es[i].k1.spec_deadline_owned()
+        && (0 < i ==> es[i].k0.spec_dispatch_guard() && es[i].k0.spec_deadline_owned()) by {
+        lemma_entries_run_upto(es, i);
+    }
+}
+
+proof fn lemma_entries_run_upto<K: KernelOps>(es: Seq<EntryStep<K>>, i: int)
+    requires entries_run(es), 0 <= i < es.len(),
+    ensures
+        es[i].k1.spec_dispatch_guard(), es[i].k1.spec_deadline_owned(),
+        0 < i ==> es[i].k0.spec_dispatch_guard() && es[i].k0.spec_deadline_owned(),
+    decreases i,
+{
+    assert(slots_step(&es[i].k0, &es[i].k1));
+    if i > 0 {
+        lemma_entries_run_upto(es, i - 1);
+        assert(es[i].k0 == es[i - 1].k1);
+    }
+}
+
 /// The boot flags `boot_core` establishes (A3 and DD-02, DD-04, DD-07, DD-12).
 pub open spec fn booted(h: HwModel) -> bool {
     &&& h.prigroup_all_preempt
@@ -885,7 +949,7 @@ fn rearm_compare<A: KernelArch>(hw: &mut A, at: u64)
 #[verifier::spinoff_prover]
 pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).task_count_spec() == old(k).task_count_spec(),
         // A4 and A13 (`vectors_applied`).
         vectors_applied(old(k), tables, old(hw).hw(), final(hw).hw()),
@@ -1000,7 +1064,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     while p < np
         invariant
             state.last_switch == old(state).last_switch,
-            k.inv(), np <= 255,
+            k.inv(), np <= 255, old(k).spec_deadline_owned() ==> k.spec_deadline_owned(),
             k.top_level() == k1.top_level(), k.ceiling_level() == k1.ceiling_level(),
             k.spec_depth() == k1.spec_depth(),
             forall|i: int| 0 <= i < k1.spec_depth() ==> k.spec_stack(i) == k1.spec_stack(i),
@@ -1207,8 +1271,10 @@ fn boot_vectors<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, table
 // unrelated changes; alone it passes inside the default resource limit.
 #[verifier::spinoff_prover]
 pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (ok: bool)
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         ok ==> final(k).inv(),
+        // The deadline slots' statement starts here (`Kernel::new` arms none).
+        ok ==> final(k).spec_deadline_owned(),
         ok ==> booted(final(hw).hw()),
         ok ==> final(state).booted,
         // Boot establishes the invariant of the entry cores: no level
@@ -1450,7 +1516,7 @@ pub open spec fn dma_accepts<K: KernelOps, T: Tables>(k: &K, tables: &T, i: int,
 #[verifier::spinoff_prover]
 fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, ptr: u32, len: u32) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
         // R17.1, R17.2 (2026-11-16): the request is accepted exactly when
         // the channel is one of the executing Job's own Partition and the
@@ -1525,7 +1591,7 @@ pub open spec fn dma_reg_unmediated<T: Tables>(tables: &T, i: int, reg: u32) -> 
 #[verifier::spinoff_prover]
 fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, offset: u32, value: u32) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
         // R17.3 (2026-11-16): a write is performed only for a channel of
         // the executing Job's own Partition, at a word of that channel's
@@ -1597,7 +1663,7 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
 /// Job only its Partition's signals, PR-06) and a fault of the Partition.
 fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // R10.5, R10.7 (2026-11-21): a raise is taken as an event exactly
@@ -2062,7 +2128,7 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
 /// or an unknown form, is API misuse of the caller.
 fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut ArchState, arg: u32)
     requires old(k).inv(),
-    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
 {
@@ -2129,7 +2195,7 @@ pub open spec fn spec_rejection_permitted(cfg: EndpointCfg, state: ArchState, e:
 /// could impose a higher one's fault response with one call.
 fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &EndpointCfg, e: usize, role: usize, from: usize)
     requires old(k).inv(), e < MAX_ENDPOINTS, role < MAX_ROLES, from < MAX_ROLES,
-    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
         spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
             forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
@@ -2462,7 +2528,7 @@ pub open spec fn send_offender<K: KernelOps>(k0: &K, receiver: int) -> int {
 
 fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
     requires old(k).inv(),
-    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // A-P2 (2026-11-09): an accepted send appends the message's first
@@ -2635,7 +2701,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 #[verifier::spinoff_prover]
 fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (r: (u32, Ghost<int>))
     requires old(k).inv(),
-    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         // A receive that is not refused leaves the Kernel's stack as it was.
         r.0 != ENDPOINT_REFUSED ==> final(k).spec_depth() == old(k).spec_depth(),
         // 2026-11-15: and the Kernel's state with it.
@@ -2729,7 +2795,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// shell then enters `System::safe_state` with PRIMASK still set).
 pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), safe),
@@ -2814,7 +2880,7 @@ pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, psp: u32, exc_return: u32,
 ) -> (r: Option<(ReturnPlan, bool)>)
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step, for
         // the check that passes (nothing written) and the one that reports.
@@ -2867,7 +2933,7 @@ pub fn fault_frame_readable<T: Tables>(tables: &T, state: &ArchState, cfsr: u32,
 /// response ended. Nothing is read or written through the pointer.
 pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures final(k).inv(),
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -3396,7 +3462,7 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires
         old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), old(state).pending_unwind == 0,
         n != 0, n <= 0x1FF, (t as int) < old(k).task_count_spec(),
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
@@ -3561,7 +3627,7 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
     n: u16, t: u8, psp: u32, control: u32, exc_return: u32,
 ) -> (r: (DispatchPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)), n <= 0x1FF,
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
@@ -3728,7 +3794,7 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
     n: u16, task: u8, partition: u8, psp: u32, exc_return: u32,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
@@ -3784,7 +3850,7 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
 #[inline(always)]
 fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u16) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
@@ -3826,7 +3892,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     ipsr: u32, psp: u32, control: u32, exc_return: u32,
 ) -> (r: (DispatchPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
@@ -3888,7 +3954,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         let mut i: usize = 0;
         while i < 8
             invariant
-                k.inv(), i <= 8,
+                k.inv(), i <= 8, old(k).spec_deadline_owned() ==> k.spec_deadline_owned(),
                 super::plan::arch_frame(*state, s0),
                 hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask && hw.hw().primask_cleared == h0.primask_cleared && hw.hw().watchdog_fed == h0.watchdog_fed && hw.hw().kernel_exceptions_level0 == h0.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h0.prigroup_all_preempt,
             decreases 8 - i,
@@ -3985,7 +4051,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// executing Job was ended by a response, and the safe-state flag.
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
@@ -4033,7 +4099,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
@@ -4162,7 +4228,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
@@ -4246,7 +4312,7 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         // number, with the invariant in the form that plan left.
         (n & 0x1FF) != 0, arch_inv(old(k), *old(state), (n & 0x1FF) as int),
         view_matches(*old(state), old(hw)),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
@@ -4455,7 +4521,7 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, kind: u8, in_kernel: bool,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
-    ensures
+    ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
