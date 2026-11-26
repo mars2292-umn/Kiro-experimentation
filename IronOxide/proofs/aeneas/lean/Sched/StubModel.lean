@@ -31,8 +31,12 @@ records across every entry (`world`, `arch_inv`), which rests on ghost
 state of `ArchState` that the extraction erases. What links a record to its
 stub here is `Sched/Record.lean`.
 
-Assumed, as in Verus: the exception model, and AAPCS for the compiled Rust
-halves (`call`). The instruction semantics of the `i_*` functions was
+Assumed, as in Verus: AAPCS for the compiled Rust halves (`call`). The
+exception model (`hwEntry`, `exc_enter_handler`, `exc_return_handler`) is
+proven of the machine's entry and return in `Sched/StubExc.lean`; that
+proof found the entry here keeping R0 to R3, R12 and Z, which the
+architecture leaves UNKNOWN, and the return keeping Z, which comes from
+the stacked xPSR; both are as the architecture has them since then. The instruction semantics of the `i_*` functions was
 assumed until 2026-11-26; `Sched/StubPaths.lean` now proves it of the
 stubs' machine code under a semantics of the Armv7-M instructions
 (`Sched/Arm.lean`). That proof found that `vpush` and `vpop` here left
@@ -1159,11 +1163,14 @@ theorem svc_stub (s h : M) (hop : Int) :
 the main stack) in state `s`. The processor stacks the interrupted
 handler's frame on the main stack (`g` bytes: R0 to R3, R12 and LR in its
 first six words; the rest is not modelled, `hx`), sets LR to the
-Handler-mode EXC_RETURN value and IPSR to `n`, and leaves every other
-register as it is. -/
+Handler-mode EXC_RETURN value and IPSR to `n`. R0 to R3, R12 and the flags
+are UNKNOWN after an entry (Armv7-M ARM B1.5.6): they are `hx`'s. Until
+2026-11-26 the model kept them; `Sched/StubExc.lean` proves this form of
+the machine's exception entry. -/
 def exc_enter_handler (s : M) (n g : Int) (hx : M) : M :=
   { s with
     sp := s.sp - g, lr := 0xFFFFFFF1, ipsr := n,
+    r := fun i => if i ≤ 3 ∨ i = 12 then hx.r i else s.r i, z := hx.z,
     mem := fun x =>
       if x = s.sp - g then s.r 0 else if x = s.sp - g + 4 then s.r 1
       else if x = s.sp - g + 8 then s.r 2 else if x = s.sp - g + 12 then s.r 3
@@ -1171,10 +1178,12 @@ def exc_enter_handler (s : M) (n g : Int) (hx : M) : M :=
       else if s.sp - g ≤ x ∧ x < s.sp then hx.mem x else s.mem x }
 
 /-- HW-07: the exception return to a handler from state `f`, whose main
-stack pointer is at the frame the entry stacked. -/
+stack pointer is at the frame the entry stacked. The flags are those of
+the stacked xPSR, the frame's eighth word (Z is its bit 30). -/
 def exc_return_handler (f : M) (g ipsr : Int) : M :=
   { f with
     sp := f.sp + g, lr := f.mem (f.sp + 20), ipsr := ipsr, faultmask := false,
+    z := hasBit (f.mem (f.sp + 28)) 0x40000000,
     r := fun i =>
       if i = 0 then f.mem f.sp else if i = 1 then f.mem (f.sp + 4)
       else if i = 2 then f.mem (f.sp + 8) else if i = 3 then f.mem (f.sp + 12)
@@ -1238,7 +1247,9 @@ theorem nested_irq_resumed (s hx h : M) (n g p1 p2 : Int) (hg : 32 ≤ g) :
     · subst h2; rw [u1, u11 _ (by omega), m2]
     · subst h3; rw [u1, u11 _ (by omega), m3]
     · subst h12; rw [u1, u11 _ (by omega), m4]
-    · exact u6 i (by omega) (by omega)
+    · rw [u6 i (by omega) (by omega)]
+      show (if i ≤ 3 ∨ i = 12 then hx.r i else s.r i) = s.r i
+      rw [if_neg (by omega)]
   · show u.sp + g = s.sp
     rw [u1]; omega
   · show u.mem (u.sp + 20) = s.lr

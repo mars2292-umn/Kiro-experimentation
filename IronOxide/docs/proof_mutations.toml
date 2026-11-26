@@ -3675,3 +3675,24 @@ find = "    sp := s.sp - 64, control := fpca s.control,\n    mem := fun x =>"
 replace = "    sp := s.sp - 64,\n    mem := fun x =>"
 expect = ["Sched/StubModel.lean"]
 prover = "lean"
+
+# 2026-11-26, the last: the exception model on the machine, and the masks
+# along every path.
+
+[[mutation]]
+id = "lean-exc-entry-handler-exc-return-thread"
+kills = "excEntry_sim, excEntry_hwEntry (Sched/StubExc.lean, 2026-11-26; HW-06, B1.5.8): after an entry taken from a handler LR is the Handler-mode EXC_RETURN, as the model's exc_enter_handler has it; with the Thread-mode bit set for every entry it is not"
+file = "proofs/aeneas/lean/Sched/ArmExc.lean"
+find = "  BitVec.ofNat 32 (0xFFFFFFE1 + (if fpcaSet a then 0 else 16) + (if x.thread then 8 else 0) +\n"
+replace = "  BitVec.ofNat 32 (0xFFFFFFE1 + (if fpcaSet a then 0 else 16) + 8 +\n"
+expect = ["Sched/StubExc.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-masked-means-both-masks"
+kills = "the AlongRun conjunct of every path theorem of the dispatch stub and rsk_unwind (Sched/StubPaths.lean, 2026-11-26; B1.5.4): each state of a path is masked by PRIMASK or by FAULTMASK, not by both; requiring both, the paths before cpsid f and after cpsie i are not masked"
+file = "proofs/aeneas/lean/Sched/StubMask.lean"
+find = "def Msk (a : Arm.St) : Prop := a.primask = true ∨ a.faultmask = true\n"
+replace = "def Msk (a : Arm.St) : Prop := a.primask = true ∧ a.faultmask = true\n"
+expect = ["Sched/Stub"]
+prover = "lean"

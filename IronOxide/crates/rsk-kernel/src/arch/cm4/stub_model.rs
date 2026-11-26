@@ -1137,13 +1137,19 @@ pub proof fn theorem_fault_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState,
 /// frame: R0 to R3, R12 and LR in its first six words; the rest of the room,
 /// the return address, xPSR, an extended frame and padding among it, is not
 /// modelled, `hx`), sets LR to the Handler-mode EXC_RETURN value and IPSR to
-/// `n`, and leaves every other register as it is.
+/// `n`. R0 to R3, R12 and the flags are UNKNOWN after an entry (Armv7-M ARM
+/// B1.5.6, `ExceptionTaken`): they are `hx`'s. Until 2026-11-26 the model
+/// kept them, which the architecture does not promise; the statement of
+/// the exception entry over the machine of `proofs/aeneas/lean/Sched/ArmExc.lean`
+/// found it. R4 to R11 and the other registers are left.
 pub open spec fn exc_enter_handler(s: M, n: int, g: int, hx: M) -> M {
     let b = s.sp - g;
     M {
         sp: b,
         lr: 0xFFFF_FFF1,
         ipsr: n,
+        r: Seq::new(13, |i: int| if i <= 3 || i == 12 { hx.r[i] } else { s.r[i] }),
+        z: hx.z,
         mem: |x: int|
             if x == b { s.r[0] } else if x == b + 4 { s.r[1] } else if x == b + 8 { s.r[2] }
             else if x == b + 12 { s.r[3] } else if x == b + 16 { s.r[12] } else if x == b + 20 { s.lr }
@@ -1155,13 +1161,16 @@ pub open spec fn exc_enter_handler(s: M, n: int, g: int, hx: M) -> M {
 /// HW-07: the exception return to a handler from state `f`, whose main
 /// stack pointer is at the frame the entry stacked: R0 to R3, R12 and LR
 /// come back from the frame, the stack pointer rises over its `g` bytes,
-/// IPSR is the interrupted handler's again, and FAULTMASK is cleared.
+/// IPSR is the interrupted handler's again, FAULTMASK is cleared, and the
+/// flags are those of the stacked xPSR (the frame's eighth word; Z is its
+/// bit 30. Until 2026-11-26 the model kept the returning handler's Z).
 pub open spec fn exc_return_handler(f: M, g: int, ipsr: int) -> M {
     M {
         sp: f.sp + g,
         lr: (f.mem)(f.sp + 20),
         ipsr: ipsr,
         faultmask: false,
+        z: has_bit((f.mem)(f.sp + 28), 0x4000_0000),
         r: Seq::new(13, |i: int|
             if i == 0 { (f.mem)(f.sp) } else if i == 1 { (f.mem)(f.sp + 4) } else if i == 2 { (f.mem)(f.sp + 8) }
             else if i == 3 { (f.mem)(f.sp + 12) } else if i == 12 { (f.mem)(f.sp + 16) } else { f.r[i] }),

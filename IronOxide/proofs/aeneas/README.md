@@ -205,6 +205,12 @@ the stub's definition (`c1`, `c2` for a `bl`, `u1`, `u2` for a `b.w` out of
 the stub), restate the decode theorems, and run `cargo xtask stubs <binary>`,
 which compares the binary's halfwords with the file.
 
+`lean/Sched/ArmExc.lean` and `lean/Sched/StubExc.lean` have the exception
+entry and return on the same machine and the stub model's statements of
+them; `lean/Sched/StubMask.lean` the execution priority and the masks, and
+each path theorem says that a mask is set (or both are unchanged) at every
+state of its run.
+
 `lean/Sched/Plan.lean` (2026-11-26) proves the contracts of `plan.rs` on
 the extracted functions (`frame_in_stack`, `plan_frame`, `compare_target`,
 `top_active`) and that the Endpoint storage keeps every word between two

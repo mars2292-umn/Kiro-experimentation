@@ -39,7 +39,18 @@ What is not modelled: every instruction and every encoding the stubs do
 not use (the decoders answer `none`), modified immediates other than a
 plain byte, exceptions taken between instructions, timing, and the bus.
 The semantics is a transcription of the manual by hand; it has not been
-compared with a reference model of the architecture. -/
+compared with a reference model of the architecture.
+
+The decoders, though, were compared with LLVM's disassembler (2026-11-26):
+every 16-bit halfword `decode16` accepts and a sweep of the 32-bit
+encodings `decode32` accepts, each disassembled by `llvm-objdump` and read
+as the same instruction with the same operands. The first comparison
+found encodings accepted here that the manual gives as UNPREDICTABLE or
+reserved (a `push` or `pop` of no register, the 32-bit forms of one
+register, `cps` with neither flag, `it` with the condition 1111, special
+registers `eff` has no case for, `dsb` and `isb` with an option other
+than SY); the decoders refuse them now. The comparison was run by a
+script that is not kept. -/
 
 namespace Arm
 
@@ -162,6 +173,10 @@ inductive Instr where
 
 /-! ## The decoders (chapter A7, by encoding) -/
 
+/-- The registers of a mask, lowest first: R0 to R12 and LR. -/
+def maskRegs (regs : Nat) : List Nat :=
+  (List.range 15).filter fun i => regs / 2 ^ i % 2 = 1
+
 /-- The first halfword of a 32-bit instruction: bits 15 to 11 are 0b11101,
 0b11110 or 0b11111 (A5.1). -/
 def is32 (h : Nat) : Bool := decide (29 ≤ h / 2048)
@@ -178,12 +193,14 @@ def brOff (h1 h2 : Nat) : W :=
 /-- A 16-bit instruction. -/
 def decode16 (h : Nat) : Option Instr :=
   -- CPS (A7.7.29? B5.2.1): 1011 0110 011 im (0) (0) I F
-  if h / 32 = 0xB66 / 2 ∧ h / 4 % 4 = 0 then
+  -- (neither flag is UNPREDICTABLE)
+  if h / 32 = 0xB66 / 2 ∧ h / 4 % 4 = 0 ∧ (h / 2 % 2 = 1 ∨ h % 2 = 1) then
     some (.cps (h / 16 % 2 = 1) (h / 2 % 2 = 1) (h % 2 = 1))
-  -- PUSH T1: 1011 010 M register_list
-  else if h / 512 = 0x5A then some (.push ((h / 256 % 2) * 16384 + h % 256))
-  -- IT: 1011 1111 firstcond mask, mask not 0000
-  else if h / 256 = 0xBF ∧ h % 16 ≠ 0 then some (.it (h / 16 % 16) (h % 16))
+  -- PUSH T1: 1011 010 M register_list, the list not empty
+  else if h / 512 = 0x5A ∧ (h / 256 % 2) * 16384 + h % 256 ≠ 0 then some (.push ((h / 256 % 2) * 16384 + h % 256))
+  -- IT: 1011 1111 firstcond mask, mask not 0000; firstcond 1111, and 1110
+  -- with more than one instruction, are UNPREDICTABLE
+  else if h / 256 = 0xBF ∧ h % 16 ≠ 0 ∧ h / 16 % 16 ≠ 15 ∧ (h / 16 % 16 = 14 → h % 16 = 8) then some (.it (h / 16 % 16) (h % 16))
   -- MOV (register) T1: 0100 0110 D Rm Rd
   else if h / 256 = 0x46 then
     let rd := (h / 128 % 2) * 8 + h % 8
@@ -230,10 +247,12 @@ def decode32 (h1 h2 : Nat) : Option Instr :=
   if h1 / 2048 = 30 ∧ h2 / 16384 = 3 ∧ h2 / 4096 % 2 = 1 then some (.bl (brOff h1 h2))
   -- B T4: 11110 S imm10 | 10 J1 1 J2 imm11
   else if h1 / 2048 = 30 ∧ h2 / 16384 = 2 ∧ h2 / 4096 % 2 = 1 then some (.b (brOff h1 h2))
-  -- PUSH T2: 1110 1001 0010 1101 | (0) M (0) register_list
-  else if h1 = 0xE92D ∧ h2 / 32768 = 0 ∧ h2 / 8192 % 2 = 0 then some (.push h2)
-  -- POP T2: 1110 1000 1011 1101 | P M (0) register_list, no PC
-  else if h1 = 0xE8BD ∧ h2 / 32768 = 0 ∧ h2 / 8192 % 2 = 0 then some (.pop h2)
+  -- PUSH T2: 1110 1001 0010 1101 | (0) M (0) register_list, two registers or more
+  else if h1 = 0xE92D ∧ h2 / 32768 = 0 ∧ h2 / 8192 % 2 = 0 ∧ 2 ≤ (maskRegs h2).length then
+    some (.push h2)
+  -- POP T2: 1110 1000 1011 1101 | P M (0) register_list, no PC, two registers or more
+  else if h1 = 0xE8BD ∧ h2 / 32768 = 0 ∧ h2 / 8192 % 2 = 0 ∧ 2 ≤ (maskRegs h2).length then
+    some (.pop h2)
   -- TST (immediate) T1: 11110 i 0 0000 1 Rn | 0 imm3 1111 imm8
   else if h1 / 2048 = 30 ∧ h1 / 16 % 64 = 0x01 ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 15 then
     (plainImm h1 h2).bind fun imm => if h1 % 16 = 15 ∨ h1 % 16 = 13 then none else some (.tst (h1 % 16) imm)
@@ -252,14 +271,19 @@ def decode32 (h1 h2 : Nat) : Option Instr :=
     if regs = 0 ∨ 32 < d + regs then none else some (.vpop d regs)
   -- MRS: 1111 0011 1110 1111 | 10 (0) 0 Rd SYSm
   else if h1 = 0xF3EF ∧ h2 / 4096 = 8 then
-    if h2 / 256 % 16 = 13 ∨ h2 / 256 % 16 = 15 then none else some (.mrs (h2 / 256 % 16) (h2 % 256))
+    -- IPSR, MSP, PSP, PRIMASK, CONTROL: the special registers `eff` has
+    if h2 / 256 % 16 = 13 ∨ h2 / 256 % 16 = 15 ∨
+        ¬ (h2 % 256 = 5 ∨ h2 % 256 = 8 ∨ h2 % 256 = 9 ∨ h2 % 256 = 16 ∨ h2 % 256 = 20) then none
+    else some (.mrs (h2 / 256 % 16) (h2 % 256))
   -- MSR: 1111 0011 1000 Rn | 10 (0) 0 mask (0) (0) SYSm, mask 10
   else if h1 / 16 = 0xF38 ∧ h2 / 256 = 0x88 then
-    if h1 % 16 = 13 ∨ h1 % 16 = 15 then none else some (.msr (h2 % 256) (h1 % 16))
-  -- DSB: 1111 0011 1011 1111 | 1000 1111 0100 option
-  else if h1 = 0xF3BF ∧ h2 / 16 = 0x8F4 then some .dsb
-  -- ISB: 1111 0011 1011 1111 | 1000 1111 0110 option
-  else if h1 = 0xF3BF ∧ h2 / 16 = 0x8F6 then some .isb
+    -- PSP, CONTROL
+    if h1 % 16 = 13 ∨ h1 % 16 = 15 ∨ ¬ (h2 % 256 = 9 ∨ h2 % 256 = 20) then none
+    else some (.msr (h2 % 256) (h1 % 16))
+  -- DSB: 1111 0011 1011 1111 | 1000 1111 0100 option, the option SY
+  else if h1 = 0xF3BF ∧ h2 = 0x8F4F then some .dsb
+  -- ISB: 1111 0011 1011 1111 | 1000 1111 0110 option, the option SY
+  else if h1 = 0xF3BF ∧ h2 = 0x8F6F then some .isb
   -- LDR (immediate) T3 with Rn the SP: 1111 1000 1101 1101 | Rt imm12
   else if h1 = 0xF8DD then
     if h2 / 4096 = 15 ∨ h2 / 4096 = 13 then none
@@ -297,10 +321,6 @@ def itAdvance (it : BitVec 8) : BitVec 8 :=
   else BitVec.ofNat 8 ((it.toNat / 32) * 32 + (it.toNat % 32 * 2) % 32)
 
 /-! ## The operations (chapter A7 and B5.2, by instruction) -/
-
-/-- The registers of a mask, lowest first: R0 to R12 and LR. -/
-def maskRegs (regs : Nat) : List Nat :=
-  (List.range 15).filter fun i => regs / 2 ^ i % 2 = 1
 
 /-- The number of registers of the mask below R`i`: the place of R`i`'s
 word among the words a `pop` loads, lowest register first. -/
