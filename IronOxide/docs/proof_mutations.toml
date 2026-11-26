@@ -3696,3 +3696,69 @@ find = "def Msk (a : Arm.St) : Prop := a.primask = true ∨ a.faultmask = true\n
 replace = "def Msk (a : Arm.St) : Prop := a.primask = true ∧ a.faultmask = true\n"
 expect = ["Sched/Stub"]
 prover = "lean"
+
+# 2026-11-26: the Partition API (`rsk`) and the supervisor-call interface
+# (`svc_abi`): the Kernel's handler leaves the service's result in the reply
+# word, and `rsk`'s wrappers build the request the Kernel decodes and read
+# the reply as the Kernel means it.
+[[mutation]]
+id = "svc-raise-reply-inverted"
+kills = "svc_served of svc_service_core and svc_core (svc_abi, 2026-11-26; R10.5): the raise's reply word is 0 exactly when the Kernel took the event; with the two values exchanged a Task is told a refused raise was taken"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        let ok = raise_core(k, hw, tables, frame[0] as usize);\n        frame[0] = if ok { 0 } else { 1 };\n"
+replace = "        let ok = raise_core(k, hw, tables, frame[0] as usize);\n        frame[0] = if ok { 1 } else { 0 };\n"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "svc-send-served-by-the-receive"
+kills = "svc_served of svc_service_core (svc_abi, 2026-11-26; R40.3, R40.4): the send number is served by the send service under its contract (send_served); with the two services exchanged a send takes a message from the channel"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        let code = if number == SVC_SEND {\n            endpoint_send_core("
+replace = "        let code = if number != SVC_SEND {\n            endpoint_send_core("
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "rsk-endpoint-word-peer-misplaced"
+kills = "endpoint_word (rsk, 2026-11-26; task 21.7): the request word is svc_abi::endpoint_arg, from which the Kernel's endpoint_args reads the peer in bits 12 to 15; four bits higher the Kernel refuses every request or addresses another role"
+file = "crates/rsk/src/lib.rs"
+find = "    id as u32 | ((role as u32 & 0xF) << 8) | ((peer as u32 & 0xF) << 12)\n"
+replace = "    id as u32 | ((role as u32 & 0xF) << 8) | ((peer as u32 & 0xF) << 16)\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-lend-leaves-the-buffer-reachable"
+kills = "DmaBuf::lend (rsk, 2026-11-26; R17.5): an accepted request marks the buffer lent; without the mark the bytes are handed out while the transfer runs"
+file = "crates/rsk/src/lib.rs"
+find = "        if k_dma(channel.index, buffer, len) {\n            self.lent = 1;\n"
+replace = "        if k_dma(channel.index, buffer, len) {\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-reclaim-without-the-stop"
+kills = "DmaBuf::reclaim (rsk, 2026-11-26; R17.5): the buffer stops being lent only on the evidence that its peripheral is not enabled or reported STOPPED (stop_evidence)"
+file = "crates/rsk/src/lib.rs"
+find = "        if transfer.stopped() {\n            self.lent = 0;\n"
+replace = "        if transfer.stopped() || transfer.stop_requested {\n            self.lent = 0;\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-violation-report-in-the-rejection-form"
+kills = "report_protocol_violation (rsk, 2026-11-26; R41.2): the report word is svc_abi::violation_word, form 2; in form 1 the Kernel reads a rejected message and applies a fault response to another Partition, or refuses the report as misuse"
+file = "crates/rsk/src/lib.rs"
+find = "    k_violation(2 | (id as u32) << 8 | ((role as u32) & 0xF) << 16)\n"
+replace = "    k_violation(1 | (id as u32) << 8 | ((role as u32) & 0xF) << 16)\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-register-write-issued-as-a-transfer-request"
+kills = "dma_write (rsk, 2026-11-26; DD-08, R17.3): the call carries the register-write form of the channel (bit 31, svc_abi::dma_write_word); without it the Kernel reads a transfer request over the offset as a buffer address"
+file = "crates/rsk/src/lib.rs"
+find = "    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), offset, value, out) && ok == (out == 0),\n{\n    k_dma_write(channel, offset, value)\n"
+replace = "    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), offset, value, out) && ok == (out == 0),\n{\n    k_dma(channel, offset, value)\n"
+expect = ["lib.rs"]
+package = "rsk"
+

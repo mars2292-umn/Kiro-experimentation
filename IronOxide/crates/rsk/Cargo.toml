@@ -10,6 +10,13 @@ publish.workspace = true
 rsk-kernel.workspace = true
 # The `rsk::app!` front end (a host proc-macro; PR-36 applies to it).
 rsk-macros.workspace = true
+# Verus's specification library, for the proofs of this crate's wrappers
+# (2026-11-26; `cargo verus verify -p rsk`). As for the Kernel: without
+# default features it is `no_std` and links no `alloc`, and every
+# specification and proof is erased from a build.
+vstd.workspace = true
+verus_builtin.workspace = true
+verus_builtin_macros.workspace = true
 # The App_Prover's specification library (task 17.1): optional, never in a
 # Flight_Build; `cargo creusot` builds with `--features creusot`.
 creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00", optional = true }
@@ -28,4 +35,8 @@ hw-dt = ["rsk-kernel/hw-dt"]
 # the Generator emits is excluded under it.
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(creusot)", "cfg(kani)"]
+check-cfg = ["cfg(creusot)", "cfg(kani)", "cfg(verus_keep_ghost)", "cfg(verus_verify_core)", "cfg(verus_keep_ghost_body)"]
+
+# Verified by `cargo verus verify -p rsk` (2026-11-26).
+[package.metadata.verus]
+verify = true

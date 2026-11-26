@@ -863,7 +863,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_core"
 tool = "verus"
 says = "Whatever service a supervisor call asks for, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; lock and unlock end so unconditionally."
-reviewed = "6a65219637d34120"
+reviewed = "f663ed527e537ac3"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/sched.rs"

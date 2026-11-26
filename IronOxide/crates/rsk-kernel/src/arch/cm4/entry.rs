@@ -4099,6 +4099,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+        number != SVC_LOCK && number != SVC_UNLOCK,
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
         final(k).inv(),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
@@ -4118,6 +4119,10 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
         // HW-13 (2026-11-15): only the Job-end service takes a charge point.
         number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
+        // The reply (2026-11-26, `svc_abi`): word 0 of the frame is the
+        // service's result for the request in words 0 to 2, under the
+        // service's own contract.
+        super::svc_abi::svc_served(old(k), tables, *old(state), old(hw).hw(), number, old(frame)[0], old(frame)[1], old(frame)[2], final(frame)[0]),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4186,6 +4191,14 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         } else {
             endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2]).0
         };
+        proof {
+            let ghost km = *k;
+            if number == SVC_SEND {
+                assert(super::svc_abi::send_served(&k0, &km, tables, s0, *state, old(hw).hw(), hw.hw(), old(frame)[0], old(frame)[1], code));
+            } else {
+                assert(super::svc_abi::recv_served(&k0, &km, tables, s0, *state, old(hw).hw(), hw.hw(), old(frame)[0], old(frame)[1], code));
+            }
+        }
         frame[0] = code;
         if number == SVC_RECV && code != ENDPOINT_REFUSED {
             (0, false)
@@ -4255,6 +4268,9 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // segment's start is not moved, so the Kernel's time in the call is
         // charged to the Job's Budget at its next charge point.
         number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
+        // The reply (2026-11-26, `svc_abi`): what the handler leaves in
+        // word 0 of the frame, by service, for the request it found there.
+        super::svc_abi::svc_served(old(k), tables, *old(state), old(hw).hw(), number, old(frame)[0], old(frame)[1], old(frame)[2], final(frame)[0]),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);

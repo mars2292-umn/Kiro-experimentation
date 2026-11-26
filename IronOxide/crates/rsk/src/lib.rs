@@ -87,6 +87,111 @@ pub use rsk_kernel::arch::cm4::unsafe_module::ResourceCell;
 use rsk_kernel::arch::cm4::unsafe_module::hw;
 use rsk_kernel::arch::cm4::unsafe_module::hw::{message_from_words, message_to_words, Words};
 use rsk_kernel::arch::cm4::unsafe_module::stubs;
+#[allow(unused_imports)]
+use rsk_kernel::arch::cm4::entry::{ENDPOINT_FULL, ENDPOINT_OK, ENDPOINT_PEER, SVC_DMA, SVC_LOCK, SVC_RAISE, SVC_RECV, SVC_SEND, SVC_UNLOCK, SVC_VIOLATION};
+#[allow(unused_imports)]
+use rsk_kernel::arch::cm4::svc_abi::*;
+use vstd::prelude::*;
+
+verus! {
+
+// The supervisor calls and the register read as this library's proofs see
+// them (2026-11-26; `rsk_kernel::arch::cm4::svc_abi`). Each function below
+// is one call of a stub of the Kernel_Unsafe_Module, whose body is inline
+// assembly; its specification is trusted (`docs/proof_assumptions.toml`):
+// the call issued the supervisor call of that number with those register
+// values and returned what the stub makes of the reply word (`svc_ret`).
+// What the Kernel's handler leaves in the reply word for such a request is
+// proven on the Kernel's side (`svc_served`, of `svc_core`).
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_lock(r: u8) -> (ok: bool)
+    ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_LOCK, r as u32, r1, r2, out) && ok == (out != 0),
+{
+    stubs::svc_lock(r)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_unlock(r: u8) -> (ok: bool)
+    ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_UNLOCK, r as u32, r1, r2, out) && ok == (out != 0),
+{
+    stubs::svc_unlock(r)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_now() -> (t: u64)
+    ensures exists|lo: u32, hi: u32| #[trigger] svc_ret_now(lo, hi) && t == ((hi as u64) << 32) | lo as u64,
+{
+    stubs::svc_now()
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_dma(i: u8, ptr: u32, len: u32) -> (ok: bool)
+    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_request_word(i), ptr, len, out) && ok == (out == 0),
+    no_unwind
+{
+    stubs::svc_dma(i, ptr, len)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_dma_write(i: u8, offset: u32, value: u32) -> (ok: bool)
+    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(i), offset, value, out) && ok == (out == 0),
+    opens_invariants none
+    no_unwind
+{
+    stubs::svc_dma_write(i, offset, value)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_raise(signal: u8) -> (ok: bool)
+    ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_RAISE, signal as u32, r1, r2, out) && ok == (out == 0),
+{
+    stubs::svc_raise(signal)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_send(arg: u32, ptr: u32, len: u32) -> (code: u32)
+    ensures svc_ret(SVC_SEND, arg, ptr, len, code),
+{
+    stubs::svc_send(arg, ptr, len)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_recv(arg: u32, ptr: u32, len: u32) -> (code: u32)
+    ensures svc_ret(SVC_RECV, arg, ptr, len, code),
+{
+    stubs::svc_recv(arg, ptr, len)
+}
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_violation(arg: u32)
+    ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_VIOLATION, arg, r1, r2, out),
+{
+    stubs::svc_violation(arg)
+}
+
+/// A read of the register at `addr` by this Job returned `value`.
+/// Uninterpreted: the one fact the library has of a register it read.
+pub uninterp spec fn reg_ret(addr: u32, value: u32) -> bool;
+
+#[inline(always)]
+#[verifier::external_body]
+fn k_read(addr: u32) -> (value: u32)
+    ensures reg_ret(addr, value),
+{
+    mmio::read(addr)
+}
+
+} // verus!
 
 /// The lock operation of a Resource proxy (design.md "Application API",
 /// the shape RTIC uses): a lexically scoped Critical_Section whose
@@ -123,11 +228,11 @@ impl<'a, T: 'static> Shared<'a, T> {
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == (*self)@))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && (*self)@[*v] && (*self)@[^v] && f.postcondition_once((v,), result)))]
     pub fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
-        if !stubs::svc_lock(self.id) {
+        if !k_lock(self.id) {
             panic!("rsk: lock refused");
         }
         let r = self.cell.with(f);
-        let _ = stubs::svc_unlock(self.id);
+        let _ = k_unlock(self.id);
         r
     }
 }
@@ -183,16 +288,25 @@ impl<'a, T: 'static> PerTask<'a, T> {
     }
 }
 
+verus! {
+
 /// A Release_Signal a Task may raise (R10.5), held in its Context (PR-06).
 pub struct Signal {
     id: u8,
 }
 
 impl Signal {
+    /// The signal's index in Generated_Config's signal table.
+    pub closed spec fn index(&self) -> u8 {
+        self.id
+    }
+
     /// Constructed by generated code only: the identifier is the one of
     /// Generated_Config's signal table.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn new(id: u8) -> Signal {
+    pub fn new(id: u8) -> (s: Signal)
+        ensures s.index() == id,
+    {
         Signal { id }
     }
 
@@ -201,11 +315,19 @@ impl Signal {
     /// this Partition (R10.7). Never waits (PR-08). Returns whether the
     /// Kernel took the event (a refusal is API misuse and a fault of the
     /// Partition; the Kernel decides what the event does).
+    // Proven (2026-11-26): the raise supervisor call with this signal's
+    // index in R0, and `true` exactly when the Kernel's reply is 0, which
+    // `svc_served` says is exactly when the Kernel took the event.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn raise(&self) -> bool {
-        stubs::svc_raise(self.id)
+    pub fn raise(&self) -> (ok: bool)
+        ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_RAISE, self.index() as u32, r1, r2, out) && ok == (out == 0),
+    {
+        assert(self.index() == self.id);
+        k_raise(self.id)
     }
 }
+
+} // verus!
 
 /// A message type an Endpoint may carry (R42.1): `Copy`, no references,
 /// pointers, or interior mutability, every bit pattern a valid value. The
@@ -213,6 +335,8 @@ impl Signal {
 /// (task 21.4) extends it to `#[repr(C)]` structs of `Plain` fields.
 pub use rsk_kernel::arch::cm4::unsafe_module::hw::Plain;
 pub use rsk_macros::Plain;
+
+verus! {
 
 /// Why a send did not take the message (R40.5, R42.3).
 // No derived `PartialEq`: the App_Prover would need a `DeepModel` for it
@@ -245,15 +369,31 @@ pub enum RecvError {
     Rejected,
 }
 
+/// The reading of a send's reply word, as a specification.
+pub open spec fn send_result_spec(code: u32) -> Result<(), SendError> {
+    match code {
+        c if c == ENDPOINT_OK => Ok(()),
+        c if c == ENDPOINT_FULL => Err(SendError::Full),
+        c if c == ENDPOINT_PEER => Err(SendError::PeerChanged),
+        _ => Err(SendError::Refused),
+    }
+}
+
 /// The Kernel's answer to a send as this library's result (R42.3, R40.5;
 /// 2026-11-22). The codes are the Kernel's own constants, not copies of
 /// their values, and the reading is checked for every code by a
-/// Kani_Harness (`answers_kani`): the peer-state error is returned for the
-/// Kernel's peer-state report and for nothing else, `Ok` for an accepted
-/// send only, `Full` for a full channel only.
+/// Kani_Harness (`answers_kani`) and proven (2026-11-26): the peer-state
+/// error is returned for the Kernel's peer-state report and for nothing
+/// else, `Ok` for an accepted send only, `Full` for a full channel only.
 #[inline]
-fn send_result(code: u32) -> Result<(), SendError> {
-    use rsk_kernel::arch::cm4::entry::{ENDPOINT_FULL, ENDPOINT_OK, ENDPOINT_PEER};
+fn send_result(code: u32) -> (r: Result<(), SendError>)
+    ensures
+        r == send_result_spec(code),
+        r is Ok <==> code == ENDPOINT_OK,
+        r == Err::<(), SendError>(SendError::Full) <==> code == ENDPOINT_FULL,
+        r == Err::<(), SendError>(SendError::PeerChanged) <==> code == ENDPOINT_PEER,
+        r == Err::<(), SendError>(SendError::Refused) <==> code != ENDPOINT_OK && code != ENDPOINT_FULL && code != ENDPOINT_PEER,
+{
     if code == ENDPOINT_OK {
         Ok(())
     } else if code == ENDPOINT_FULL {
@@ -274,11 +414,25 @@ enum RecvAnswer {
     Nothing,
 }
 
+/// The reading of a receive's reply word, as a specification.
+spec fn recv_answer_spec(code: u32) -> RecvAnswer {
+    match code {
+        c if c == ENDPOINT_OK => RecvAnswer::Message,
+        c if c == ENDPOINT_PEER => RecvAnswer::PeerChanged,
+        _ => RecvAnswer::Nothing,
+    }
+}
+
 /// Reads the Kernel's code for a receive; checked for every code by the
-/// same Kani_Harness module.
+/// same Kani_Harness module, and proven.
 #[inline]
-fn recv_answer(code: u32) -> RecvAnswer {
-    use rsk_kernel::arch::cm4::entry::{ENDPOINT_OK, ENDPOINT_PEER};
+fn recv_answer(code: u32) -> (a: RecvAnswer)
+    ensures
+        a == recv_answer_spec(code),
+        a is Message <==> code == ENDPOINT_OK,
+        a is PeerChanged <==> code == ENDPOINT_PEER,
+        a is Nothing <==> code != ENDPOINT_OK && code != ENDPOINT_PEER,
+{
     if code == ENDPOINT_OK {
         RecvAnswer::Message
     } else if code == ENDPOINT_PEER {
@@ -287,6 +441,64 @@ fn recv_answer(code: u32) -> RecvAnswer {
         RecvAnswer::Nothing
     }
 }
+
+/// The request word of the Endpoint services (task 21.7): the Endpoint,
+/// this role, and the peer role the operation addresses. Proven
+/// (2026-11-26): it is `svc_abi::endpoint_arg`, from which the Kernel's
+/// `endpoint_args` reads back this Endpoint, this role and this peer, and
+/// in which it finds no bit it refuses a request for.
+#[inline]
+fn endpoint_word(id: u8, role: u8, peer: u8) -> (a: u32)
+    ensures
+        a == endpoint_arg(id, role, peer),
+        arg_endpoint(a) == id as int,
+        role < 16 ==> arg_role(a) == role as int,
+        peer < 16 ==> arg_peer(a) == peer as int,
+        a >> 16 == 0,
+{
+    proof {
+        lemma_endpoint_arg(id, role, peer);
+    }
+    id as u32 | ((role as u32 & 0xF) << 8) | ((peer as u32 & 0xF) << 12)
+}
+
+/// The other role of a two-role Endpoint (the plain form): 0 or 1, and not
+/// this role when this role is 0 or 1.
+#[inline]
+fn other_role_of(role: u8) -> (o: u8)
+    ensures o == other_role(role), o <= 1, role <= 1 ==> o != role,
+{
+    assert(role & 1 <= 1) by (bit_vector);
+    assert(role <= 1 ==> role & 1 == role) by (bit_vector);
+    1 - (role & 1)
+}
+
+/// A send of the `len` bytes at `ptr` by `role` of Endpoint `id` to
+/// `peer`. Proven (2026-11-26): the send supervisor call was issued with
+/// the request word of this Endpoint, role and peer, that address and that
+/// length, and the result is the reading of its reply: `Ok` exactly when
+/// the Kernel answered `ENDPOINT_OK`, for which `svc_served` gives the
+/// send's contract (`send_served`: the message appended to the channel
+/// from `role` to `peer`, its first word the channel's newest label).
+#[inline]
+fn send_request(id: u8, role: u8, peer: u8, ptr: u32, len: u32) -> (r: Result<(), SendError>)
+    ensures exists|code: u32| #[trigger] svc_ret(SVC_SEND, endpoint_arg(id, role, peer), ptr, len, code) && r == send_result_spec(code),
+{
+    send_result(k_send(endpoint_word(id, role, peer), ptr, len))
+}
+
+/// A receive into the `len` bytes at `ptr` by `role` of Endpoint `id`
+/// from `peer`; as `send_request`, for the receive service
+/// (`recv_served`: the oldest message of the channel from `peer` to
+/// `role` delivered, its first word the channel's oldest label).
+#[inline]
+fn recv_request(id: u8, role: u8, peer: u8, ptr: u32, len: u32) -> (a: RecvAnswer)
+    ensures exists|code: u32| #[trigger] svc_ret(SVC_RECV, endpoint_arg(id, role, peer), ptr, len, code) && a == recv_answer_spec(code),
+{
+    recv_answer(k_recv(endpoint_word(id, role, peer), ptr, len))
+}
+
+} // verus!
 
 /// R42.3 (2026-11-22): the two readings above against the Kernel's result
 /// codes, for every 32-bit code. The peer-state error is the Kernel's
@@ -371,15 +583,9 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
 
-    /// The SVC argument (task 21.7): the Endpoint, this role, and the peer
-    /// role the operation addresses.
-    fn arg(&self, peer: u8) -> u32 {
-        self.id as u32 | ((self.role as u32 & 0xF) << 8) | ((peer as u32 & 0xF) << 12)
-    }
-
     /// The other role of a two-role Endpoint (the plain form).
     fn other(&self) -> u8 {
-        1 - (self.role & 1)
+        other_role_of(self.role)
     }
 
     /// Sends `m` to role `peer` (task 21.7: one channel per ordered pair of
@@ -388,7 +594,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     pub fn send_to(&self, peer: u8, m: &T) -> Result<(), SendError> {
         let () = Self::FITS;
         let words = message_to_words::<T, W>(m);
-        send_result(stubs::svc_send(self.arg(peer), words.0.as_ptr() as usize as u32, (4 * W) as u32))
+        send_request(self.id, self.role, peer, words.0.as_ptr() as usize as u32, (4 * W) as u32)
     }
 
     /// Receives the oldest message role `peer` sent to this role (task
@@ -397,7 +603,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     pub fn recv_from(&self, peer: u8) -> Result<Option<T>, RecvError> {
         let () = Self::FITS;
         let mut words = Words::<W>::zero();
-        match recv_answer(stubs::svc_recv(self.arg(peer), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32)) {
+        match recv_request(self.id, self.role, peer, words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
             RecvAnswer::Message => {
                 let m = message_from_words::<T, W>(&words);
                 if V::accept(&m) {
@@ -539,16 +745,29 @@ pub mod words {
     }
 }
 
+verus! {
+
 /// Reports a Protocol violation to the Health_Monitor (task 21.3; R41.2):
 /// called by the generated role APIs when a role state is dropped outside
 /// an end or recursion state or a message carries a label the state does
 /// not expect, and by the Job wrapper when a Job returns with its RoleSlot
 /// empty. The Kernel records the event against this Task; the Job goes on.
+// Proven (2026-11-26): the report supervisor call with `svc_abi::
+// violation_word`, in which the Kernel's `violation_core` reads form 2,
+// this Endpoint and this role.
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn report_protocol_violation(id: u8, role: u8) {
+pub fn report_protocol_violation(id: u8, role: u8)
+    ensures
+        exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_VIOLATION, violation_word(id, role), r1, r2, out),
+        report_form(violation_word(id, role)) == 2 && report_endpoint(violation_word(id, role)) == id as int,
+        role < 16 ==> report_role(violation_word(id, role)) == role as int,
+{
+    proof {
+        lemma_violation_word(id, role);
+    }
     // The Endpoint and role (task 21.7, finding 14(f) of the review): the
     // Kernel records the violation and re-initializes the Endpoint.
-    stubs::svc_violation(2 | (id as u32) << 8 | ((role as u32) & 0xF) << 16)
+    k_violation(2 | (id as u32) << 8 | ((role as u32) & 0xF) << 16)
 }
 
 /// Reports a message that the role's validation function rejected (task
@@ -556,11 +775,28 @@ pub fn report_protocol_violation(id: u8, role: u8) {
 /// applies the sending Partition's fault response. Called by `Endpoint::
 /// recv` and the generated role APIs; `id` and `role` name the receiving
 /// role (the Kernel refuses a report for a role the Task is not bound to).
+// Proven (2026-11-26): as above, with `svc_abi::rejection_word` (form 1,
+// this Endpoint, this role, the sending role).
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn report_rejected_message(id: u8, role: u8, from: u8) {
+pub fn report_rejected_message(id: u8, role: u8, from: u8)
+    ensures
+        exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_VIOLATION, rejection_word(id, role, from), r1, r2, out),
+        report_form(rejection_word(id, role, from)) == 1 && report_endpoint(rejection_word(id, role, from)) == id as int,
+        role < 16 ==> report_role(rejection_word(id, role, from)) == role as int,
+        from < 16 ==> report_from(rejection_word(id, role, from)) == from as int,
+{
+    proof {
+        lemma_rejection_word(id, role, from);
+    }
     // Task 21.7: the sending role `from` names whose Partition is at fault.
-    stubs::svc_violation(1 | (id as u32) << 8 | ((role as u32) & 0xF) << 16 | ((from as u32) & 0xF) << 20)
+    k_violation(1 | (id as u32) << 8 | ((role as u32) & 0xF) << 16 | ((from as u32) & 0xF) << 20)
 }
+
+} // verus!
+
+// Proven (2026-11-26): the three contracts the App_Prover trusts are what
+// the bodies do (`opened` is the model those contracts call the view).
+verus! {
 
 /// A Task's slot for the state of one Protocol role (task 21.3; R38.7,
 /// PR-25): per-Task state the Generator emits, holding the role's typestate
@@ -582,30 +818,43 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// The gate's state: what the App_Prover's contracts call its view.
+    pub closed spec fn opened(&self) -> bool {
+        self.open
+    }
+
     /// Closed: no receive has completed in this Job.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == false))]
-    pub const fn closed() -> Gate {
+    pub const fn closed() -> (g: Gate)
+        ensures !g.opened(),
+    {
         Gate { open: false }
     }
 
     /// Opens the gate on the evidence of a completed receive.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == true))]
-    pub fn open<W: Received>(&mut self, _witness: &W) {
+    pub fn open<W: Received>(&mut self, _witness: &W)
+        ensures final(self).opened(),
+    {
         self.open = true;
     }
 
     /// Whether a receive has completed in this Job.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == (*self)@))]
-    pub fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> (b: bool)
+        ensures b == self.opened(),
+    {
         self.open
     }
 }
 
 /// A completed receive's outcome (the generated `RecvS*` enums).
 pub trait Received {}
+
+} // verus!
 
 pub struct RoleSlot<'a, S: 'static> {
     cell: &'a ResourceCell<S>,
@@ -637,11 +886,21 @@ impl<'a, S: 'static> RoleSlot<'a, S> {
     }
 }
 
+verus! {
+
 /// The Kernel time base in ticks (PR-26).
+// Proven (2026-11-26): the clock supervisor call's two reply words, the
+// second the high half.
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn now() -> u64 {
-    stubs::svc_now()
+pub fn now() -> (t: u64)
+    ensures exists|lo: u32, hi: u32| #[trigger] svc_ret_now(lo, hi) && t == ((hi as u64) << 32) | lo as u64,
+{
+    k_now()
 }
+
+} // verus!
+
+verus! {
 
 /// The SPIM registers the library itself drives to end a transfer (the
 /// Kernel mediates EasyDMA for the SPIM class only in this version, DD-08;
@@ -682,14 +941,26 @@ pub struct DmaChannel {
 impl DmaChannel {
     /// Constructed by generated code only.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub const fn generated(index: u8, window: u32) -> DmaChannel {
+    pub const fn generated(index: u8, window: u32) -> (c: DmaChannel)
+        ensures c.index_spec() == index, c.window_spec() == window,
+    {
         DmaChannel { index, window }
     }
 
     /// The channel's index, as [`dma_write`] takes it.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub const fn index(&self) -> u8 {
+    pub const fn index(&self) -> (i: u8)
+        ensures i == self.index_spec(),
+    {
         self.index
+    }
+
+    pub closed spec fn index_spec(&self) -> u8 {
+        self.index
+    }
+
+    pub closed spec fn window_spec(&self) -> u32 {
+        self.window
     }
 }
 
@@ -754,19 +1025,40 @@ pub struct DmaHeld {
 impl DmaHeld {
     /// Nothing held: every byte zero.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub const fn none() -> DmaHeld {
+    pub const fn none() -> (h: DmaHeld)
+        ensures !h.holds(),
+    {
         DmaHeld { present: 0, channel: 0, stop_requested: false, _unused: 0, window: 0, buffer: 0 }
+    }
+
+    /// A transfer is kept here.
+    pub closed spec fn holds(&self) -> bool {
+        self.present != 0
+    }
+
+    /// The transfer kept here, when one is.
+    pub closed spec fn held(&self) -> DmaTransfer {
+        DmaTransfer { channel: self.channel, window: self.window, buffer: self.buffer, stop_requested: self.stop_requested }
     }
 
     /// Whether a transfer is kept here.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn is_some(&self) -> bool {
+    pub fn is_some(&self) -> (b: bool)
+        ensures b == self.holds(),
+    {
         self.present != 0
     }
 
     /// Takes the transfer out.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn take(&mut self) -> Option<DmaTransfer> {
+    // Proven (2026-11-26): the transfer kept is returned once, as it was
+    // put, and nothing is kept after.
+    pub fn take(&mut self) -> (r: Option<DmaTransfer>)
+        ensures
+            !final(self).holds(),
+            old(self).holds() ==> r == Some(old(self).held()),
+            !old(self).holds() ==> r is None && *final(self) == *old(self),
+    {
         if self.present == 0 {
             return None;
         }
@@ -777,7 +1069,13 @@ impl DmaHeld {
     /// Keeps `transfer` (or nothing). A transfer already kept here is
     /// dropped first, which stops it.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn put(&mut self, transfer: Option<DmaTransfer>) {
+    // Proven (2026-11-26): what is kept after is `transfer`, as it was
+    // handed in.
+    pub fn put(&mut self, transfer: Option<DmaTransfer>)
+        ensures
+            final(self).holds() == transfer is Some,
+            transfer is Some ==> final(self).held() == transfer->Some_0,
+    {
         let _ = self.take();
         if let Some(mut t) = transfer {
             self.channel = t.channel;
@@ -804,13 +1102,37 @@ pub enum DmaReclaimError {
 impl<const N: usize> DmaBuf<N> {
     /// A zeroed buffer, not lent.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub const fn new() -> DmaBuf<N> {
+    pub const fn new() -> (b: DmaBuf<N>)
+        ensures !b.lent_spec(),
+    {
         DmaBuf { lent: 0, bytes: [0; N] }
     }
 
+    /// The length a transfer over the buffer is requested with: its size.
+    pub open spec fn request_len() -> u32 {
+        if N > u32::MAX as usize { u32::MAX } else { N as u32 }
+    }
+
+    /// A transfer has the bytes: the lent flag (R17.5).
+    pub closed spec fn lent_spec(&self) -> bool {
+        self.lent != 0
+    }
+
+    /// The bytes, as a value.
+    pub closed spec fn bytes_spec(&self) -> [u8; N] {
+        self.bytes
+    }
+
     /// The bytes, unless a transfer has them.
+    // Proven (2026-11-26; R17.5): handed out exactly when the buffer is
+    // not lent.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn bytes(&mut self) -> Option<&mut [u8; N]> {
+    pub fn bytes(&mut self) -> (r: Option<&mut [u8; N]>)
+        ensures
+            r is Some <==> !old(self).lent_spec(),
+            r is None ==> *final(self) == *old(self),
+            r is Some ==> *r.unwrap() == old(self).bytes_spec() && final(self).bytes_spec() == *final(r.unwrap()) && !final(self).lent_spec(),
+    {
         if self.lent != 0 {
             None
         } else {
@@ -820,13 +1142,20 @@ impl<const N: usize> DmaBuf<N> {
 
     /// Whether a transfer has the bytes.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn is_lent(&self) -> bool {
+    pub fn is_lent(&self) -> (b: bool)
+        ensures b == self.lent_spec(),
+    {
         self.lent != 0
     }
 
     /// The address of the bytes (for a report; no access).
+    // Not specified: the address is a fact of where the buffer lies, not
+    // of its value, and the proofs below use none.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn address(&self) -> u32 {
+    #[verifier::external_body]
+    pub fn address(&self) -> u32
+        no_unwind
+    {
         self.bytes.as_ptr() as usize as u32
     }
 
@@ -839,14 +1168,32 @@ impl<const N: usize> DmaBuf<N> {
     /// `None` is returned (if the Partition's fault response lets the Job
     /// continue). `None` too, and nothing requested, while the buffer is
     /// lent.
+    // Proven (2026-11-26; R17.5, R17.1): a lent buffer is not requested
+    // again and nothing changes; otherwise the EasyDMA request supervisor
+    // call is issued for this channel with the buffer's address and
+    // length, the buffer becomes lent exactly when the Kernel's reply is
+    // 0 (which `svc_served` says is exactly when the Kernel accepted and
+    // programmed the transfer), and the transfer returned names that
+    // address and the channel's peripheral. The bytes are not changed.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn lend(&mut self, channel: DmaChannel) -> Option<DmaTransfer> {
+    pub fn lend(&mut self, channel: DmaChannel) -> (r: Option<DmaTransfer>)
+        ensures
+            final(self).bytes_spec() == old(self).bytes_spec(),
+            old(self).lent_spec() ==> r is None && final(self).lent_spec(),
+            final(self).lent_spec() == (old(self).lent_spec() || r is Some),
+            !old(self).lent_spec() ==> exists|buffer: u32, out: u32|
+                #[trigger] svc_ret(SVC_DMA, dma_request_word(channel.index_spec()), buffer, Self::request_len(), out)
+                && (r is Some <==> out == 0)
+                && (r is Some ==> r->Some_0 == DmaTransfer::made(channel.index_spec(), channel.window_spec(), buffer, false)),
+    {
         if self.lent != 0 {
             return None;
         }
         let buffer = self.address();
         let len = if N > u32::MAX as usize { u32::MAX } else { N as u32 };
-        if stubs::svc_dma(channel.index, buffer, len) {
+        assert(len == Self::request_len() && channel.index == channel.index_spec() && channel.window == channel.window_spec());
+        assert(DmaTransfer::made(channel.index, channel.window, buffer, false) == DmaTransfer { channel: channel.index, window: channel.window, buffer, stop_requested: false });
+        if k_dma(channel.index, buffer, len) {
             self.lent = 1;
             Some(DmaTransfer { channel: channel.index, window: channel.window, buffer, stop_requested: false })
         } else {
@@ -858,8 +1205,23 @@ impl<const N: usize> DmaBuf<N> {
     /// peripheral reports it stopped, makes the bytes
     /// reachable again. A transfer that had completed loses nothing by
     /// the stop; one still running is cut short.
+    // Proven (2026-11-26; R17.5): the buffer stops being lent only here,
+    // only when it was lent, and only on the evidence that the peripheral
+    // the transfer names is not enabled or reported STOPPED
+    // (`stop_evidence`); a refused transfer comes back as it was with
+    // nothing changed, and one not stopped comes back with its stop
+    // requested and the buffer still lent. The bytes are not changed.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn reclaim(&mut self, transfer: DmaTransfer) -> Result<(), DmaReclaimError> {
+    pub fn reclaim(&mut self, transfer: DmaTransfer) -> (r: Result<(), DmaReclaimError>)
+        ensures
+            final(self).bytes_spec() == old(self).bytes_spec(),
+            final(self).lent_spec() ==> old(self).lent_spec(),
+            r is Ok ==> old(self).lent_spec() && !final(self).lent_spec() && stop_evidence(transfer.window_spec()),
+            r is Err ==> final(self).lent_spec() == old(self).lent_spec(),
+            r is Err && r->Err_0 is NotThisBuffer ==> r->Err_0->NotThisBuffer_0 == transfer && *final(self) == *old(self),
+            r is Err && r->Err_0 is NotStopped ==> old(self).lent_spec()
+                && r->Err_0->NotStopped_0 == DmaTransfer::made(transfer.channel_spec(), transfer.window_spec(), transfer.buffer_spec(), true),
+    {
         if self.lent == 0 || transfer.buffer != self.address() {
             return Err(DmaReclaimError::NotThisBuffer(transfer));
         }
@@ -907,7 +1269,14 @@ impl<const N: usize> DmaGuarded<N> {
     /// Writes the guards and sets every byte of the buffer to `fill`,
     /// before the buffer is lent (nothing while it is lent).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn arm(&mut self, fill: u8) {
+    // Proven (2026-11-26): a lent buffer is left as it is with its guards;
+    // otherwise the guards are intact after and every byte is `fill`.
+    pub fn arm(&mut self, fill: u8)
+        ensures
+            old(self).buffer().lent_spec() ==> *final(self) == *old(self),
+            !old(self).buffer().lent_spec() ==> final(self).guards_intact() && !final(self).buffer().lent_spec()
+                && forall|j: int| 0 <= j < N ==> final(self).buffer().bytes_spec()[j] == fill,
+    {
         if let Some(bytes) = self.buf.bytes() {
             *bytes = [fill; N];
             self.lo = [Self::GUARD; 8];
@@ -918,32 +1287,67 @@ impl<const N: usize> DmaGuarded<N> {
     /// After transfers into the buffer, with the buffer taken back: one
     /// of the four verdicts above, `fill` being what [`DmaGuarded::arm`]
     /// wrote before the buffer was lent. Bounded by the sizes (PR-16).
+    // Proven (2026-11-26): the verdict in the low byte is GUARD_WRITTEN
+    // exactly when a guard byte is not as `arm` wrote it; with the guards
+    // intact it is NOT_STOPPED exactly when the buffer is lent, and
+    // otherwise UNWRITTEN exactly when every byte of the buffer is `fill`,
+    // WRITTEN_INSIDE when one is not.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn footprint(&mut self, fill: u8) -> u32 {
+    pub fn footprint(&mut self, fill: u8) -> (r: u32)
+        ensures
+            !old(self).guards_intact() ==> r & 0xFF == Self::GUARD_WRITTEN,
+            old(self).guards_intact() && old(self).buffer().lent_spec() ==> r == Self::NOT_STOPPED,
+            old(self).guards_intact() && !old(self).buffer().lent_spec() ==> (r == Self::UNWRITTEN || r == Self::WRITTEN_INSIDE)
+                && (r == Self::UNWRITTEN <==> forall|j: int| 0 <= j < N ==> old(self).buffer().bytes_spec()[j] == fill),
+    {
         // Which guard bytes changed (bits 8 to 15: below the buffer; bits
         // 16 to 23: above it) and the last changed byte's value (bits 24 to
         // 31), beside the verdict in the low byte.
         let mut changed = 0u32;
         let mut value = 0u32;
         let mut i = 0;
-        while i < 8 {
+        assert(0u32 & 0xFF == 0) by (bit_vector);
+        while i < 8
+            invariant
+                i <= 8,
+                *self == *old(self),
+                changed & 0xFF == 0,
+                changed == 0 <==> forall|k: int| 0 <= k < i ==> self.lo[k] == Self::GUARD && self.hi[k] == Self::GUARD,
+            decreases 8 - i,
+        {
             if self.lo[i] != Self::GUARD {
+                assert((changed | (1u32 << (8 + i))) != 0 && (changed | (1u32 << (8 + i))) & 0xFF == changed & 0xFF) by (bit_vector)
+                    requires i < 8;
                 changed |= 1 << (8 + i);
                 value = self.lo[i] as u32;
             }
             if self.hi[i] != Self::GUARD {
+                assert((changed | (1u32 << (16 + i))) != 0 && (changed | (1u32 << (16 + i))) & 0xFF == changed & 0xFF) by (bit_vector)
+                    requires i < 8;
                 changed |= 1 << (16 + i);
                 value = self.hi[i] as u32;
             }
             i += 1;
         }
         if changed != 0 {
+            assert((4u32 | changed | value << 24) & 0xFF == 4) by (bit_vector)
+                requires changed & 0xFF == 0;
             return Self::GUARD_WRITTEN | changed | value << 24;
         }
+        assert(old(self).guards_intact());
+        assert(self.buf == old(self).buffer());
         match self.buf.bytes() {
             Some(bytes) => {
                 let mut j = 0;
-                while j < N {
+                while j < N
+                    invariant
+                        j <= N,
+                        *bytes == old(self).buffer().bytes_spec(),
+                        old(self).guards_intact(),
+                        !old(self).buffer().lent_spec(),
+                        forall|k: int| 0 <= k < j ==> bytes[k] == fill,
+                    decreases N - j,
+                {
                     if bytes[j] != fill {
                         return Self::WRITTEN_INSIDE;
                     }
@@ -954,12 +1358,52 @@ impl<const N: usize> DmaGuarded<N> {
             None => Self::NOT_STOPPED,
         }
     }
+
+    /// The buffer between the guards.
+    pub closed spec fn buffer(&self) -> DmaBuf<N> {
+        self.buf
+    }
+
+    /// Both guards are as [`DmaGuarded::arm`] wrote them.
+    pub closed spec fn guards_intact(&self) -> bool {
+        forall|k: int| 0 <= k < 8 ==> self.lo[k] == Self::GUARD && self.hi[k] == Self::GUARD
+    }
+}
+
+/// The evidence [`DmaBuf::reclaim`] releases a buffer on: a read of the
+/// ENABLE register of the peripheral at `window` that did not return the
+/// enabled value (no transfer runs on a peripheral that is not enabled), or
+/// a read of its STOPPED event that returned non-zero.
+pub open spec fn stop_evidence(window: u32) -> bool {
+    ||| exists|v: u32| #[trigger] reg_ret(vstd::wrapping::u32_specs::wrapping_add(window, spim::ENABLE), v) && v != spim::ENABLED
+    ||| exists|v: u32| #[trigger] reg_ret(vstd::wrapping::u32_specs::wrapping_add(window, spim::EVENTS_STOPPED), v) && v != 0
 }
 
 impl DmaTransfer {
+    /// The value with these fields (the fields are private).
+    pub closed spec fn made(channel: u8, window: u32, buffer: u32, stop_requested: bool) -> DmaTransfer {
+        DmaTransfer { channel, window, buffer, stop_requested }
+    }
+
+    pub closed spec fn channel_spec(&self) -> u8 {
+        self.channel
+    }
+
+    /// The window of the peripheral the transfer runs on.
+    pub closed spec fn window_spec(&self) -> u32 {
+        self.window
+    }
+
+    /// The address of the buffer lent to it.
+    pub closed spec fn buffer_spec(&self) -> u32 {
+        self.buffer
+    }
+
     /// The channel the transfer was requested on.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn channel(&self) -> u8 {
+    pub fn channel(&self) -> (c: u8)
+        ensures c == self.channel_spec(),
+    {
         self.channel
     }
 
@@ -968,24 +1412,38 @@ impl DmaTransfer {
     /// this stop cleared, then the STOP task. Through the Kernel
     /// ([`dma_write`]), which refuses a channel that is not the
     /// Partition's.
-    fn request_stop(&self) {
-        let _ = stubs::svc_dma_write(self.channel, spim::SHORTS, 0);
-        let _ = stubs::svc_dma_write(self.channel, spim::EVENTS_STOPPED, 0);
-        let _ = stubs::svc_dma_write(self.channel, spim::EVENTS_END, 0);
-        let _ = stubs::svc_dma_write(self.channel, spim::TASKS_STOP, 1);
+    fn request_stop(&self)
+        opens_invariants none
+        no_unwind
+    {
+        let _ = k_dma_write(self.channel, spim::SHORTS, 0);
+        let _ = k_dma_write(self.channel, spim::EVENTS_STOPPED, 0);
+        let _ = k_dma_write(self.channel, spim::EVENTS_END, 0);
+        let _ = k_dma_write(self.channel, spim::TASKS_STOP, 1);
     }
 
     /// Whether the peripheral reports that it has stopped, read at most
     /// `DMA_STOP_POLLS` times. A peripheral that is not enabled runs no
     /// transfer (its registers were programmed and nothing started), and
     /// counts as stopped at once.
-    fn stopped(&self) -> bool {
+    // Proven (2026-11-26): at most `DMA_STOP_POLLS` reads of the event
+    // (PR-16), and `true` only on the evidence of a read (`stop_evidence`).
+    fn stopped(&self) -> (stopped: bool)
+        ensures stopped ==> stop_evidence(self.window),
+    {
         let event = self.window.wrapping_add(spim::EVENTS_STOPPED);
-        let enabled = mmio::read(self.window.wrapping_add(spim::ENABLE)) == spim::ENABLED;
+        let enabled = k_read(self.window.wrapping_add(spim::ENABLE)) == spim::ENABLED;
         let mut i = 0u32;
         let mut stopped = !enabled;
-        while i < DMA_STOP_POLLS && !stopped {
-            stopped = mmio::read(event) != 0;
+        while i < DMA_STOP_POLLS && !stopped
+            invariant
+                i <= DMA_STOP_POLLS,
+                event == vstd::wrapping::u32_specs::wrapping_add(self.window, spim::EVENTS_STOPPED),
+                stopped ==> stop_evidence(self.window),
+            decreases DMA_STOP_POLLS - i,
+        {
+            stopped = k_read(event) != 0;
+            assert(i + 1 <= u32::MAX);
             i = i.wrapping_add(1);
         }
         stopped
@@ -995,16 +1453,23 @@ impl DmaTransfer {
     /// waits as [`DmaBuf::reclaim`] does. Returns whether the peripheral
     /// reported that it stopped. The buffer stays lent either way.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn end(mut self) -> bool {
-        self.request_stop();
-        self.stop_requested = true;
-        self.stopped()
+    pub fn end(self) -> (stopped: bool)
+        ensures stopped ==> stop_evidence(self.window_spec()),
+    {
+        // `self` rebound: Verus does not take a `mut self` parameter.
+        let mut transfer = self;
+        transfer.request_stop();
+        transfer.stop_requested = true;
+        transfer.stopped()
     }
 }
 
 impl Drop for DmaTransfer {
     /// A transfer no Task holds any more is stopped.
-    fn drop(&mut self) {
+    fn drop(&mut self)
+        opens_invariants none
+        no_unwind
+    {
         if !self.stop_requested {
             self.request_stop();
         }
@@ -1024,9 +1489,17 @@ impl Drop for DmaTransfer {
 /// and clears its events this way, since its MPU view maps the window
 /// read-only.
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn dma_write(channel: u8, offset: u32, value: u32) -> bool {
-    stubs::svc_dma_write(channel, offset, value)
+// Proven (2026-11-26): the EasyDMA supervisor call with the register-write
+// form of the channel (bit 31 set), that offset and that value; `true`
+// exactly when the Kernel's reply is 0, which `svc_served` says is only for
+// a channel of the Partition and a register the Kernel does not mediate.
+pub fn dma_write(channel: u8, offset: u32, value: u32) -> (ok: bool)
+    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), offset, value, out) && ok == (out == 0),
+{
+    k_dma_write(channel, offset, value)
 }
+
+} // verus!
 
 /// Register access to the calling Partition's peripherals (R16.2): a
 /// read or write of a word at `addr`. The MPU view confines the access to

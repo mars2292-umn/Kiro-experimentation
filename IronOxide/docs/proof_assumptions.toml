@@ -186,3 +186,92 @@ construct = "#[verifier::external_body]"
 item = "extend"
 why = "The extension of the 32-bit counter reading to 64 bits reads and writes the Kernel_Arch state through unsafe_module::extend (UJ-006), which since 2026-11-21 only calls the verified `ArchState::extend` (plan.rs) on that state. The trait method itself still has no specification: the drivers' postconditions hold for whatever instant it returns, and the link from the static state to the verified method is the one-line body."
 evidence = "`ArchState::extend`'s contract (Verus): a reading taken less than one counter period after the previous one yields the true instant, across the wrap (`counter_reads`; mutants time-base-wrap-not-counted and time-base-wrap-counted-on-an-equal-reading). Its premise, consecutive readings less than a period apart, rests on the housekeeping slot (`lemma_housekeeping_within_a_period` for the numbers) and on the timer entry running, which the hour-long rig runs exercise across 13 wraps (R9.5). `arm` and `rearm` state their pending decision on the returned instant, whatever it is."
+
+# 2026-11-26: the Partition API (`rsk`) is verified (`cargo verus verify -p
+# rsk`). Its wrappers are proven over the supervisor-call stubs and the
+# register read, whose bodies are inline assembly and a volatile read of the
+# Kernel_Unsafe_Module: each is reached through one function with a trusted
+# specification. The specification of a supervisor call says only that the
+# call was issued with those register values and that the result is what
+# the stub makes of the reply word (`svc_abi::svc_ret`, an uninterpreted
+# predicate); what the Kernel leaves in the reply word for a request is
+# proven of `svc_core` (`svc_abi::svc_served`). That a supervisor call of a
+# Job is one run of `svc_core` on the caller's frame is the assumption
+# stated in `crates/rsk-kernel/src/arch/cm4/svc_abi.rs`.
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_lock"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 1 with the Resource in R0; `true` when the reply word is not 0 (stubs::svc_lock, UJ-030)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_unlock"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 2 with the Resource in R0; `true` when the reply word is not 0 (stubs::svc_unlock, UJ-031)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_now"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: the clock call's two reply words, R1 the high half (stubs::svc_now, UJ-032)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_dma"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 6 with the channel in R0, the buffer's address in R1 and its length in R2; `true` when the reply word is 0 (stubs::svc_dma, UJ-035)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_dma_write"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 6 with bit 31 and the channel in R0, the register's offset in R1 and the value in R2; `true` when the reply word is 0 (stubs::svc_dma_write, UJ-035b)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_raise"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 7 with the signal in R0; `true` when the reply word is 0 (stubs::svc_raise, UJ-038)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_send"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 8 with the request word in R0, the message's address in R1 and its length in R2; the result is the reply word (stubs::svc_send, UJ-035c)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_recv"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 9, as for the send (stubs::svc_recv, UJ-035d)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_violation"
+why = "The stub is inline assembly (one `svc` instruction with the registers named in its operands), which Verus cannot model. Specification: supervisor call 10 with the report word in R0; no result read (stubs::svc_violation, UJ-038a)."
+evidence = "The stub's justification identifier and its few lines in crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs, read against this specification; the Kernel's side of the call is proven (`svc_served` of `svc_core`, rsk-kernel), the handler's stub in Lean (Sched/StubPaths.lean, the svc paths); the demo configurations' runs under QEMU and on the rig exercise each call."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "k_read"
+why = "One volatile read of a peripheral register (rsk::mmio::read, hw::peripheral_read), which Verus cannot model. Specification: an uninterpreted fact that a read of that address returned that value (`reg_ret`); nothing is said of what the register holds at any other time."
+evidence = "hw::peripheral_read is one read_volatile; the MPU view confines the address to the Partition's peripheral windows (R16.2, the isolation suite). The specification is used only as the evidence `DmaBuf::reclaim` releases a buffer on (`stop_evidence`)."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "address"
+why = "The address of the buffer's bytes is `as_ptr() as usize as u32`, a pointer-to-integer cast Verus does not take. No specification: the address is a fact of where the buffer lies, not of its value, and the proofs of `lend` and `reclaim` use none (the address requested is whatever this function returned at that call)."
+evidence = "Safe Rust, one line; the Kani harnesses of `dma_kani` run it and check that `reclaim` accepts a buffer's own transfer only."

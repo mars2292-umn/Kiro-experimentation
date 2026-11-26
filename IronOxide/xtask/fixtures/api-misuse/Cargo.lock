@@ -205,6 +205,9 @@ version = "0.0.0"
 dependencies = [
  "rsk-kernel",
  "rsk-macros",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
 ]
 
 [[package]]

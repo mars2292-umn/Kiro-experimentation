@@ -66,6 +66,7 @@ pub mod plan;
 pub mod ppi;
 #[cfg(verus_keep_ghost)]
 pub mod stub_model;
+pub mod svc_abi;
 pub mod unsafe_module;
 
 use core::marker::PhantomData;
