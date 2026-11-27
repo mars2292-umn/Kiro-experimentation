@@ -222,6 +222,7 @@ theorem sp_plain (i : Instr) (hk : KeepsSp i) (e : AEff)
   | spDown n => exact absurd rfl (he.1 n)
   | spUp n => exact absurd rfl (he.2 n)
   | spDynamic => exact True.intro
+  | spUnread => exact True.intro
   | call _ => exact hs
   | branch _ => exact hs
   | cbranch _ => exact hs
@@ -465,6 +466,76 @@ theorem d16_agrees (h pc : Nat) (hh : h < 65536) (hpc : pc < 1073741824) (i : In
 
 /-! ## The 32-bit encodings -/
 
+/-- A byte rotated right by 8 to 31 places in 32 bits is the byte shifted
+left by 32 minus the amount: what `thumb_expand_imm` computes. -/
+theorem rot_shift (x r : Nat) (hx : x < 256) (h8 : 8 ≤ r) (hr : r < 32) :
+    (BitVec.ofNat 32 x).rotateRight r = BitVec.ofNat 32 (x * 2 ^ (32 - r)) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.rotateRight_def]
+  simp only [BitVec.toNat_or, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat]
+  have e1 : x % 2 ^ 32 = x := Nat.mod_eq_of_lt (by omega)
+  have e2 : r % 32 = r := Nat.mod_eq_of_lt hr
+  have e3 : x / 2 ^ r = 0 :=
+    Nat.div_eq_of_lt (lt_of_lt_of_le hx (by
+      calc 256 = 2 ^ 8 := by norm_num
+        _ ≤ 2 ^ r := Nat.pow_le_pow_right (by omega) h8))
+  rw [e1, e2, Nat.shiftRight_eq_div_pow, e3, Nat.zero_or, Nat.shiftLeft_eq]
+
+/-- The decoder's expansion of a modified immediate is the manual's, where
+the manual's has a value. -/
+theorem expand12_agrees (n : Nat) (w : W) (h : expandImm n = some w) :
+    BitVec.ofNat 32 (expand12 n) = w := by
+  unfold expandImm at h
+  unfold expand12
+  by_cases c : n / 1024 % 4 = 0
+  · rw [if_pos c] at h
+    rw [if_pos c]
+    by_cases c0 : n / 256 % 4 = 0
+    · rw [if_pos c0] at h
+      rw [if_pos c0]
+      exact Option.some.inj h
+    rw [if_neg c0] at h
+    rw [if_neg c0]
+    by_cases z : n % 256 = 0
+    · rw [if_pos z] at h
+      exact absurd h (by simp)
+    rw [if_neg z] at h
+    by_cases c1 : n / 256 % 4 = 1
+    · rw [if_pos c1] at h
+      rw [if_pos c1]
+      exact Option.some.inj h
+    rw [if_neg c1] at h
+    rw [if_neg c1]
+    by_cases c2 : n / 256 % 4 = 2
+    · rw [if_pos c2] at h
+      rw [if_pos c2]
+      exact Option.some.inj h
+    rw [if_neg c2] at h
+    rw [if_neg c2]
+    exact Option.some.inj h
+  · rw [if_neg c] at h
+    rw [if_neg c]
+    rw [← Option.some.inj h]
+    exact (rot_shift (128 + n % 128) (n / 128 % 32) (by omega) (by omega) (by omega)).symm
+
+theorem imm12_eq (a b : Nat) : imm12 a b = imm12Of a b := rfl
+
+/-- `Unread` of a first halfword 11110...: bit 15 of the second clear and
+Rd = 13. -/
+theorem unread_30 (a b : Nat) (h : a / 2048 = 30) :
+    Unread a b ↔ (b / 4096 < 8 ∧ b / 256 % 16 = 13) := by
+  unfold Unread
+  rw [if_pos h]
+
+/-- `Unread` of `ldr.w Rt, [sp, #imm12]`: the load to SP. -/
+theorem unread_ldrsp (b : Nat) : Unread 0xF8DD b ↔ b / 4096 = 13 := by
+  unfold Unread
+  simp
+
+
+-- One declaration with a case for each of the semantics' 32-bit forms:
+-- the budget is per declaration.
+set_option maxHeartbeats 4000000 in
 theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 1073741824)
     (i : Instr) (hd : decode32 a b = some i) :
     ∃ e, D32 a b pc = some e ∧ SpAgrees e i ∧ TargetAgrees e i pc := by
@@ -474,6 +545,9 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     (try dsimp only at hd)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [unread_30 a b (by omega)]
+      omega
     have hD : D32 a b pc = some (.call (tgt pc (off25 a b))) := by
       unfold D32
       eval_ifs
@@ -489,6 +563,9 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     (try dsimp only at hd)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [unread_30 a b (by omega)]
+      omega
     have hD : D32 a b pc = some (.branch (tgt pc (off25 a b))) := by
       unfold D32
       eval_ifs
@@ -533,6 +610,9 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     · exact absurd hd (by simp)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [unread_30 a b (by omega)]
+      omega
     have hD : D32 a b pc = some (.plain) := by
       unfold D32
       eval_ifs
@@ -545,6 +625,9 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     · exact absurd hd (by simp)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [unread_30 a b (by omega)]
+      omega
     have hD : D32 a b pc = some (.plain) := by
       unfold D32
       eval_ifs
@@ -605,6 +688,9 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     (try dsimp only at hd)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [unread_30 a b (by omega)]
+      omega
     have hD : D32 a b pc = some (.plain) := by
       unfold D32
       eval_ifs
@@ -615,10 +701,59 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     · exact absurd hd (by simp)
     have e := Option.some.inj hd
     subst e
+    have nu : ¬ Unread a b := by
+      rw [c, unread_ldrsp]
+      omega
     have hD : D32 a b pc = some (.plain) := by
       unfold D32
       eval_ifs
     exact ⟨_, hD, sp_plain _ (by show _ ≠ 13; omega) _ ⟨fun _ => by simp, fun _ => by simp⟩, trivial⟩
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- sub sp, sp, #const (T2)
+    obtain ⟨w, hw, e⟩ := map_some hd
+    subst e
+    have hD : D32 a b pc = some (.spDown (expand12 (imm12 a b))) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    have q := eff_subsp_sp _ len s t ht
+    show t.sp = s.sp - BitVec.ofNat 32 (expand12 (imm12 a b))
+    rw [q, expand12_agrees (imm12 a b) w (by rw [imm12_eq]; exact hw)]
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- subw sp, sp, #imm12 (T3)
+    (try dsimp only at hd)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D32 a b pc = some (.spDown (imm12 a b)) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    exact eff_subsp_sp _ len s t ht
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- add sp, sp, #const (T3)
+    obtain ⟨w, hw, e⟩ := map_some hd
+    subst e
+    have hD : D32 a b pc = some (.spUp (expand12 (imm12 a b))) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    have q := eff_addsp_sp _ len s t ht
+    show t.sp = s.sp + BitVec.ofNat 32 (expand12 (imm12 a b))
+    rw [q, expand12_agrees (imm12 a b) w (by rw [imm12_eq]; exact hw)]
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- addw sp, sp, #imm12 (T4)
+    (try dsimp only at hd)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D32 a b pc = some (.spUp (imm12 a b)) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    exact eff_addsp_sp _ len s t ht
   exact absurd hd (by simp)
 
 end LinkThumb

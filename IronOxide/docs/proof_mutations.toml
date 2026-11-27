@@ -3408,11 +3408,11 @@ prover = "creusot"
 
 [[mutation]]
 id = "pm-therapy-control-steps-below-the-trip-level"
-kills = "`on_control`'s contract (`tripped_off` kept): with the mark of the level left standing in the Job that finds the level back, the step runs while the level is marked"
+kills = "`served`'s contract (the trip level's mark is cleared in a Job above the level), on which `on_control`'s rests (`tripped_off` kept): with the mark of the level left standing in the Job that finds the level back, the step runs while the level is marked. The find text moved with the code on 2026-11-27, when that branch of `on_control` became `served`"
 file = "apps/pacemaker/therapy/src/lib.rs"
-find = "            } else {\n                link.tripped = 0;\n                if let Some(command) = command {"
-replace = "            } else {\n                if let Some(command) = command {"
-expect = ["proof failed", "vc_on_control"]
+find = "    let mut answered = false;\n    link.tripped = 0;\n    if let Some(command) = command {"
+replace = "    let mut answered = false;\n    if let Some(command) = command {"
+expect = ["proof failed", "vc_served"]
 package = "pacemaker-therapy-nrf52840-proof"
 prover = "creusot"
 
@@ -4333,6 +4333,27 @@ kills = "decode32_spec, decode32_arm (Tools/LinkThumbProofs.lean, Tools/LinkThum
 file = "proofs/aeneas/lean/Tools/Link.lean"
 find = "              let i7 ← lift (a &&& 65471#u32)\n"
 replace = "              let i7 ← lift (a &&& 65535#u32)\n"
+expect = ["Tools/LinkThumb"]
+prover = "lean"
+
+# 2026-11-27: every encoding of `sub`/`add sp, sp, #const` read, and the
+# other 32-bit writes of SP refused (Tools/LinkThumbUnread.lean,
+# LinkThumbProofs32.lean, LinkThumbSpec.lean).
+[[mutation]]
+id = "lean-link-decoder-sub-sp-top-immediate-bit-dropped"
+kills = "decode32_spec, decode32_arm (Tools/LinkThumbProofs32.lean, Tools/LinkThumbArm.lean, 2026-11-27; R37.1): the compiled decoder reads `sub sp, sp, #const` whose immediate has its top bit set (first halfword F5AD, F5BD: `sub.w sp, sp, #0x6b0`, the boot's frame) as lowering SP by the expanded constant, as the semantics' operation does; with the i bit not masked out of the test (the decoder as it was until 2026-11-27) the instruction is not this case"
+file = "proofs/aeneas/lean/Tools/Link.lean"
+find = "                          let i15 ← lift (a &&& 64495#u32)\n"
+replace = "                          let i15 ← lift (a &&& 65519#u32)\n"
+expect = ["Tools/LinkThumb"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-link-decoder-unread-immediate-class-not-refused"
+kills = "sp_unread_spec (Tools/LinkThumbUnread.lean, 2026-11-27; R37.1): `sp_unread` as compiled answers true for a data-processing instruction with an immediate whose destination is SP (`Unread`'s first class); answering false there, the decoder would read `sub.w sp, r7, #8` as leaving SP"
+file = "proofs/aeneas/lean/Tools/Link.lean"
+find = "  then thumb.both (rt < 8#u32) (rd = 13#u32)\n"
+replace = "  then thumb.both (rt < 8#u32) (rd = 14#u32)\n"
 expect = ["Tools/LinkThumb"]
 prover = "lean"
 

@@ -41,15 +41,15 @@ pub mod rsk_target {
         /// This Partition's index.
         pub const SELF: usize = 0;
         pub const PARTITIONS: usize = 3;
-        pub const KERNEL_FLASH: (u32, u32) = (0x00000000, 0x20000);
-        pub const SHARED_CODE: (u32, u32) = (0x00020000, 0x10000);
-        pub const KERNEL_RAM: (u32, u32) = (0x20000000, 0x8000);
+        pub const KERNEL_FLASH: (u32, u32) = (0x00000000, 0x40000);
+        pub const SHARED_CODE: (u32, u32) = (0x00040000, 0x10000);
+        pub const KERNEL_RAM: (u32, u32) = (0x20000000, 0x10000);
         /// The Kernel's peripheral intervals (R16.2): the PPB, then the Kernel-owned peripherals.
         pub const KERNEL_WINDOWS: [(u32, u32); 5] = [(0xe0000000, 0x100000), (0x40000000, 0x1000), (0x40008000, 0x1000), (0x40010000, 0x1000), (0x4001f000, 0x1000)];
         /// Each Partition's code and RAM region, and its stack size (the stack
         /// is the bottom of its RAM; the word below it is outside every view, R16.5).
-        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00030000, 0x8000), (0x00040000, 0x8000), (0x00038000, 0x8000)];
-        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000), (0x20018000, 0x8000), (0x20010000, 0x8000)];
+        pub const CODE: [(u32, u32); PARTITIONS] = [(0x00050000, 0x8000), (0x00060000, 0x8000), (0x00058000, 0x8000)];
+        pub const RAM: [(u32, u32); PARTITIONS] = [(0x20010000, 0x8000), (0x20020000, 0x8000), (0x20018000, 0x8000)];
         pub const STACK: [u32; PARTITIONS] = [4096, 4096, 4096];
         /// Each Partition's RAM region's subregion-disable bits (bit n set: the
         /// n-th eighth of the region is outside the view; HW-09).

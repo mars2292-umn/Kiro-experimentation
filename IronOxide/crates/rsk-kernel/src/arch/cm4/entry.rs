@@ -4324,6 +4324,11 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
 
 /// The Kernel-level timer handler body. Returns the unwind plan when the
 /// executing Job was ended by a response, and the safe-state flag.
+// Not inlined (2026-11-27): the conformance suite's link mutations
+// (conf-PR-31-lk, conf-PR-35-lk) alter this function by its symbol, and
+// since the shells became generic functions (2026-11-26) the compiler
+// folded it into its one caller.
+#[inline(never)]
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),

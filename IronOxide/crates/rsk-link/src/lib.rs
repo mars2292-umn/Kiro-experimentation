@@ -182,6 +182,14 @@ pub fn check_probed(elf_bytes: &[u8], model_text: &str, fetch_probes: &[String])
         let words: Vec<String> = g.table_words.iter().map(|(s, a, i)| format!("{s} 0x{a:08x} -> {}", demangle::demangle(&g.functions[*i].name))).collect();
         out.notes.push(format!("PR-18: {} function address(es) in the table sections ({}), the target set of an indirect call that materialises none: {}", words.len(), graph::TABLE_SECTIONS.join(", "), words.join("; ")));
     }
+    // Fail closed (2026-11-27): an instruction of a class that can write SP,
+    // in a form the decoder reads no stack-pointer change from, is a
+    // violation wherever it stands, reached or not, with no exemption.
+    for f in &g.functions {
+        for at in &f.sp_unread {
+            out.violations.push(Violation { rule: "R37.3", message: format!("`{}`: the instruction at 0x{at:08x} is of a class that can write SP, in a form the decoder reads no stack-pointer change from; its frame is not known", f.name) });
+        }
+    }
     let reports = g.analyse();
     let exception_returns = g.exception_returns();
     if !exception_returns.is_empty() {

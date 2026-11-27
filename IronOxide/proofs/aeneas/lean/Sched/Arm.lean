@@ -241,6 +241,24 @@ def decode16 (h : Nat) : Option Instr :=
 def plainImm (h1 h2 : Nat) : Option W :=
   if h1 / 1024 % 2 = 0 ∧ h2 / 4096 % 8 = 0 then some (BitVec.ofNat 32 (h2 % 256)) else none
 
+/-- `ThumbExpandImm` (A5.3.2) of the 12 bits `i:imm3:imm8`: the byte, or
+the byte in two or four places, when the top two bits are 00 (UNPREDICTABLE
+with a zero byte in the repeated forms); otherwise the 8 bits `'1':imm7`
+rotated right by the top five bits. -/
+def expandImm (imm12 : Nat) : Option W :=
+  if imm12 / 1024 % 4 = 0 then
+    if imm12 / 256 % 4 = 0 then some (BitVec.ofNat 32 (imm12 % 256))
+    else if imm12 % 256 = 0 then none
+    else if imm12 / 256 % 4 = 1 then some (BitVec.ofNat 32 (imm12 % 256 * 65536 + imm12 % 256))
+    else if imm12 / 256 % 4 = 2 then
+      some (BitVec.ofNat 32 (imm12 % 256 * 16777216 + imm12 % 256 * 256))
+    else some (BitVec.ofNat 32 (imm12 % 256 * 16777216 + imm12 % 256 * 65536 + imm12 % 256 * 256 + imm12 % 256))
+  else some ((BitVec.ofNat 32 (128 + imm12 % 128)).rotateRight (imm12 / 128 % 32))
+
+/-- The 12 bits `i:imm3:imm8` of a data-processing instruction with an
+immediate. -/
+def imm12Of (h1 h2 : Nat) : Nat := (h1 / 1024 % 2) * 2048 + (h2 / 4096 % 8) * 256 + h2 % 256
+
 /-- A 32-bit instruction, from its two halfwords. -/
 def decode32 (h1 h2 : Nat) : Option Instr :=
   -- BL T1: 11110 S imm10 | 11 J1 1 J2 imm11
@@ -288,6 +306,22 @@ def decode32 (h1 h2 : Nat) : Option Instr :=
   else if h1 = 0xF8DD then
     if h2 / 4096 = 15 ∨ h2 / 4096 = 13 then none
     else some (.ldrsp (h2 / 4096) (BitVec.ofNat 32 (h2 % 4096)))
+  -- The four forms below were added on 2026-11-27 for the Link_Checker's
+  -- decoder (`Tools/LinkThumbSpec.lean`); no stub contains one. With the S
+  -- bit set (flags written) they are not decoded: `subsp` and `addsp`
+  -- leave the flags.
+  -- SUB (SP minus immediate) T2: 11110 i 0 1101 0 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x1AD ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    (expandImm (imm12Of h1 h2)).map .subsp
+  -- SUB (SP minus immediate) T3: 11110 i 1 0101 0 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x2AD ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    some (.subsp (BitVec.ofNat 32 (imm12Of h1 h2)))
+  -- ADD (SP plus immediate) T3: 11110 i 0 1000 0 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x10D ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    (expandImm (imm12Of h1 h2)).map .addsp
+  -- ADD (SP plus immediate) T4: 11110 i 1 0000 0 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x20D ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    some (.addsp (BitVec.ofNat 32 (imm12Of h1 h2)))
   else none
 
 /-! ## Conditions and the IT block (A7.3) -/

@@ -14,7 +14,8 @@ the frame when no instruction is executed twice.
   effects `es` read for them say (`SpStep`, which `decode16_sp_step` and
   `decode32_sp_step` of `Tools/LinkThumbArm.lean` give for each instruction
   of the compiled decoder), with no effect the decoder cannot read
-  (`spDynamic`), and in which no increment takes SP above `top` (a body
+  (`spDynamic`, `spUnread`: the Link_Checker gives a function with either
+  no bound), and in which no increment takes SP above `top` (a body
   pops no more than was pushed below the stack's top).
 - `descent_le`: SP at the start is at most SP at the end plus the sum of
   the decrements of the steps.
@@ -40,17 +41,17 @@ def dn : AEff → Nat
 /-- The sum of the decrements of a list of effects. -/
 def downs (es : List AEff) : Nat := (es.map dn).sum
 
-/-- A run whose steps change SP as their effects say, none dynamic, no
-increment taking SP above `top`. -/
+/-- A run whose steps change SP as their effects say, none dynamic or
+unread, no increment taking SP above `top`. -/
 inductive RunBelow (top : Nat) : List AEff → Arm.St → Arm.St → Prop
   | nil (s : Arm.St) : RunBelow top [] s s
   | cons {e : AEff} {es : List AEff} {s t u : Arm.St} :
-      SpStep e s t → e ≠ .spDynamic →
+      SpStep e s t → e ≠ .spDynamic → e ≠ .spUnread →
       (∀ n, e = .spUp n → s.sp.toNat + n ≤ top) → top < 4294967296 →
       RunBelow top es t u → RunBelow top (e :: es) s u
 
 theorem step_descent {top : Nat} {e : AEff} {s t : Arm.St} (hs : SpStep e s t)
-    (hd : e ≠ .spDynamic) (hup : ∀ n, e = .spUp n → s.sp.toNat + n ≤ top)
+    (hd : e ≠ .spDynamic) (hu : e ≠ .spUnread) (hup : ∀ n, e = .spUp n → s.sp.toNat + n ≤ top)
     (ht : top < 4294967296) : s.sp.toNat ≤ t.sp.toNat + dn e := by
   cases e with
   | spDown n =>
@@ -76,6 +77,7 @@ theorem step_descent {top : Nat} {e : AEff} {s t : Arm.St} (hs : SpStep e s t)
       omega
     · rw [h]; omega
   | spDynamic => exact absurd rfl hd
+  | spUnread => exact absurd rfl hu
   | _ =>
     simp only [SpStep] at hs
     rw [hs]; omega
@@ -86,8 +88,8 @@ theorem descent_le {top : Nat} {es : List AEff} {s u : Arm.St} (h : RunBelow top
     s.sp.toNat ≤ u.sp.toNat + downs es := by
   induction h with
   | nil s => simp [downs]
-  | cons hs hd hup ht _ ih =>
-    have a := step_descent hs hd hup ht
+  | cons hs hd hu hup ht _ ih =>
+    have a := step_descent hs hd hu hup ht
     simp only [downs, List.map_cons, List.sum_cons] at ih ⊢
     omega
 

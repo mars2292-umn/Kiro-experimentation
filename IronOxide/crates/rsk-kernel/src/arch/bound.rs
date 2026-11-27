@@ -810,7 +810,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     }
 
     fn init(&mut self) {
-        self.kernel = Kernel::new(&self.cfg);
+        // In place (2026-11-27): `Kernel::new` built the whole value in
+        // this frame, the boot's, before it was stored (R37.2).
+        self.kernel.init(&self.cfg);
         let mut p: usize = 0;
         while p < NP
             invariant

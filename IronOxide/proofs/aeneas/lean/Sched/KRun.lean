@@ -446,7 +446,7 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         allow := deduct x.k.sched x.allow 1 }
 
 /-- The state at boot: a Kernel whose scheduler state is what `Sched::new`
-returns (`Kernel::new` builds it so, `new_eff`), instant 0, no Job, no
+returns (`Kernel::init` builds it so, `new_eff`), instant 0, no Job, no
 Kernel section. -/
 def KSt.boot (k0 : logic.kernel.Kernel NT NR NP NL NS NE) : KSt NT NR NP NL NS NE :=
   { k := k0, now := 0, jl := fun _ => none, jwait := fun _ => false, el := fun _ => none,
@@ -583,11 +583,14 @@ theorem rsteps_norm {cfg : logic.Config NT NR NP} {P : Params} {m : St NT NR NL}
   rw [← e1, ← e2]
   exact hr
 
-/-- `Kernel::new` leaves the scheduler state `Sched::new` returns. -/
+/-- `Kernel::init` leaves the scheduler state `Sched::new` returns, whatever
+the state before (it writes in place what `Kernel::new` returned until
+2026-11-27). -/
 theorem new_eff {cfg : logic.Config NT NR NP} {k0 : logic.kernel.Kernel NT NR NP NL NS NE}
-    (h : logic.kernel.Kernel.new NL NS NE cfg = ok k0) :
+    {kold : logic.kernel.Kernel NT NR NP NL NS NE}
+    (h : logic.kernel.Kernel.init kold cfg = ok k0) :
     logic.sched.Sched.new NL cfg = ok k0.sched := by
-  unfold logic.kernel.Kernel.new at h
+  unfold logic.kernel.Kernel.init at h
   peel h
   unfold logic.sched.Sched.new
   rfl

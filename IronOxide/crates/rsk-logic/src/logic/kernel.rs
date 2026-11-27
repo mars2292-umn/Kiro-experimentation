@@ -1718,6 +1718,62 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         k
     }
 
+    /// Init in place (2026-11-27): the state `new` returns, written field
+    /// by field into the Kernel's own storage. `new` builds the whole
+    /// value before it is stored; for the demo's sizes that is 1,696 bytes
+    /// of the caller's frame (the boot's, on the main stack), where this
+    /// needs the largest one field's. The fields are computed by the same
+    /// constructors in the same order, and the statement is `new`'s.
+    pub fn init(&mut self, cfg: &Config<NT, NR, NP>)
+        requires cfg.wf(), NL <= 255, 0 < NE < 0x4000_0000, (cfg.slot_count as int) == NS,
+        ensures final(self).inv(cfg), !final(self).started, !final(self).safe_state, final(self).sched.depth == 0,
+            final(self).history@ == Seq::<Step>::empty(),
+            final(self).deadline_slots_owned(cfg),
+    {
+        proof {
+            super::history::lemma_history_empty(cfg, 0);
+        }
+        self.sched = Sched::new(cfg);
+        self.timing = Timing::new(cfg);
+        self.slots = Slots::new();
+        self.budget = Budget::new();
+        self.log = Log::new();
+        self.stopped = [false; NP];
+        self.mit_violations = [0; NP];
+        self.reinit_partition = [false; NP];
+        self.stop_dma = [false; NP];
+        self.safe_state = false;
+        self.started = false;
+        self.now = 0;
+        self.history = Self::no_history();
+        proof {
+            // Nothing recorded, nothing accepted: the link holds vacuously.
+            let h = Seq::<Step>::empty();
+            assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(h, self.timing.has_last, self.timing.last_due, cfg, u) by {
+                assert forall|j: int| !(#[trigger] Self::release_step_in(h, j, u)) by {}
+            }
+            reveal(Kernel::releases_linked);
+            assert(self.top_now() == -1);
+            assert forall|i: int| 0 <= i < NS implies !self.slots.slots[i].armed by {
+                assert(!self.slots.armed(i));
+            }
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+                implies !self.slots.slots[cfg.slot_release[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+            }
+            assert(self.release_slots_consistent(cfg));
+            assert forall|u: int| 0 <= u < NT implies !#[trigger] self.slots.slots[cfg.slot_budget[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+                assert(!self.slots.armed(cfg.slot_budget[u] as int));
+            }
+            assert forall|u: int, j: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(self.history@, j, u) implies false by {}
+            assert forall|p: int| 0 <= p < NP implies #[trigger] self.mit_violations[p] as int
+                == Self::saturated(super::history::violations_since_restart(self.history@, p)) by {
+                assert(super::history::violations_since_restart(self.history@, p) == 0);
+            }
+        }
+    }
+
     // ------------------------------------------------------------ helpers
 
     fn push_event(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: u8, partition: u8, prs: u64, detail: u32)

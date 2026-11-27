@@ -913,10 +913,11 @@ theorem slots_new_nob {sl : logic.time.Slots NS} (h : logic.time.Slots.new NS = 
   intro i hi ha
   simp [slotAt, Array.repeat, hi] at ha
 
-/-- `Kernel::new` leaves no slot armed. -/
+/-- `Kernel::init` leaves no slot armed, whatever the state before. -/
 theorem new_nob {cfg : logic.Config NT NR NP} {k0 : logic.kernel.Kernel NT NR NP NL NS NE}
-    (h : logic.kernel.Kernel.new NL NS NE cfg = ok k0) : NoB k0.slots := by
-  unfold logic.kernel.Kernel.new at h
+    {kold : logic.kernel.Kernel NT NR NP NL NS NE}
+    (h : logic.kernel.Kernel.init kold cfg = ok k0) : NoB k0.slots := by
+  unfold logic.kernel.Kernel.init at h
   peel h
   dsimp only
   exact slots_new_nob (by unfold logic.time.Slots.new; rfl)

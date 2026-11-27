@@ -13,6 +13,10 @@ pub struct Function {
     /// Sum of the SP decrements of the body (the frame model).
     pub frame: u32,
     pub dynamic_sp: bool,
+    /// The addresses of the instructions the decoder answered `SpUnread`
+    /// for: of a class that can write SP, in a form it reads no change
+    /// from. A function with one has no stack bound (2026-11-27).
+    pub sp_unread: Vec<u32>,
     /// Direct call and tail-call targets (addresses).
     pub direct: Vec<u32>,
     /// Indirect call sites (`blx Rm`).
@@ -170,6 +174,7 @@ impl CallGraph {
                 size: *size,
                 frame: 0,
                 dynamic_sp: false,
+                sp_unread: Vec::new(),
                 direct: Vec::new(),
                 indirect_sites: 0,
                 indirect_branches: 0,
@@ -206,6 +211,7 @@ impl CallGraph {
                         }
                     }
                     Effect::Nop => f.nops.push(insn.address),
+                    Effect::SpUnread => f.sp_unread.push(insn.address),
                     Effect::IndirectCall(_) => f.indirect_sites += 1,
                     Effect::IndirectBranch(_) => f.indirect_branches += 1,
                     Effect::Constant(reg, v) if (0xE000_0000..0xE010_0000).contains(v) => {
@@ -469,6 +475,10 @@ impl CallGraph {
         if f.dynamic_sp {
             why = Some("SP written from a register (dynamic stack)".to_string());
         }
+        if let Some(at) = f.sp_unread.first() {
+            // Fail closed: before a dynamic write, so that the form is named.
+            why = Some(format!("an instruction of a class that can write SP, in a form the decoder reads no stack-pointer change from, at {at:#010x} ({} such instruction(s))", f.sp_unread.len()));
+        }
         match self.callees(i) {
             None => why = why.or(Some(format!("unresolved indirect call ({} site(s), no function address materialised in the body)", f.indirect_sites))),
             Some(callees) => {
@@ -511,7 +521,7 @@ mod tests {
         let mut by_address = BTreeMap::new();
         for (i, (name, address, frame, direct, indirect, materialised, dynamic)) in funcs.into_iter().enumerate() {
             by_address.insert(address, i);
-            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
+            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, sp_unread: vec![], direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
         }
         CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![], table_words: vec![], embedded: vec![], section_of: vec![], fetch_probes: vec![] }
     }
@@ -542,6 +552,20 @@ mod tests {
         assert!(by("r2").unbounded.as_deref().unwrap().contains("r1"));
         assert!(by("unres").unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
         assert!(by("dyn").unbounded.as_deref().unwrap().contains("dynamic"));
+    }
+
+    /// 2026-11-27, fail closed: a function with an instruction the decoder
+    /// answered `SpUnread` for has no bound, and neither has its caller.
+    #[test]
+    fn an_unread_write_of_the_stack_pointer_leaves_no_bound() {
+        let mut g = graph(vec![("main", 0x100, 16, vec![0x200], 0, vec![], false), ("odd", 0x200, 8, vec![], 0, vec![], false), ("plain", 0x300, 8, vec![], 0, vec![], false)]);
+        g.functions[1].sp_unread = vec![0x204, 0x20c];
+        let r = g.analyse();
+        let by = |n: &str| r.iter().find(|f| f.name == n).unwrap();
+        let why = by("odd").unbounded.as_deref().unwrap();
+        assert!(why.contains("reads no stack-pointer change from") && why.contains("0x00000204") && why.contains("2 such"), "{why}");
+        assert!(by("main").unbounded.as_deref().unwrap().contains("calls unbounded `odd`"));
+        assert!(by("plain").unbounded.is_none());
     }
 
     /// A declared fetch probe has no callee for its one indirect call; the

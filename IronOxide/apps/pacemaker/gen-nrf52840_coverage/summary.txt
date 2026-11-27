@@ -1,5 +1,5 @@
 rsk Generated_Config summary (R24.3)
-Target: nrf52840 (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits, 8 MPU regions
+Target: nrf52840_coverage (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits, 8 MPU regions
 Profile: 0.6 Ravenscar
 Operating duration: 4800000000 ticks
 Safe state: crate::safe_state
@@ -17,17 +17,17 @@ Timer: IRQ 8 (vector 24)
 
 Partitions:
   therapy (crate pacemaker_therapy, level A): fault RESTART_PARTITION, overrun RESTART_PARTITION, deadline miss RESTART_PARTITION, MIT threshold 10
-    code 262144 bytes at 0x00040000 (region 2^18, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 12288 bytes; init arena 0 bytes
+    code 262144 bytes at 0x00080000 (region 2^18, srd 0x00); ram 32768 bytes at 0x20010000 (region 2^15, srd 0x00); stack 16384 bytes; init arena 0 bytes
     window 0x40006000 (2^12, srd 0x00, read-write): GPIOTE
     window 0x50000000 (2^12, srd 0x00, read-write): P0
     window 0x40009000 (2^12, srd 0x00, read-write): TIMER1
     window 0x4000a000 (2^12, srd 0x00, read-write): TIMER2
     window 0x4001a000 (2^12, srd 0x00, read-write): TIMER3
   comms (crate pacemaker_comms, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
-    code 32768 bytes at 0x00088000 (region 2^15, srd 0x00); ram 8192 bytes at 0x20014000 (region 2^13, srd 0x00); stack 2048 bytes; init arena 0 bytes
+    code 32768 bytes at 0x000c8000 (region 2^15, srd 0x00); ram 8192 bytes at 0x2001c000 (region 2^13, srd 0x00); stack 2048 bytes; init arena 0 bytes
     window 0x40004000 (2^12, srd 0x00, read-only): SPIM1
   diag (crate pacemaker_diag, level D): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
-    code 32768 bytes at 0x00080000 (region 2^15, srd 0x00); ram 16384 bytes at 0x20010000 (region 2^14, srd 0x00); stack 2048 bytes; init arena 0 bytes
+    code 32768 bytes at 0x000c0000 (region 2^15, srd 0x00); ram 16384 bytes at 0x20018000 (region 2^14, srd 0x00); stack 2048 bytes; init arena 0 bytes
 
 Tasks:
   therapy.pace (#0, Partition therapy, Priority 7, vector 36): sporadic, MIT 320000 ticks, policy defer, source interrupt TIMER3 (IRQ 26), deadline 32000 ticks, Budget 28800 cycles, fpu false, Resources [timing], state [], nesting depth 1, slots release 0 deadline 1 budget 2

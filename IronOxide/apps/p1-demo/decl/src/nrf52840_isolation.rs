@@ -15,7 +15,12 @@
 //! 839676's workaround, task 3.4). The per-Task state records what each
 //! probe saw, for the safe state's report.
 rsk::app! {
-    target = nrf52840, profile = Ravenscar, operating_duration = 3600.ms(),
+    // The Target with the enlarged Kernel regions (64 KiB of Kernel RAM)
+    // since 2026-11-27: with every stack-pointer decrement read by the
+    // Link_Checker and the main-stack bound of 2026-11-26 (a fault during
+    // the start, handlers nested), the 32 KiB of the plain Target left the
+    // Kernel's stack 164 bytes short of its bound in this build (4,364 of 4,528).
+    target = nrf52840_coverage, profile = Ravenscar, operating_duration = 3600.ms(),
     safe_state = crate::report_and_exit, log_capacity = 32, fp_flush_to_zero = true;
 
     partition part0 (level = A, crate = p1_demo_part0, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),

@@ -539,10 +539,16 @@ cd crates/rsk-link
 ```
 
 No axiom in the output (`count_ones` is written out as `ones16` in
-`thumb.rs` for that). After a change of `cert.rs` or of the decoders in
-`thumb.rs`: regenerate, then `lake build Tools.LinkCertProofs
-Tools.LinkThumbArm`. `Tools/LinkThumbProofs.lean` follows the extracted
-decoders line by line: a new test in a decoder is one or two more `step`s
-there and one more condition in `D16` or `D32` of
-`Tools/LinkThumbDefs.lean`.
+`thumb.rs` for that; `rotate_right` as a shift in `thumb_expand_imm`, since
+2026-11-27, for the same reason). After a change of `cert.rs` or of the
+decoders in `thumb.rs`: regenerate, then `lake build Tools.LinkCertProofs
+Tools.LinkThumbArm`. `Tools/LinkThumbProofs.lean` (the 16-bit decoder),
+`Tools/LinkThumbUnread.lean` (`thumb_expand_imm`, `sp_unread`) and
+`Tools/LinkThumbProofs32.lean` (the 32-bit decoder) follow the extracted
+functions line by line: a new test in a decoder is one or two more `step`s
+there and one more condition in `D16`, `D32` or `Unread` of
+`Tools/LinkThumbDefs.lean`, and every case after it in `decode32_spec`
+gains one `if_neg` in its rewriting of `D32`. `rw` does not go under
+`decide (Unread a b)` (the instance depends on the term): turn the goal
+into an equivalence first (`unread_open`).
 

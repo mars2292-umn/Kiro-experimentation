@@ -28,7 +28,7 @@ namespace rsk_kernel
 def core.marker.PhantomData (T : Type _) := Unit
 
 /-- [rsk_logic::hw_model::MIN_COMPARE_DISTANCE]
-    Source: 'crates/rsk-logic/src/hw_model.rs', lines 825:0-825:35
+    Source: 'crates/rsk-logic/src/hw_model.rs', lines 889:0-889:35
     Name pattern: [rsk_logic::hw_model::MIN_COMPARE_DISTANCE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -559,7 +559,7 @@ def verus_builtin.Ghost.assume_new
   ok { phantom := () }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::no_history]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1608:4-1608:39
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1664:4-1664:39
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::no_history] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::no_history"]
@@ -781,15 +781,17 @@ def rsk_logic.logic.log.Log.new
       seq := 0#u32
     }
 
-/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::new]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1613:4-1613:52
-    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::new]
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::init]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1727:4-1727:52
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::init]
     Visibility: public -/
 @[rust_fun
-  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::new"]
-def rsk_logic.logic.kernel.Kernel.new
-  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} (NL : Std.Usize) (NS :
-  Std.Usize) (NE : Std.Usize) (cfg : rsk_logic.logic.Config NT NR NP) :
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::init"]
+def rsk_logic.logic.kernel.Kernel.init
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) :
   Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
   := do
   let s ← rsk_logic.logic.sched.Sched.new NL cfg
@@ -849,7 +851,7 @@ def rsk_logic.logic.log.Log.push
     ok { self with entries := a, head := i2, overflow := i3, seq := i }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::push_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1666:4-1666:112
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1779:4-1779:112
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::push_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::push_event"]
@@ -867,7 +869,7 @@ def rsk_logic.logic.kernel.Kernel.push_event
   ok { self with log := l }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::record_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1688:4-1688:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1801:4-1801:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::record_event]
     Visibility: public -/
 @[rust_fun
@@ -886,7 +888,7 @@ def rsk_logic.logic.kernel.Kernel.record_event
     0#u32
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::observe]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1708:4-1708:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1821:4-1821:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::observe]
     Visibility: public -/
 @[rust_fun
@@ -947,7 +949,7 @@ def rsk_logic.logic.time.SLOT_RELEASE : Std.U8 := 1#u8
 def rsk_logic.logic.KIND_PERIODIC : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1753:8-1784:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1866:8-1898:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -981,7 +983,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop.body
   else ok (done (self, cfg))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1753:8-1784:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1866:8-1898:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -1000,7 +1002,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1738:4-1738:53
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1851:4-1851:53
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_fun
@@ -1110,7 +1112,7 @@ def rsk_logic.logic.sched.Sched.start
 def rsk_logic.logic.time.SLOT_BUDGET : Std.U8 := 4#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::arm_budget]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1918:4-1918:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2032:4-2032:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget"]
@@ -1140,7 +1142,7 @@ def rsk_logic.logic.kernel.Kernel.arm_budget
   ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1828:4-1828:86
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1942:4-1942:86
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::dispatch]
     Visibility: public -/
 @[rust_fun
@@ -1389,7 +1391,7 @@ def rsk_logic.logic.time.Timing.try_unmask
 def rsk_logic.logic.time.SLOT_UNMASK : Std.U8 := 7#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::unmask_instant]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2074:4-2074:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2188:4-2188:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant"]
@@ -1407,7 +1409,7 @@ def rsk_logic.logic.kernel.Kernel.unmask_instant
   else ok «end»
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_mit_window]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2090:4-2090:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2204:4-2204:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window"]
@@ -1440,7 +1442,7 @@ def rsk_logic.logic.kernel.Kernel.end_mit_window
     else ok { self with timing := t1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1955:4-1955:79
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2069:4-2069:79
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::job_return]
     Visibility: public -/
 @[rust_fun
@@ -1505,7 +1507,7 @@ def rsk_logic.logic.kernel.Kernel.job_return
   else ok self2
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2059:8-2068:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2173:8-2182:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1528,7 +1530,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop.body
   else ok (done all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2059:8-2068:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2173:8-2182:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1546,7 +1548,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop
     (e, all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2053:4-2053:48
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2167:4-2167:48
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[reducible, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1652,7 +1654,7 @@ def rsk_logic.logic.sched.Sched.lock
   else ok (false, self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2139:4-2139:76
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2253:4-2253:76
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_lock]
     Visibility: public -/
 @[rust_fun
@@ -1713,7 +1715,7 @@ def rsk_logic.logic.sched.Sched.unlock
         ok (true, { self with ceiling := i3, lock_len := n })
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2183:4-2183:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2297:4-2297:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_unlock]
     Visibility: public -/
 @[rust_fun
@@ -1828,7 +1830,7 @@ def rsk_logic.logic.sched.Sched.clear_release
 def rsk_logic.logic.log.EV_SAFE_STATE : Std.U8 := 18#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3817:8-3830:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3992:8-4005:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -1849,7 +1851,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop.body
   else ok (done s)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3817:8-3830:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3992:8-4005:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -1866,7 +1868,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop
     (s, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3800:4-3800:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3975:4-3975:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_fun
@@ -1904,7 +1906,7 @@ def rsk_logic.logic.log.EV_PARTITION_STOP : Std.U8 := 17#u8
 def rsk_logic.logic.MIT_DEFER : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3610:8-3674:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3773:8-3849:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1975,7 +1977,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3610:8-3674:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3773:8-3849:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1994,7 +1996,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3595:4-3595:83
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3755:4-3755:83
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -2030,7 +2032,7 @@ def rsk_logic.logic.sched.Sched.kill
   ok { self with job := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_at]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3489:4-3489:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3644:4-3644:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at"]
@@ -2046,7 +2048,7 @@ def rsk_logic.logic.kernel.Kernel.kill_at
   ok { self with sched := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3553:8-3576:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3712:8-3736:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2090,7 +2092,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop.body
       self.safe_state, self.started, self.now, self.history))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3553:8-3576:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3712:8-3736:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2115,7 +2117,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3541:4-3541:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3698:4-3698:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2159,7 +2161,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs
     }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3348:4-3348:59
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3503:4-3503:59
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release"]
@@ -2201,7 +2203,7 @@ def rsk_logic.logic.kernel.Kernel.end_top_release
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3400:4-3400:51
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3555:4-3555:51
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top"]
@@ -2223,7 +2225,7 @@ def rsk_logic.logic.kernel.Kernel.end_top
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3681:4-3681:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3856:4-3856:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs"]
@@ -2253,7 +2255,7 @@ def rsk_logic.logic.kernel.Kernel.end_partition_jobs
   rsk_logic.logic.kernel.Kernel.clear_partition_releases self2 cfg1 partition
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::stop_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3769:4-3769:84
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3944:4-3944:84
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition"]
@@ -2284,7 +2286,7 @@ def rsk_logic.logic.kernel.Kernel.stop_partition
 def rsk_logic.logic.log.EV_PARTITION_RESTART : Std.U8 := 16#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::restart_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3726:4-3726:87
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3901:4-3901:87
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition"]
@@ -2309,7 +2311,7 @@ def rsk_logic.logic.kernel.Kernel.restart_partition
   ok { self2 with mit_violations := a, reinit_partition := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::apply_response]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3256:4-3256:105
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3411:4-3411:105
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response"]
@@ -2371,7 +2373,7 @@ def rsk_logic.logic.kernel.Kernel.apply_response
           else rsk_logic.logic.kernel.Kernel.enter_safe_state self cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deadline_miss]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3082:4-3082:74
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3198:4-3198:74
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss"]
@@ -2594,7 +2596,7 @@ def rsk_logic.logic.sched.Sched.make_pending
 def rsk_logic.logic.log.EV_MIT_VIOLATION : Std.U8 := 9#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::mit_violation]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2496:4-2496:93
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2610:4-2610:93
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation"]
@@ -2629,7 +2631,7 @@ def rsk_logic.logic.kernel.Kernel.mit_violation
        ok { self1 with mit_violations := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2325:4-2325:111
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2439:4-2439:111
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release"]
@@ -2724,7 +2726,7 @@ def rsk_logic.logic.kernel.Kernel.intake_release
     else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2259:4-2259:107
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2373:4-2373:107
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake]
     Visibility: public -/
 @[rust_fun
@@ -2787,7 +2789,7 @@ def rsk_logic.logic.log.EV_OPERATING_END : Std.U8 := 10#u8
 def rsk_logic.logic.log.EV_OVERRUN : Std.U8 := 6#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::budget_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3122:4-3122:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3238:4-3238:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event"]
@@ -2854,7 +2856,7 @@ def rsk_logic.logic.time.Timing.deferred_due_clamped
   ok { self with has_last := a2, last_due := a, due := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deferred_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2992:4-2992:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3108:4-3108:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release"]
@@ -2965,7 +2967,7 @@ def rsk_logic.logic.time.Timing.advance_periodic
 def rsk_logic.logic.log.EV_RELEASE_OVERLAP : Std.U8 := 8#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::periodic_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2871:4-2871:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2987:4-2987:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release"]
@@ -3046,7 +3048,7 @@ def rsk_logic.logic.kernel.Kernel.periodic_release
       ok { self1 with timing := t1, slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::serve_slot]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2778:4-2778:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2894:4-2894:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot"]
@@ -3118,7 +3120,7 @@ def rsk_logic.logic.kernel.Kernel.serve_slot
         ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2627:8-2655:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2741:8-2770:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3151,7 +3153,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
   else ok (done (self, cfg))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2627:8-2655:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2741:8-2770:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3170,7 +3172,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2657:8-2733:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2772:8-2849:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3197,7 +3199,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2657:8-2733:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2772:8-2849:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3215,7 +3217,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2563:4-2563:90
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2677:4-2677:90
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_fun
@@ -3246,7 +3248,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event
     rsk_logic.logic.kernel.Kernel.timer_event_loop1 self2 cfg1 0#usize
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3183:4-3183:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3329:4-3329:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault]
     Visibility: public -/
 @[rust_fun
@@ -3286,7 +3288,7 @@ def rsk_logic.logic.kernel.Kernel.fault
         pc.fault_response kind t
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault_of]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3229:4-3229:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3384:4-3384:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault_of]
     Visibility: public -/
 @[rust_fun
@@ -3325,7 +3327,7 @@ def rsk_logic.logic.log.EV_DEBUGGER : Std.U8 := 23#u8
 def rsk_logic.logic.log.EV_WATCHDOG_RESET : Std.U8 := 15#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_info]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3842:4-3842:95
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4017:4-4017:95
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_info]
     Visibility: public -/
 @[rust_fun
@@ -3358,7 +3360,7 @@ def rsk_logic.logic.kernel.Kernel.boot_info
 def rsk_logic.logic.log.EV_BOOT_CHECK : Std.U8 := 14#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_check_failed]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3857:4-3857:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4032:4-4032:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_check_failed]
     Visibility: public -/
 @[rust_fun
@@ -3376,7 +3378,7 @@ def rsk_logic.logic.kernel.Kernel.boot_check_failed
   rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_reinit]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3869:4-3869:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4044:4-4044:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_reinit]
     Visibility: public -/
 @[rust_fun
@@ -3393,7 +3395,7 @@ def rsk_logic.logic.kernel.Kernel.ack_reinit
   ok { self with reinit_partition := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_stop_dma]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3881:4-3881:75
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4056:4-4056:75
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_stop_dma]
     Visibility: public -/
 @[rust_fun
@@ -3511,7 +3513,7 @@ def rsk_logic.logic.sched.Sched.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3896:4-3896:70
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4071:4-4071:70
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::select]
     Visibility: public -/
 @[rust_fun
@@ -3531,7 +3533,7 @@ def rsk_logic.logic.kernel.Kernel.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3940:4-3940:80
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 4159:4-4159:80
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle]
     Visibility: public -/
 @[rust_fun
@@ -5596,19 +5598,19 @@ def arch.bound.basepri_for
   arch.bound.basepri_for_ceiling top1
 
 /-- [rsk_kernel::arch::bound::Crc32]
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 80:0-80:26
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 103:0-103:26
     Visibility: public -/
 @[reducible]
 def arch.bound.Crc32 := Std.U32
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::new]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 83:4-85:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 106:4-108:5
     Visibility: public -/
 def arch.bound.Crc32.new : Result arch.bound.Crc32 := do
   ok 4294967295#u32
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 90:8-97:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 116:8-129:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.Crc32.byte_loop.body
@@ -5629,7 +5631,7 @@ def arch.bound.Crc32.byte_loop.body
   else ok (done crc)
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 90:8-97:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 116:8-129:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.Crc32.byte_loop
@@ -5639,7 +5641,7 @@ def arch.bound.Crc32.byte_loop
     (crc, i)
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 87:4-99:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 110:4-134:5
     Visibility: public -/
 def arch.bound.Crc32.byte
   (self : arch.bound.Crc32) (b : Std.U8) : Result arch.bound.Crc32 := do
@@ -5649,7 +5651,7 @@ def arch.bound.Crc32.byte
   ok crc1
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::u32]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 102:4-107:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 137:4-142:5
     Visibility: public -/
 def arch.bound.Crc32.u32
   (self : arch.bound.Crc32) (v : Std.U32) : Result arch.bound.Crc32 := do
@@ -5670,7 +5672,7 @@ def arch.bound.Crc32.u32
   arch.bound.Crc32.byte c2 i10
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::u64]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 109:4-111:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 144:4-146:5
     Visibility: public -/
 def arch.bound.Crc32.u64
   (self : arch.bound.Crc32) (v : Std.U64) : Result arch.bound.Crc32 := do
@@ -5683,13 +5685,13 @@ def arch.bound.Crc32.u64
   arch.bound.Crc32.u32 c i4
 
 /-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::finish]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 113:4-115:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 148:4-150:5
     Visibility: public -/
 def arch.bound.Crc32.finish (self : arch.bound.Crc32) : Result Std.U32 := do
   ok (~~~ self)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 124:4-132:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 159:4-167:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop0.body
@@ -5719,7 +5721,7 @@ def arch.bound.config_crc_loop0.body
   else ok (done (cfg, c))
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 124:4-132:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 159:4-167:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop0
@@ -5733,7 +5735,7 @@ def arch.bound.config_crc_loop0
     (c, t)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 134:4-140:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 169:4-175:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop1.body
@@ -5753,7 +5755,7 @@ def arch.bound.config_crc_loop1.body
   else ok (done (cfg, c))
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 134:4-140:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 169:4-175:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop1
@@ -5767,7 +5769,7 @@ def arch.bound.config_crc_loop1
     (c, r)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 3:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 147:8-153:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 182:8-188:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop2_loop0.body
@@ -5790,7 +5792,7 @@ def arch.bound.config_crc_loop2_loop0.body
   else ok (done (cfg, c))
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 3:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 147:8-153:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 182:8-188:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop2_loop0
@@ -5804,7 +5806,7 @@ def arch.bound.config_crc_loop2_loop0
     (c, r)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 2:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 142:4-155:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 177:4-190:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop2.body
@@ -5822,7 +5824,7 @@ def arch.bound.config_crc_loop2.body
   else ok (done (cfg, c))
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 2:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 142:4-155:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 177:4-190:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop2
@@ -5836,7 +5838,7 @@ def arch.bound.config_crc_loop2
     (cfg, c, t)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 4:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 157:4-164:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 192:4-199:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop3.body
@@ -5859,7 +5861,7 @@ def arch.bound.config_crc_loop3.body
   else ok (done (cfg, c))
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 4:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 157:4-164:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 192:4-199:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop3
@@ -5873,7 +5875,7 @@ def arch.bound.config_crc_loop3
     (c, p)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 5:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 167:4-173:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 202:4-208:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop4.body
@@ -5890,7 +5892,7 @@ def arch.bound.config_crc_loop4.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 5:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 167:4-173:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 202:4-208:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop4
@@ -5903,7 +5905,7 @@ def arch.bound.config_crc_loop4
     (c, t)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 6:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 175:4-181:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 210:4-216:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop5.body
@@ -5920,7 +5922,7 @@ def arch.bound.config_crc_loop5.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 6:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 175:4-181:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 210:4-216:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop5
@@ -5933,7 +5935,7 @@ def arch.bound.config_crc_loop5
     (c, t)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop body 7:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 183:4-189:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 218:4-224:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.config_crc_loop6.body
@@ -5950,7 +5952,7 @@ def arch.bound.config_crc_loop6.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::config_crc]: loop 7:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 183:4-189:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 218:4-224:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.config_crc_loop6
@@ -5963,7 +5965,7 @@ def arch.bound.config_crc_loop6
     (c, t)
 
 /-- [rsk_kernel::arch::bound::config_crc]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 121:0-191:1
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 156:0-226:1
     Visibility: public -/
 def arch.bound.config_crc
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
@@ -5989,7 +5991,7 @@ def arch.bound.config_crc
   arch.bound.Crc32.finish c12
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 207:4-213:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 242:4-248:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.layout_crc_loop0.body
@@ -6007,7 +6009,7 @@ def arch.bound.layout_crc_loop0.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 207:4-213:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 242:4-248:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.layout_crc_loop0
@@ -6020,7 +6022,7 @@ def arch.bound.layout_crc_loop0
     (c, k)
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop body 2:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 225:8-231:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 260:8-266:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.layout_crc_loop1_loop0.body
@@ -6043,7 +6045,7 @@ def arch.bound.layout_crc_loop1_loop0.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop 2:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 225:8-231:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 260:8-266:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.layout_crc_loop1_loop0
@@ -6056,7 +6058,7 @@ def arch.bound.layout_crc_loop1_loop0
     (c, w)
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 216:4-233:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 251:4-268:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.layout_crc_loop1.body
@@ -6082,7 +6084,7 @@ def arch.bound.layout_crc_loop1.body
   else ok (done c)
 
 /-- [rsk_kernel::arch::bound::layout_crc]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 216:4-233:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 251:4-268:5
     Visibility: public -/
 @[rust_loop]
 def arch.bound.layout_crc_loop1
@@ -6095,7 +6097,7 @@ def arch.bound.layout_crc_loop1
     (c, p)
 
 /-- [rsk_kernel::arch::bound::layout_crc]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 200:0-235:1
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 235:0-270:1
     Visibility: public -/
 def arch.bound.layout_crc
   {NP : Std.Usize} (layout : rsk_logic.logic.mpu.Layout NP) :
@@ -6119,7 +6121,7 @@ def arch.bound.layout_crc
   arch.bound.Crc32.finish c13
 
 /-- [rsk_kernel::arch::bound::JobInfo]
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 241:0-246:1
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 276:0-281:1
     Visibility: public -/
 structure arch.bound.JobInfo where
   task : Std.U8
@@ -6128,7 +6130,7 @@ structure arch.bound.JobInfo where
   fpu : Bool
 
 /-- [rsk_kernel::arch::bound::Bound]
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 249:0-254:1
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 284:0-289:1
     Visibility: public -/
 structure arch.bound.Bound (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize)
   (NL : Std.Usize) (NS : Std.Usize) (NE : Std.Usize) where
@@ -6138,7 +6140,7 @@ structure arch.bound.Bound (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize)
   views : Array rsk_logic.logic.mpu.View NP
 
 /-- Trait declaration: [rsk_kernel::arch::bound::KernelOps]
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 279:0-572:1
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 314:0-674:1
     Visibility: public -/
 structure arch.bound.KernelOps (Self : Type _) where
   task_count : Self → Result Std.Usize
@@ -6198,7 +6200,7 @@ structure arch.bound.KernelOps (Self : Type _) where
   fault_of : Self → Std.U8 → Std.U8 → Result Self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::task_count]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 660:4-662:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 779:4-781:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.task_count
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6208,7 +6210,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.task_count
   ok NT
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::partition_count]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 664:4-666:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 783:4-785:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_count
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6218,7 +6220,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_count
   ok NP
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::config_checksum]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 676:4-678:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 795:4-797:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.config_checksum
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6228,7 +6230,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.config_checksum
   arch.bound.config_crc self.cfg
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::layout_checksum]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 680:4-682:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 799:4-801:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.layout_checksum
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6238,7 +6240,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.layout_checksum
   arch.bound.layout_crc self.layout
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::validate]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 684:4-691:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 803:4-810:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.validate
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6264,7 +6266,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.validate
   else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 696:8-707:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 817:8-829:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
@@ -6282,7 +6284,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
   else ok (done a)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 696:8-707:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 817:8-829:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
@@ -6297,21 +6299,21 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
     (a, p)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 693:4-708:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 812:4-830:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
   Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
   Result (arch.bound.Bound NT NR NP NL NS NE)
   := do
-  let k ← rsk_logic.logic.kernel.Kernel.new NL NS NE self.cfg
+  let k ← rsk_logic.logic.kernel.Kernel.init self.kernel self.cfg
   let a ←
     arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop self.layout
       self.views 0#usize
   ok { self with kernel := k, views := a }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 710:4-714:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 832:4-836:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6325,7 +6327,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
     ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::started]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 716:4-718:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 838:4-840:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.started
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6335,7 +6337,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.started
   ok self.kernel.started
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::safe_state]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 724:4-726:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 846:4-848:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.safe_state
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6345,7 +6347,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.safe_state
   ok self.kernel.safe_state
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::job_info]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 728:4-738:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 850:4-860:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_info
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6368,7 +6370,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_info
   else ok { task := t, partition := 0#u8, priority := 0#u8, fpu := false }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::depth]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 740:4-742:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 862:4-864:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.depth
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6378,7 +6380,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.depth
   ok self.kernel.sched.depth
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::top]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 778:4-784:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 900:4-906:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6393,7 +6395,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top
     ok (some i1)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::top_priority]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 786:4-793:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 908:4-915:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top_priority
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6410,7 +6412,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top_priority
     ok tc.priority
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::stack_at]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 795:4-797:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 917:4-922:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.stack_at
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6423,7 +6425,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.stack_at
   else ok 0#u8
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::is_killed]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 799:4-801:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 924:4-926:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.is_killed
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6440,7 +6442,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.is_killed
   else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::eligible]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 803:4-813:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 928:4-938:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6477,7 +6479,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
     else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 815:4-826:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 940:4-951:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6501,7 +6503,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   ok { self with kernel := k1 }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 828:4-832:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 953:4-957:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6518,7 +6520,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 834:4-851:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 974:4-991:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6538,7 +6540,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
       ok (ok1, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 853:4-858:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 993:4-998:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6554,7 +6556,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
     ok (b, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::ceiling]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 860:4-862:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1000:4-1002:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.ceiling
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6564,7 +6566,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.ceiling
   ok self.kernel.sched.ceiling
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::basepri_now]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 864:4-871:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1004:4-1011:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.basepri_now
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6577,7 +6579,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.basepri_now
   arch.bound.basepri_for i i1
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 873:4-875:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1013:4-1015:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6587,7 +6589,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   rsk_logic.logic.kernel.Kernel.select self.kernel self.cfg
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 881:4-883:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1032:4-1034:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.settle
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6598,7 +6600,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.settle
   ok (p, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 885:4-894:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1047:4-1056:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6633,7 +6635,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 896:4-899:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1058:4-1061:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.timer_event
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6651,7 +6653,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.timer_event
   ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::fault]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 901:4-903:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1067:4-1069:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.fault
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6664,7 +6666,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.fault
   ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::next_compare]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 905:4-910:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1071:4-1076:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.next_compare
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6679,7 +6681,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.next_compare
     ok (some s.at)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::source_masked]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 920:4-922:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1086:4-1088:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.source_masked
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6695,7 +6697,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.source_masked
   else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::partition_view]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 924:4-927:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1090:4-1093:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_view
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6710,7 +6712,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_view
   Array.index_usize self.views i1
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::take_reinit]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 929:4-938:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1095:4-1104:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_reinit
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6731,7 +6733,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_reinit
     else ok (v, self)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::take_stop_dma]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 940:4-949:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1106:4-1115:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_stop_dma
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6753,7 +6755,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_stop_dma
     else ok (v, self)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::boot_failed]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 983:4-985:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1149:4-1151:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.boot_failed
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6766,7 +6768,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.boot_failed
   ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::boot_info]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 987:4-989:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1153:4-1155:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.boot_info
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6780,7 +6782,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.boot_info
   ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::partition_stopped]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 991:4-993:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1157:4-1159:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_stopped
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6796,7 +6798,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_stopped
   else ok true
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::dma_permitted]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 995:4-1003:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1161:4-1169:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dma_permitted
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6813,7 +6815,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dma_permitted
     rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec pl ptr len
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::in_ro_window]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1005:4-1013:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1171:4-1179:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.in_ro_window
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6830,7 +6832,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.in_ro_window
     rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec pl a
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::message_permitted]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1015:4-1023:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1181:4-1189:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.message_permitted
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6847,7 +6849,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.message_permitted
     rsk_logic.logic.mpu.PartitionLayout.message_permitted_exec pl ptr len
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::record_event]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1025:4-1029:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1191:4-1195:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.record_event
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -6864,7 +6866,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.record_event
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::fault_of]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1031:4-1035:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1197:4-1201:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.fault_of
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -7132,7 +7134,7 @@ structure arch.cm4.plan.BootExpect where
   fpu_needed : Bool
 
 /-- Trait declaration: [rsk_kernel::arch::cm4::entry::KernelArch]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 355:0-401:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 366:0-426:1
     Visibility: public -/
 structure arch.cm4.entry.KernelArch (Self : Type _) where
   apply : Self → arch.cm4.entry.Action → Result Self
@@ -7179,7 +7181,7 @@ structure arch.cm4.plan.DmaCfg where
   shorts : Std.U32
 
 /-- Trait declaration: [rsk_kernel::arch::cm4::entry::Tables]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 448:0-490:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 477:0-521:1
     Visibility: public -/
 structure arch.cm4.entry.Tables (Self : Type _) where
   binding : Self → Std.U16 → Result arch.cm4.entry.Binding
@@ -7205,67 +7207,67 @@ structure arch.cm4.entry.Tables (Self : Type _) where
   signal : Self → Std.Usize → Result arch.cm4.plan.SignalCfg
 
 /-- [rsk_kernel::arch::cm4::entry::TR_BOOT]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 670:0-670:26
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 717:0-717:26
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_BOOT : Std.U8 := 1#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_INVALID]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 671:0-671:29
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 718:0-718:29
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_INVALID : Std.U8 := 2#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_BOOTFAIL]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 672:0-672:30
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 719:0-719:30
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_BOOTFAIL : Std.U8 := 3#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_BOOTED]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 673:0-673:28
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 720:0-720:28
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_BOOTED : Std.U8 := 4#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_START]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 674:0-674:27
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 721:0-721:27
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_START : Std.U8 := 5#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_IRQ]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 675:0-675:25
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 722:0-722:25
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_IRQ : Std.U8 := 6#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_DISPATCH]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 676:0-676:30
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 723:0-723:30
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_DISPATCH : Std.U8 := 7#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_TICK]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 677:0-677:26
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 724:0-724:26
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_TICK : Std.U8 := 8#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_SVC]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 678:0-678:25
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 725:0-725:25
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_SVC : Std.U8 := 9#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_EPILOGUE]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 679:0-679:31
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 726:0-726:31
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_EPILOGUE : Std.U8 := 10#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_FAULT]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 680:0-680:28
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 727:0-727:28
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_FAULT : Std.U8 := 11#u8
 
 /-- [rsk_kernel::arch::cm4::entry::TR_WINDOW]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 683:0-683:29
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 730:0-730:29
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.TR_WINDOW : Std.U8 := 17#u8
 
 /-- [rsk_kernel::arch::cm4::entry::WINDOW_DEFER]
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 687:0-687:36
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 734:0-734:36
     Visibility: public -/
 @[global_simps, irreducible] def arch.cm4.entry.WINDOW_DEFER : Bool := true
 
@@ -7306,7 +7308,7 @@ structure arch.cm4.plan.ArchState where
   chain_levels : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::charge_point]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 712:0-719:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 912:0-919:1 -/
 def arch.cm4.entry.charge_point
   {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
   (state : arch.cm4.plan.ArchState) :
@@ -7317,7 +7319,7 @@ def arch.cm4.entry.charge_point
   ok (elapsed, { state with last_switch := now })
 
 /-- [rsk_kernel::arch::cm4::plan::compare_target]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 332:0-340:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 401:0-409:1
     Visibility: public -/
 def arch.cm4.plan.compare_target
   (now : Std.U64) («at» : Std.U64) : Result Std.U64 := do
@@ -7333,7 +7335,7 @@ def arch.cm4.plan.compare_target
 def arch.cm4.plan.MAX_INSTANT : Std.U64 := 4611686018427387904#u64
 
 /-- [rsk_kernel::arch::cm4::entry::arm_compare]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 725:0-735:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 925:0-935:1 -/
 def arch.cm4.entry.arm_compare
   {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
   («at» : Std.U64) :
@@ -7347,7 +7349,7 @@ def arch.cm4.entry.arm_compare
   KernelArchInst.apply hw (arch.cm4.entry.Action.ArmCompare target)
 
 /-- [rsk_kernel::arch::cm4::entry::rearm_compare]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 741:0-751:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 941:0-951:1 -/
 def arch.cm4.entry.rearm_compare
   {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
   («at» : Std.U64) :
@@ -7375,7 +7377,7 @@ def arch.cm4.plan.MAX_ENDPOINTS : Std.Usize := 8#usize
 @[global_simps, irreducible] def arch.cm4.plan.MAX_ROLES : Std.Usize := 4#usize
 
 /-- [rsk_kernel::arch::cm4::entry::clear_channels]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1605:4-1618:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1993:4-2006:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.clear_channels_loop.body
   (i : Std.Usize) (base : Std.Usize) (state : arch.cm4.plan.ArchState)
@@ -7395,7 +7397,7 @@ def arch.cm4.entry.clear_channels_loop.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::clear_channels]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1605:4-1618:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1993:4-2006:5 -/
 @[rust_loop]
 def arch.cm4.entry.clear_channels_loop
   (i : Std.Usize) (state : arch.cm4.plan.ArchState) (base : Std.Usize)
@@ -7408,7 +7410,7 @@ def arch.cm4.entry.clear_channels_loop
     (state, c)
 
 /-- [rsk_kernel::arch::cm4::entry::clear_channels]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1586:0-1619:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1974:0-2007:1 -/
 def arch.cm4.entry.clear_channels
   (state : arch.cm4.plan.ArchState) (e : Std.Usize) :
   Result arch.cm4.plan.ArchState
@@ -7418,7 +7420,7 @@ def arch.cm4.entry.clear_channels
   arch.cm4.entry.clear_channels_loop i state base 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::partition_in]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1572:4-1581:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1956:4-1965:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.partition_in_loop.body
   (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) (i : Std.Usize) (found : Bool)
@@ -7442,7 +7444,7 @@ def arch.cm4.entry.partition_in_loop.body
   else ok (done found)
 
 /-- [rsk_kernel::arch::cm4::entry::partition_in]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1572:4-1581:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1956:4-1965:5 -/
 @[rust_loop]
 def arch.cm4.entry.partition_in_loop
   (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) (i : Std.Usize) (found : Bool)
@@ -7454,21 +7456,21 @@ def arch.cm4.entry.partition_in_loop
     (i, found)
 
 /-- [rsk_kernel::arch::cm4::entry::partition_in]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1567:0-1583:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1951:0-1967:1 -/
 @[reducible]
 def arch.cm4.entry.partition_in
   (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) : Result Bool := do
   arch.cm4.entry.partition_in_loop cfg p 0#usize false
 
 /-- [rsk_kernel::arch::cm4::entry::role_slot]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1529:0-1536:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1913:0-1920:1 -/
 def arch.cm4.entry.role_slot
   (e : Std.Usize) (r : Std.Usize) : Result Std.Usize := do
   let i ← e * arch.cm4.plan.MAX_ROLES
   i + r
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1724:12-1738:13 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2123:12-2137:13 -/
 @[rust_loop_body]
 def arch.cm4.entry.endpoint_reinit_loop0_loop0.body
   (p : Std.U8) (e : Std.Usize) (cfg : arch.cm4.plan.EndpointCfg)
@@ -7496,7 +7498,7 @@ def arch.cm4.entry.endpoint_reinit_loop0_loop0.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1724:12-1738:13 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2123:12-2137:13 -/
 @[rust_loop]
 def arch.cm4.entry.endpoint_reinit_loop0_loop0
   (state : arch.cm4.plan.ArchState) (p : Std.U8) (e : Std.Usize)
@@ -7509,7 +7511,7 @@ def arch.cm4.entry.endpoint_reinit_loop0_loop0
     (state, r)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1700:4-1754:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2099:4-2153:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.endpoint_reinit_loop0.body
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T) (p : Std.U8)
@@ -7536,7 +7538,7 @@ def arch.cm4.entry.endpoint_reinit_loop0.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1700:4-1754:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2099:4-2153:5 -/
 @[rust_loop]
 def arch.cm4.entry.endpoint_reinit_loop0
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -7550,7 +7552,7 @@ def arch.cm4.entry.endpoint_reinit_loop0
     (state, e)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1686:0-1755:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2085:0-2154:1 -/
 def arch.cm4.entry.endpoint_reinit
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
   (state : arch.cm4.plan.ArchState) (p : Std.U8) :
@@ -7560,7 +7562,7 @@ def arch.cm4.entry.endpoint_reinit
   arch.cm4.entry.endpoint_reinit_loop0 TablesInst tables state p n 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1231:4-1249:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1594:4-1612:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.dma_stop_partition_loop.body
   {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7596,7 +7598,7 @@ def arch.cm4.entry.dma_stop_partition_loop.body
   else ok (done hw)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1231:4-1249:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1594:4-1612:5 -/
 @[rust_loop]
 def arch.cm4.entry.dma_stop_partition_loop
   {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7610,7 +7612,7 @@ def arch.cm4.entry.dma_stop_partition_loop
     (hw, i)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1222:0-1250:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1585:0-1613:1 -/
 def arch.cm4.entry.dma_stop_partition
   {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
   (TablesInst : arch.cm4.entry.Tables T) (hw : A) (tables : T) (p : Std.U8) :
@@ -7621,7 +7623,7 @@ def arch.cm4.entry.dma_stop_partition
     n 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::apply_core]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 830:4-874:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1038:4-1088:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.cm4.entry.apply_core_loop0.body
@@ -7659,7 +7661,7 @@ def arch.cm4.entry.apply_core_loop0.body
   else ok (done hw)
 
 /-- [rsk_kernel::arch::cm4::entry::apply_core]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 830:4-874:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1038:4-1088:5
     Visibility: public -/
 @[rust_loop]
 def arch.cm4.entry.apply_core_loop0
@@ -7675,7 +7677,7 @@ def arch.cm4.entry.apply_core_loop0
     (hw, t)
 
 /-- [rsk_kernel::arch::cm4::entry::apply_core]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 878:4-911:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1092:4-1126:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.cm4.entry.apply_core_loop1.body
@@ -7717,7 +7719,7 @@ def arch.cm4.entry.apply_core_loop1.body
   else ok (done (k, hw, state))
 
 /-- [rsk_kernel::arch::cm4::entry::apply_core]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 878:4-911:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1092:4-1126:5
     Visibility: public -/
 @[rust_loop]
 def arch.cm4.entry.apply_core_loop1
@@ -7733,7 +7735,7 @@ def arch.cm4.entry.apply_core_loop1
     (k, hw, state, p)
 
 /-- [rsk_kernel::arch::cm4::entry::apply_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 764:0-937:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 964:0-1167:1
     Visibility: public -/
 def arch.cm4.entry.apply_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -7783,7 +7785,7 @@ def arch.cm4.entry.apply_core
   else ok (safe, k2, hw5, state1)
 
 /-- [rsk_kernel::arch::cm4::entry::vectors_ok]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 946:4-978:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1176:4-1208:1 -/
 @[rust_loop_body]
 def arch.cm4.entry.vectors_ok_loop.body
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -7824,7 +7826,7 @@ def arch.cm4.entry.vectors_ok_loop.body
   else ok (done true)
 
 /-- [rsk_kernel::arch::cm4::entry::vectors_ok]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 946:4-978:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1176:4-1208:1 -/
 @[rust_loop]
 def arch.cm4.entry.vectors_ok_loop
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -7836,7 +7838,7 @@ def arch.cm4.entry.vectors_ok_loop
     t
 
 /-- [rsk_kernel::arch::cm4::entry::vectors_ok]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 940:0-978:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1170:0-1208:1 -/
 def arch.cm4.entry.vectors_ok
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
   (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) :
@@ -7846,7 +7848,7 @@ def arch.cm4.entry.vectors_ok
   arch.cm4.entry.vectors_ok_loop TablesInst tables n 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::boot_vectors]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1035:4-1073:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1390:4-1428:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.boot_vectors_loop.body
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -7886,7 +7888,7 @@ def arch.cm4.entry.boot_vectors_loop.body
   else ok (done hw)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_vectors]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1035:4-1073:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1390:4-1428:5 -/
 @[rust_loop]
 def arch.cm4.entry.boot_vectors_loop
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -7901,7 +7903,7 @@ def arch.cm4.entry.boot_vectors_loop
     (hw, n)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_vectors]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1021:0-1074:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1376:0-1429:1 -/
 def arch.cm4.entry.boot_vectors
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7921,7 +7923,7 @@ def arch.cm4.ghostv.ghost_seq_empty
   verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_boot]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1287:4-1298:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1650:4-1661:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.dma_boot_loop.body
   {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7947,7 +7949,7 @@ def arch.cm4.entry.dma_boot_loop.body
   else ok (done hw)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_boot]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1287:4-1298:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1650:4-1661:5 -/
 @[rust_loop]
 def arch.cm4.entry.dma_boot_loop
   {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7961,7 +7963,7 @@ def arch.cm4.entry.dma_boot_loop
     (hw, i)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_boot]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1282:0-1299:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1645:0-1662:1 -/
 def arch.cm4.entry.dma_boot
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -7972,7 +7974,7 @@ def arch.cm4.entry.dma_boot
   arch.cm4.entry.dma_boot_loop KernelArchInst TablesInst hw tables n 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1264:4-1278:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1627:4-1641:1 -/
 @[rust_loop_body]
 def arch.cm4.entry.dma_windows_ok_loop.body
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
@@ -7999,7 +8001,7 @@ def arch.cm4.entry.dma_windows_ok_loop.body
   else ok (done true)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1264:4-1278:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1627:4-1641:1 -/
 @[rust_loop]
 def arch.cm4.entry.dma_windows_ok_loop
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
@@ -8013,7 +8015,7 @@ def arch.cm4.entry.dma_windows_ok_loop
     i
 
 /-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1259:0-1278:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1622:0-1641:1 -/
 def arch.cm4.entry.dma_windows_ok
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
   (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) :
@@ -8024,7 +8026,7 @@ def arch.cm4.entry.dma_windows_ok
     0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::boot_core]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1114:4-1122:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1477:4-1485:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.cm4.entry.boot_core_loop0.body
@@ -8041,7 +8043,7 @@ def arch.cm4.entry.boot_core_loop0.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_core]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1114:4-1122:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1477:4-1485:5
     Visibility: public -/
 @[rust_loop]
 def arch.cm4.entry.boot_core_loop0
@@ -8053,7 +8055,7 @@ def arch.cm4.entry.boot_core_loop0
     (state, l)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_core]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1185:4-1191:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1548:4-1554:5
     Visibility: public -/
 @[rust_loop_body]
 def arch.cm4.entry.boot_core_loop1.body
@@ -8075,7 +8077,7 @@ def arch.cm4.entry.boot_core_loop1.body
   else ok (done a)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_core]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1185:4-1191:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1548:4-1554:5
     Visibility: public -/
 @[rust_loop]
 def arch.cm4.entry.boot_core_loop1
@@ -8089,7 +8091,7 @@ def arch.cm4.entry.boot_core_loop1
     (a, p)
 
 /-- [rsk_kernel::arch::cm4::entry::boot_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1087:0-1209:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1442:0-1572:1
     Visibility: public -/
 def arch.cm4.entry.boot_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -8235,7 +8237,7 @@ def arch.cm4.entry.boot_core
     ok (false, k, hw2, state)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_request_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1323:0-1364:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1686:0-1729:1 -/
 def arch.cm4.entry.dma_request_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8271,7 +8273,7 @@ def arch.cm4.entry.dma_request_core
     ok (accepted, k1, hw)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_write_core]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1435:8-1451:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1802:8-1818:9 -/
 @[rust_loop_body]
 def arch.cm4.entry.dma_write_core_loop.body
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -8307,7 +8309,7 @@ def arch.cm4.entry.dma_write_core_loop.body
   else ok (done mediated)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_write_core]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1435:8-1451:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1802:8-1818:9 -/
 @[rust_loop]
 def arch.cm4.entry.dma_write_core_loop
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -8321,7 +8323,7 @@ def arch.cm4.entry.dma_write_core_loop
     (mediated, j)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_write_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1398:0-1463:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1763:0-1830:1 -/
 def arch.cm4.entry.dma_write_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8381,7 +8383,7 @@ def arch.cm4.entry.dma_write_core
     ok (false, k1, hw)
 
 /-- [rsk_kernel::arch::cm4::entry::raise_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1470:0-1501:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1837:0-1885:1 -/
 def arch.cm4.entry.raise_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8424,7 +8426,7 @@ def arch.cm4.entry.raise_core
     ok (accepted, k1, hw)
 
 /-- [rsk_kernel::arch::cm4::entry::channel_index]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1517:0-1526:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1901:0-1910:1 -/
 def arch.cm4.entry.channel_index
   (e : Std.Usize) («from» : Std.Usize) («to» : Std.Usize) :
   Result Std.Usize
@@ -8436,7 +8438,7 @@ def arch.cm4.entry.channel_index
   i3 + «to»
 
 /-- [rsk_kernel::arch::cm4::entry::channel_push]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1772:0-1792:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2171:0-2191:1 -/
 def arch.cm4.entry.channel_push
   (state : arch.cm4.plan.ArchState) (ch : Std.Usize) (cap : Std.U8) :
   Result ((Option Std.U8) × arch.cm4.plan.ArchState)
@@ -8459,7 +8461,7 @@ def arch.cm4.entry.channel_push
     ok (o, { state with fifos := a1 })
 
 /-- [rsk_kernel::arch::cm4::entry::channel_pop]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1799:0-1828:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2198:0-2227:1 -/
 def arch.cm4.entry.channel_pop
   (state : arch.cm4.plan.ArchState) (ch : Std.Usize) (cap : Std.U8) :
   Result ((Option Std.U8) × arch.cm4.plan.ArchState)
@@ -8482,7 +8484,7 @@ def arch.cm4.entry.channel_pop
     ok (slot, { state with fifos := a1 })
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1861:4-1875:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2260:4-2274:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.endpoint_reinit_one_loop0.body
   (i : Std.Usize) (base : Std.Usize) (state : arch.cm4.plan.ArchState)
@@ -8502,7 +8504,7 @@ def arch.cm4.entry.endpoint_reinit_one_loop0.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1861:4-1875:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2260:4-2274:5 -/
 @[rust_loop]
 def arch.cm4.entry.endpoint_reinit_one_loop0
   (i : Std.Usize) (state : arch.cm4.plan.ArchState) (base : Std.Usize)
@@ -8515,7 +8517,7 @@ def arch.cm4.entry.endpoint_reinit_one_loop0
     (state, c)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1878:4-1892:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2277:4-2291:5 -/
 @[rust_loop_body]
 def arch.cm4.entry.endpoint_reinit_one_loop1.body
   (rbase : Std.Usize) (state : arch.cm4.plan.ArchState) (r : Std.Usize) :
@@ -8531,7 +8533,7 @@ def arch.cm4.entry.endpoint_reinit_one_loop1.body
   else ok (done state)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1878:4-1892:5 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2277:4-2291:5 -/
 @[rust_loop]
 def arch.cm4.entry.endpoint_reinit_one_loop1
   (state : arch.cm4.plan.ArchState) (rbase : Std.Usize) (r : Std.Usize) :
@@ -8543,7 +8545,7 @@ def arch.cm4.entry.endpoint_reinit_one_loop1
     (state, r)
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1838:0-1893:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2237:0-2292:1 -/
 def arch.cm4.entry.endpoint_reinit_one
   (state : arch.cm4.plan.ArchState) (e : Std.Usize) :
   Result arch.cm4.plan.ArchState
@@ -8555,7 +8557,7 @@ def arch.cm4.entry.endpoint_reinit_one
   arch.cm4.entry.endpoint_reinit_one_loop1 state1 rbase 0#usize
 
 /-- [rsk_kernel::arch::cm4::entry::rejection_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1972:0-1988:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2373:0-2394:1 -/
 def arch.cm4.entry.rejection_core
   {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K)
   (state : arch.cm4.plan.ArchState) (cfg : arch.cm4.plan.EndpointCfg)
@@ -8585,7 +8587,7 @@ def arch.cm4.entry.rejection_core
     ok (k1, state)
 
 /-- [rsk_kernel::arch::cm4::entry::violation_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1905:0-1952:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2304:0-2353:1 -/
 def arch.cm4.entry.violation_core
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
   (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T)
@@ -8744,7 +8746,7 @@ def arch.cm4.entry.violation_core
                             state cfg e role «from»
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_args]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1996:0-2036:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2402:0-2443:1 -/
 def arch.cm4.entry.endpoint_args
   {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
   (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) (arg : Std.U32)
@@ -8831,7 +8833,7 @@ def arch.cm4.entry.endpoint_args
                     else ok none
 
 /-- [rsk_kernel::arch::cm4::entry::copy_in_checked]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2050:0-2058:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2457:0-2467:1 -/
 def arch.cm4.entry.copy_in_checked
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8843,7 +8845,7 @@ def arch.cm4.entry.copy_in_checked
   KernelArchInst.copy_in hw dst src len
 
 /-- [rsk_kernel::arch::cm4::entry::copy_out_checked]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2063:0-2073:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2472:0-2484:1 -/
 def arch.cm4.entry.copy_out_checked
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8855,7 +8857,7 @@ def arch.cm4.entry.copy_out_checked
   KernelArchInst.copy_out hw dst src len
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_slot]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2110:0-2140:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2521:0-2553:1 -/
 def arch.cm4.entry.endpoint_slot
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
   (cfg : arch.cm4.plan.EndpointCfg) (d : Std.Usize) (slot : Std.U8) :
@@ -8898,7 +8900,7 @@ def arch.cm4.ghostv.ghost_partition
   verus_builtin.Ghost.assume_new verus_builtin.int
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_send_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2229:0-2326:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2711:0-2880:1 -/
 def arch.cm4.entry.endpoint_send_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -8975,7 +8977,7 @@ def arch.cm4.ghostv.ghost_int
   verus_builtin.Ghost.assume_new verus_builtin.int
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_recv_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2331:0-2390:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2886:0-2977:1 -/
 def arch.cm4.entry.endpoint_recv_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -9040,7 +9042,7 @@ def arch.cm4.entry.endpoint_recv_core
           ok ((arch.cm4.entry.ENDPOINT_OK, g1), k, hw1, state2)
 
 /-- [rsk_kernel::arch::cm4::entry::start_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2395:0-2421:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2982:0-3017:1
     Visibility: public -/
 def arch.cm4.entry.start_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -9070,7 +9072,7 @@ def arch.cm4.entry.start_core
 @[global_simps, irreducible] def arch.cm4.plan.FRAME_BYTES : Std.U32 := 32#u32
 
 /-- [rsk_kernel::arch::cm4::plan::frame_in_stack]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 291:0-295:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 360:0-364:1
     Visibility: public -/
 def arch.cm4.plan.frame_in_stack
   (psp : Std.U32) (bottom : Std.U32) (top : Std.U32) : Result Bool := do
@@ -9083,7 +9085,7 @@ def arch.cm4.plan.frame_in_stack
   else ok false
 
 /-- [rsk_kernel::arch::cm4::entry::psp_in_stack]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2436:0-2445:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3032:0-3041:1
     Visibility: public -/
 def arch.cm4.entry.psp_in_stack
   {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
@@ -9098,7 +9100,7 @@ def arch.cm4.entry.psp_in_stack
     arch.cm4.plan.frame_in_stack psp i i1
 
 /-- [rsk_kernel::arch::cm4::entry::svc_of_ended_job_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2453:0-2463:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3049:0-3060:1
     Visibility: public -/
 def arch.cm4.entry.svc_of_ended_job_core
   {K : Type _} {A : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
@@ -9159,7 +9161,7 @@ def arch.cm4.plan.top_active
   arch.cm4.plan.top_active_loop levels 0#usize 1#usize
 
 /-- [rsk_kernel::arch::cm4::entry::end_plan_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3017:0-3039:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3636:0-3658:1 -/
 def arch.cm4.entry.end_plan_core
   {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K)
   (state : arch.cm4.plan.ArchState) (depth_before : Std.Usize)
@@ -9176,7 +9178,7 @@ def arch.cm4.entry.end_plan_core
   else ok 0#u32
 
 /-- [rsk_kernel::arch::cm4::entry::stack_violation_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2524:0-2550:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3135:0-3169:1
     Visibility: public -/
 def arch.cm4.entry.stack_violation_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -9202,7 +9204,7 @@ def arch.cm4.entry.stack_violation_core
   ok ((hop, safe), k2, hw2, state1)
 
 /-- [rsk_kernel::arch::cm4::plan::plan_frame]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 305:0-328:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 374:0-397:1
     Visibility: public -/
 def arch.cm4.plan.plan_frame
   (floor : Std.U32) (bottom : Std.U32) (top : Std.U32) :
@@ -9241,7 +9243,7 @@ def arch.cm4.ghostv.ghost_seq_push_u8
   verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_job_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3047:0-3201:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3666:0-3838:1 -/
 def arch.cm4.entry.dispatch_job_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -9375,7 +9377,7 @@ def arch.cm4.entry.dispatch_job_core
           })
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop_body]
 def arch.cm4.entry.dispatch_vector_core_loop0.body
   (a : Array Std.U16 8#usize) (n : Std.U16) (slot : Std.Usize) (i : Std.Usize)
@@ -9400,7 +9402,7 @@ def arch.cm4.entry.dispatch_vector_core_loop0.body
   else ok (done slot)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop]
 def arch.cm4.entry.dispatch_vector_core_loop0
   (a : Array Std.U16 8#usize) (n : Std.U16) (slot : Std.Usize) (i : Std.Usize)
@@ -9413,7 +9415,7 @@ def arch.cm4.entry.dispatch_vector_core_loop0
     (slot, i)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop_body]
 def arch.cm4.entry.dispatch_vector_core_loop1.body
   (n : Std.U16) (state : arch.cm4.plan.ArchState) (slot : Std.Usize)
@@ -9441,7 +9443,7 @@ def arch.cm4.entry.dispatch_vector_core_loop1.body
   else ok (done (state, slot))
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 1:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop]
 def arch.cm4.entry.dispatch_vector_core_loop1
   (state : arch.cm4.plan.ArchState) (n : Std.U16) (slot : Std.Usize)
@@ -9454,7 +9456,7 @@ def arch.cm4.entry.dispatch_vector_core_loop1
     (state, slot, i)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 2:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop_body]
 def arch.cm4.entry.dispatch_vector_core_loop2.body
   (n : Std.U16) (state : arch.cm4.plan.ArchState) (slot : Std.Usize)
@@ -9482,7 +9484,7 @@ def arch.cm4.entry.dispatch_vector_core_loop2.body
   else ok (done (state, slot))
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 2:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3276:8-3284:9 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3925:8-3933:9 -/
 @[rust_loop]
 def arch.cm4.entry.dispatch_vector_core_loop2
   (state : arch.cm4.plan.ArchState) (n : Std.U16) (slot : Std.Usize)
@@ -9495,7 +9497,7 @@ def arch.cm4.entry.dispatch_vector_core_loop2
     (state, slot, i)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3209:0-3332:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3846:0-3988:1 -/
 def arch.cm4.entry.dispatch_vector_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -9863,7 +9865,7 @@ def arch.cm4.entry.dispatch_vector_core
             hw, state)
 
 /-- [rsk_kernel::arch::cm4::entry::intake_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3339:0-3379:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4027:0-4088:1 -/
 def arch.cm4.entry.intake_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -9910,7 +9912,7 @@ def arch.cm4.entry.intake_core
   ok ((hop, safe), k3, hw4, state1)
 
 /-- [rsk_kernel::arch::cm4::entry::unbound_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3384:0-3411:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4093:0-4131:1 -/
 def arch.cm4.entry.unbound_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -9935,7 +9937,7 @@ def arch.cm4.entry.unbound_core
   ok ((hop, safe), k2, hw3, state1)
 
 /-- [rsk_kernel::arch::cm4::entry::timer_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3555:0-3592:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4332:0-4378:1
     Visibility: public -/
 def arch.cm4.entry.timer_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -9969,7 +9971,7 @@ def arch.cm4.entry.timer_core
   ok ((hop, safe), k2, hw5, state2)
 
 /-- [rsk_kernel::arch::cm4::entry::irq_entry_core]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3468:8-3482:9
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4211:8-4231:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.cm4.entry.irq_entry_core_loop.body
@@ -9993,7 +9995,7 @@ def arch.cm4.entry.irq_entry_core_loop.body
   else ok (done (hw, state))
 
 /-- [rsk_kernel::arch::cm4::entry::irq_entry_core]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3468:8-3482:9
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4211:8-4231:9
     Visibility: public -/
 @[rust_loop]
 def arch.cm4.entry.irq_entry_core_loop
@@ -10007,7 +10009,7 @@ def arch.cm4.entry.irq_entry_core_loop
     (hw, state, i)
 
 /-- [rsk_kernel::arch::cm4::entry::irq_entry_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3419:0-3551:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4139:0-4323:1
     Visibility: public -/
 def arch.cm4.entry.irq_entry_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -10233,7 +10235,7 @@ def arch.cm4.entry.irq_entry_core
     else ok (r, k1, hw2, state1)
 
 /-- [rsk_kernel::arch::cm4::entry::svc_service_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3599:0-3710:1 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4385:0-4553:1 -/
 def arch.cm4.entry.svc_service_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
   arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
@@ -10449,7 +10451,7 @@ def arch.cm4.entry.svc_service_core
               ok ((hop, safe), k2, hw1, state1, frame)
 
 /-- [rsk_kernel::arch::cm4::entry::svc_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3720:0-3771:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4563:0-4647:1
     Visibility: public -/
 def arch.cm4.entry.svc_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -10518,7 +10520,7 @@ def arch.cm4.ghostv.ghost_seq_drop_last
   verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::epilogue_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3787:0-3975:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4663:0-4878:1
     Visibility: public -/
 def arch.cm4.entry.epilogue_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -10838,7 +10840,7 @@ def arch.cm4.ghostv.no_job_in_progress
   ok (i = 0#usize)
 
 /-- [rsk_kernel::arch::cm4::entry::fault_core]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3980:0-4022:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 4894:0-4968:1
     Visibility: public -/
 def arch.cm4.entry.fault_core
   {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
@@ -10874,7 +10876,7 @@ def arch.cm4.entry.fault_core
   ok ((hop, safe), k2, hw3, state1)
 
 /-- [rsk_kernel::arch::cm4::SysTables]
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 178:0-178:50 -/
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 187:0-187:50 -/
 @[reducible]
 def arch.cm4.SysTables (S : Type _) := core.marker.PhantomData S
 
@@ -10907,7 +10909,7 @@ structure arch.SystemTables (Self : Type _) where
   task_entry_address : Std.U8 → Result Std.U32
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::binding]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 181:4-183:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 190:4-192:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.binding
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10917,7 +10919,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.binding
   SystemTablesInst.binding n
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dispatch_vector]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 184:4-186:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 193:4-195:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dispatch_vector
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10927,7 +10929,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dispatch_vector
   SystemTablesInst.dispatch_vector t
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::intake_vector]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 187:4-189:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 196:4-198:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.intake_vector
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10937,7 +10939,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.intake_vector
   SystemTablesInst.intake_vector t
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::stack_top]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 190:4-192:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 199:4-201:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_top
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10947,7 +10949,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_top
   SystemTablesInst.stack_top p
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::stack_bottom]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 193:4-195:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 202:4-204:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_bottom
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10957,7 +10959,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_bottom
   SystemTablesInst.stack_bottom p
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::task_entry_address]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 196:4-198:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 205:4-207:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.task_entry_address
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10967,7 +10969,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.task_entry_address
   SystemTablesInst.task_entry_address t
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::irq_count]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 199:4-205:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 208:4-214:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.irq_count
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10977,7 +10979,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.irq_count
   SystemTablesInst.IRQ_COUNT
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::config_checksum]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 206:4-212:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 215:4-221:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.config_checksum
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10987,7 +10989,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.config_checksum
   SystemTablesInst.CONFIG_CHECKSUM
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::layout_checksum]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 213:4-219:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 222:4-228:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.layout_checksum
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -10997,7 +10999,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.layout_checksum
   SystemTablesInst.LAYOUT_CHECKSUM
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::timer_vector]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 220:4-222:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 229:4-231:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.timer_vector
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11007,7 +11009,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.timer_vector
   SystemTablesInst.TIMER_VECTOR
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::priority_bits]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 223:4-225:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 232:4-234:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.priority_bits
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11017,7 +11019,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.priority_bits
   SystemTablesInst.PRIORITY_BITS
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::boot_expect]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 226:4-237:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 235:4-246:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.boot_expect
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11031,7 +11033,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.boot_expect
   ok { priority_bits := i, cpuid := i1, hfclk_xtal := b, fpu_needed := b1 }
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::tick_hz]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 238:4-240:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 247:4-249:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.tick_hz
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11041,7 +11043,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.tick_hz
   SystemTablesInst.TICK_HZ
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::fp_flush_to_zero]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 241:4-243:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 250:4-252:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.fp_flush_to_zero
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11051,7 +11053,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.fp_flush_to_zero
   SystemTablesInst.FP_FLUSH_TO_ZERO
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dma_count]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 244:4-246:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 253:4-255:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma_count
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11061,7 +11063,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma_count
   SystemTablesInst.DMA_COUNT
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dma]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 247:4-249:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 256:4-258:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11071,7 +11073,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma
   SystemTablesInst.dma i
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::signal_count]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 250:4-252:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 259:4-261:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal_count
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11081,7 +11083,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal_count
   SystemTablesInst.SIGNAL_COUNT
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::signal]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 253:4-255:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 262:4-264:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11091,7 +11093,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal
   SystemTablesInst.signal i
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint_count]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 256:4-258:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 265:4-267:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint_count
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11101,7 +11103,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint_count
   SystemTablesInst.ENDPOINT_COUNT
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 259:4-261:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 268:4-270:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint
   {S : Type _} (SystemTablesInst : arch.SystemTables S)
@@ -11111,7 +11113,7 @@ def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint
   SystemTablesInst.endpoint i
 
 /-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint_storage]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 262:4-264:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 271:4-273:5
     Visibility: public -/
 def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint_storage
   {S : Type _} (SystemTablesInst : arch.SystemTables S)

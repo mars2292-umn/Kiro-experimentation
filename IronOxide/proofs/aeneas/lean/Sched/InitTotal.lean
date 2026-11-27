@@ -3,12 +3,12 @@ open Aeneas Aeneas.Std Result
 
 /-! # `init` returns (2026-11-20)
 
-`Bound::init` builds the Kernel state (`Kernel::new`) and every Partition's
+`Bound::init` builds the Kernel state (`Kernel::init`) and every Partition's
 MPU view (`Layout::view`). Both return once `validate` accepted the tables:
 the view writes one region per live window, at most 5 of them after the
 three fixed regions, inside the 8 regions of a view.
 
-`Kernel::new` ends in `no_history`, the empty ghost history. The build
+`Kernel::init` ends in `no_history`, the empty ghost history. The build
 without Verus turns its body into a closure, which the translation keeps
 opaque, so that it returns is the one thing assumed here (`NoHist`). -/
 
@@ -84,11 +84,13 @@ windows. -/
       | (simp_all; scalar_tac)
   · trivial
 
-/-- **`Kernel::new` returns**, given that its ghost history's constructor
-does. -/
-theorem kernel_new_t (hnh : NoHist NT NR NP NL NS NE) (cfg : logic.Config NT NR NP) :
-    logic.kernel.Kernel.new NL NS NE cfg ⦃ _ => True ⦄ := by
-  unfold logic.kernel.Kernel.new logic.sched.Sched.new logic.time.Timing.new logic.time.Slots.new
+/-- **`Kernel::init` returns**, from any state, given that its ghost
+history's constructor does. (The name is of `Kernel::new`, whose body
+`init` has had since 2026-11-27.) -/
+theorem kernel_new_t (hnh : NoHist NT NR NP NL NS NE) (kold : logic.kernel.Kernel NT NR NP NL NS NE)
+    (cfg : logic.Config NT NR NP) :
+    logic.kernel.Kernel.init kold cfg ⦃ _ => True ⦄ := by
+  unfold logic.kernel.Kernel.init logic.sched.Sched.new logic.time.Timing.new logic.time.Slots.new
     logic.budget.Budget.new logic.log.Log.new
   try simp only [bind_ok]
   refine WP.spec_bind (Pₘ := fun _ => True) ?_ (fun t _ => ?_)
@@ -109,7 +111,7 @@ theorem binit_returns (hnh : NoHist NT NR NP NL NS NE)
   obtain ⟨hlo, _, _⟩ := hp rfl
   have ht : arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init b ⦃ _ => True ⦄ := by
     unfold arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
-    refine WP.spec_bind (kernel_new_t hnh b.cfg) (fun k _ => ?_)
+    refine WP.spec_bind (kernel_new_t hnh b.kernel b.cfg) (fun k _ => ?_)
     refine WP.spec_bind (init_loop_t b.layout b.views 0#usize hlo) (fun a _ => ?_)
     exact (WP.spec_ok _).mpr trivial
   obtain ⟨b', hb', _⟩ := spec_returns ht

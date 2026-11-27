@@ -22,6 +22,7 @@ inductive AEff where
   | spDown (n : Nat)
   | spUp (n : Nat)
   | spDynamic
+  | spUnread
   | call (t : Nat)
   | branch (t : Nat)
   | cbranch (t : Nat)
@@ -72,14 +73,66 @@ def D16 (h pc : Nat) : AEff :=
     .cbranch (pc + 4 + ((h / 512 % 2) * 64 + (h / 8 % 32) * 2))
   else .plain
 
+/-- The modified immediate `i:imm3:imm8` expanded, as `thumb_expand_imm`
+computes it: the byte, or the byte repeated, when the top two bits are 00;
+otherwise `'1':imm7` rotated right by the top five bits, which is a shift
+left by 32 minus that amount (the amount is 8 or more and the value has 8
+bits). `Tools/LinkThumbSpec.lean` compares it with the manual's
+`ThumbExpandImm` (`Arm.expandImm`). -/
+def expand12 (n : Nat) : Nat :=
+  if n / 1024 % 4 = 0 then
+    (if n / 256 % 4 = 0 then n % 256
+     else if n / 256 % 4 = 1 then n % 256 * 65536 + n % 256
+     else if n / 256 % 4 = 2 then n % 256 * 16777216 + n % 256 * 256
+     else n % 256 * 16777216 + n % 256 * 65536 + n % 256 * 256 + n % 256)
+  else (128 + n % 128) * 2 ^ (32 - n / 128 % 32)
+
+/-- The 12 bits `i:imm3:imm8` of a data-processing instruction with an
+immediate. -/
+def imm12 (a b : Nat) : Nat := (a / 1024 % 2) * 2048 + (b / 4096 % 8) * 256 + b % 256
+
+/-- What `sp_unread` answers: the 32-bit instruction `a b` is of a class
+that can write register 13 (as a destination, as a loaded register, or as
+a base register written back). By class of A5.3: data processing with an
+immediate (first halfword 11110, bit 15 of the second clear); load and
+store multiple; the exclusive forms; load and store of two registers;
+data processing with a shifted register; load and store of one register;
+data processing with registers, multiply and divide; coprocessor load,
+store and two-register transfers; one-register transfers from a
+coprocessor. -/
+def Unread (a b : Nat) : Prop :=
+  if a / 2048 = 30 then b / 4096 < 8 ∧ b / 256 % 16 = 13
+  else if a / 2048 = 29 ∧ a / 512 % 4 = 0 then
+    (if a / 64 % 2 = 0 then
+       (a / 32 % 2 = 1 ∧ a % 16 = 13) ∨ (a / 16 % 2 = 1 ∧ b / 8192 % 2 = 1)
+     else if a / 256 % 2 = 0 ∧ a / 32 % 2 = 0 then
+       ((a / 16 % 16 = 4 ∧ b / 256 % 16 = 13) ∨ (a / 16 % 16 = 12 ∧ b % 16 = 13)) ∨
+         (a / 16 % 2 = 1 ∧ b / 4096 = 13)
+     else (a / 32 % 2 = 1 ∧ a % 16 = 13) ∨ (a / 16 % 2 = 1 ∧ (b / 4096 = 13 ∨ b / 256 % 16 = 13)))
+  else if a / 2048 = 29 ∧ a / 512 % 4 = 1 then b / 256 % 16 = 13
+  else if a / 2048 = 31 ∧ a / 512 % 4 = 0 then
+    (((a / 128 % 2 = 0 ∧ b / 2048 % 2 = 1) ∧ b / 256 % 2 = 1) ∧ a % 16 = 13) ∨
+      (a / 16 % 2 = 1 ∧ b / 4096 = 13)
+  else if a / 2048 = 31 ∧ a / 512 % 4 = 1 then
+    b / 256 % 16 = 13 ∨ (a / 128 % 4 = 3 ∧ b / 4096 = 13)
+  else if a / 512 % 4 = 2 then
+    (a / 32 % 2 = 1 ∧ a % 16 = 13) ∨
+      (((a / 256 % 2 = 0 ∧ a / 128 % 2 = 0) ∧ a / 16 % 2 = 1) ∧ (b / 4096 = 13 ∨ a % 16 = 13))
+  else (a / 256 % 2 = 0 ∧ b / 16 % 2 = 1) ∧ (a / 16 % 2 = 1 ∧ b / 4096 = 13)
+
+instance (a b : Nat) : Decidable (Unread a b) := by unfold Unread; infer_instance
+
 /-- What `decode32_static` answers for the halfwords `a`, `b` at `pc`;
-`none` where this file does not say (`sub`/`add` of a constant to SP in
-its 32-bit encodings, a 32-bit conditional branch). -/
+`none` where this file does not say (a 32-bit conditional branch). The
+answer `spUnread` (2026-11-27) is for an instruction of a class that can
+write SP (`Unread`) that no earlier case read a stack-pointer change
+from, and for `mrs` to SP: the Link_Checker refuses the function. -/
 def D32 (a b pc : Nat) : Option AEff :=
   if a = 0xF3BF ∧ b / 16 = 0x8F4 then some .plain
   else if (a / 16 = 0xF8D ∨ a / 16 = 0xF85) ∧ b / 4096 = 13 then some .spDynamic
   else if a / 16 = 0xF38 ∧ b / 4096 = 8 then some .plain
-  else if a = 0xF3EF ∧ b / 4096 = 8 then some .plain
+  else if a = 0xF3EF ∧ b / 4096 = 8 then
+    (if b / 256 % 16 = 13 then some .spUnread else some .plain)
   else if a = 0xE92D then some (.spDown (4 * ones 16 b))
   else if a = 0xE8BD then
     (if b / 32768 % 2 = 1 then some .ret else some (.spUp (4 * ones 16 b)))
@@ -88,12 +141,22 @@ def D32 (a b pc : Nat) : Option AEff :=
   else if a = 0xF84D ∧ b / 256 % 8 = 5 then some (.spDown (b % 256))
   else if a = 0xE96D then some (.spDown (4 * (b % 256)))
   else if a = 0xF85D ∧ b / 4096 = 15 then some .ret
-  else if b / 32768 % 2 = 0 ∧ (a = 0xF1AD ∨ a = 0xF1BD ∨ a = 0xF2AD) ∧ b / 256 % 16 = 13 then none
-  else if b / 32768 % 2 = 0 ∧ (a = 0xF10D ∨ a = 0xF11D ∨ a = 0xF20D) ∧ b / 256 % 16 = 13 then none
+  else if a = 0xF85D ∧ b / 256 % 16 = 11 then some (.spUp (b % 256))
+  else if b / 32768 % 2 = 0 ∧
+      ((a / 2048 = 30 ∧ a / 32 % 32 = 13 ∧ a % 16 = 13) ∨ (a / 2048 = 30 ∧ a % 1024 = 685)) ∧
+      b / 256 % 16 = 13 then
+    (if a / 2048 = 30 ∧ a % 1024 = 685 then some (.spDown (imm12 a b))
+     else some (.spDown (expand12 (imm12 a b))))
+  else if b / 32768 % 2 = 0 ∧
+      ((a / 2048 = 30 ∧ a / 32 % 32 = 8 ∧ a % 16 = 13) ∨ (a / 2048 = 30 ∧ a % 1024 = 525)) ∧
+      b / 256 % 16 = 13 then
+    (if a / 2048 = 30 ∧ a % 1024 = 525 then some (.spUp (imm12 a b))
+     else some (.spUp (expand12 (imm12 a b))))
   else if (a = 0xEBAD ∨ a = 0xEBBD ∨ a = 0xEB0D ∨ a = 0xEB1D) ∧ b / 256 % 16 = 13 then
     some .spDynamic
   else if b / 32768 % 2 = 0 ∧ ((a / 2048 = 30 ∧ a / 32 % 32 = 2 ∧ a % 16 = 15) ∨ (a / 2048 = 30 ∧ a / 16 % 64 = 36)) ∧
       b / 256 % 16 = 13 then some .spDynamic
+  else if Unread a b then some .spUnread
   else if b / 32768 % 2 = 0 ∧ a / 2048 = 30 ∧ (a / 16 % 64 = 36 ∨ a / 16 % 64 = 44) then some .plain
   else if a = 0xF8DF ∨ a = 0xF85F then some .plain
   else if (a / 8192 = 7 ∧ a / 1024 % 4 = 3) ∧ b / 512 % 8 = 5 then some .plain
@@ -109,14 +172,15 @@ def D32 (a b pc : Nat) : Option AEff :=
 
 /-- The stack-pointer change the Link_Checker reads is the one the
 operation makes: for every state in which the instruction's operation has
-a result. `spDynamic` claims nothing (the Link_Checker gives such a
-function no bound). -/
+a result. `spDynamic` and `spUnread` claim nothing (the Link_Checker
+gives such a function no bound). -/
 def SpAgrees (e : AEff) (i : Instr) : Prop :=
   ∀ (len : W) (s t : St), eff i len s = some t →
     match e with
     | .spDown n => t.sp = s.sp - BitVec.ofNat 32 n
     | .spUp n => t.sp = s.sp + BitVec.ofNat 32 n
     | .spDynamic => True
+    | .spUnread => True
     | _ => t.sp = s.sp
 
 /-- The target the Link_Checker reads is the address the operation loads:

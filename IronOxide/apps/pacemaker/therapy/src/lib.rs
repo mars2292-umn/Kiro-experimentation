@@ -639,9 +639,12 @@ impl Timing {
     /// first hears the link finds it down.
     ///
     /// The function is the sequence of its parts (`heard`, `taken`,
-    /// `trip`, `status_of` below), each a function of its own: as one
-    /// body its verification condition was at the solvers' limit after
-    /// stage E4 (findings B40).
+    /// `trip`, `served`, `status_of` below), each a function of its own:
+    /// as one body its verification condition was at the solvers' limit
+    /// after stage E4 (findings B40). `served`, the Job above the trip
+    /// level, was parted from it on 2026-11-27: with alt-ergo and z3 alone
+    /// this function took 994 goals and the member 17 minutes, against the
+    /// verification job's bound of 600 s (findings B49).
     ///
     /// Contract (2026-11-25; PM7.2, PM30.3): a Job that finds the battery
     /// below the trip level, on hardware without a fault, ends with the
@@ -651,7 +654,7 @@ impl Timing {
     #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).started && tripped_off(*self) ==> tripped_off(^self)))]
     #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((*self).started && (*self).link.tripped@ == 0 && (^self).link.tripped@ != 0 ==> off((^self).state) && (^self).written@ == 0 && (^self).drained@ == 0))]
     fn on_control(&mut self, inbox: &Inbox) -> [u32; pm_core::wire::STATUS_WORDS] {
-        use pm_core::wire::{code, code_of, seq_of, verdict};
+        use pm_core::wire::{seq_of, verdict};
         if !self.started {
             self.init();
         }
@@ -674,23 +677,9 @@ impl Timing {
                 }
                 link.test = 0;
             } else {
-                link.tripped = 0;
-                if let Some(command) = command {
-                    event(state, ring, written, drained, marks, counts, &mut hw, Event::Command(command));
-                    if code_of(&inbox.command) == code::TEMPORARY && !state.temporary_wanted {
-                        v = verdict::DECLINED;
-                    }
-                    answered = true;
-                }
-                // A threshold test is begun only in the Temporary State.
-                if code_of(&inbox.command) == code::THRESHOLD_START && inbox.has_command && !matches!(state.therapy, Therapy::Temporary) {
-                    link.test = 0;
-                    v = verdict::DECLINED;
-                }
-                let now = hw.now();
-                let magnet = hw.magnet();
-                event(state, ring, written, drained, marks, counts, &mut hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
-                threshold(state, ring, written, drained, marks, counts, link, &mut hw);
+                let (verdict_now, answered_now) = served(state, ring, written, drained, marks, counts, link, &mut hw, inbox, command, activity, battery);
+                v = verdict_now;
+                answered = answered || answered_now;
             }
             hw.refresh(Chamber::A);
             hw.refresh(Chamber::V);
@@ -771,6 +760,39 @@ fn taken(link: &mut LinkSide, inbox: &Inbox) -> (Option<pm_core::Command>, bool)
         }
     }
     (command, answered)
+}
+
+/// A Job of `control` above the trip level, on hardware without a fault:
+/// the command of the Job's message, if it has one, is given to the step;
+/// a threshold test asked for outside the Temporary State is declined;
+/// then the tick, and the threshold test's own step. Returns the verdict
+/// for the message and whether the message is answered by this.
+///
+/// Contract: the trip level's mark is cleared, and stays so.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^link).tripped@ == 0))]
+#[allow(clippy::too_many_arguments)]
+fn served<H: Hw>(state: &mut State, ring: &mut [Record; RING], written: &mut u32, drained: &mut u32, marks: &mut Marks, counts: &mut Counts, link: &mut LinkSide, hw: &mut H, inbox: &Inbox, command: Option<pm_core::Command>, activity: u8, battery: Battery) -> (u8, bool) {
+    use pm_core::wire::{code, code_of, verdict};
+    let mut v = verdict::ACCEPTED;
+    let mut answered = false;
+    link.tripped = 0;
+    if let Some(command) = command {
+        event(state, ring, written, drained, marks, counts, hw, Event::Command(command));
+        if code_of(&inbox.command) == code::TEMPORARY && !state.temporary_wanted {
+            v = verdict::DECLINED;
+        }
+        answered = true;
+    }
+    // A threshold test is begun only in the Temporary State.
+    if code_of(&inbox.command) == code::THRESHOLD_START && inbox.has_command && !matches!(state.therapy, Therapy::Temporary) {
+        link.test = 0;
+        v = verdict::DECLINED;
+    }
+    let now = hw.now();
+    let magnet = hw.magnet();
+    event(state, ring, written, drained, marks, counts, hw, Event::Tick { now, activity, magnet, battery, link_up: link.up != 0 });
+    threshold(state, ring, written, drained, marks, counts, link, hw);
+    (v, answered)
 }
 
 /// PM7.2, PM30.3: below the trip level every function is off, as a

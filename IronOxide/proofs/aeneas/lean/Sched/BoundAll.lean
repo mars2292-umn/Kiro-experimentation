@@ -15,7 +15,7 @@ method keeps it, and `bound_kopst` gives the assumption class of
 every entry core returns on the real Kernel.
 
 What stays assumed: that `init` returns once `validate` accepted the
-tables (`Kernel::new` ends in the ghost `no_history`, opaque here, and the
+tables (`Kernel::init` ends in the ghost `no_history`, opaque here, and the
 view computation `Layout::view` is not proven to return), and the classes
 about the hardware, the tables and the ghost helpers (`HwT`, `TabT`,
 `GhostT`). -/
@@ -517,7 +517,7 @@ theorem bound_init_bx {b b' : arch.bound.Bound NT NR NP NL NS NE} (hv : arch.bou
   have h := ok_inj h
   subst h
   refine ⟨hbt, hlo, hrc, ?_, hnp⟩
-  unfold logic.kernel.Kernel.new logic.sched.Sched.new logic.time.Slots.new logic.log.Log.new at hk
+  unfold logic.kernel.Kernel.init logic.sched.Sched.new logic.time.Slots.new logic.log.Log.new at hk
   simp only [bind_eq_ok, lift, bind_ok] at hk
   obtain ⟨tm, htm, bg, hbg, g, hg, hk⟩ := hk
   have hk := ok_inj hk

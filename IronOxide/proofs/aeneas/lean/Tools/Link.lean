@@ -221,7 +221,7 @@ def cert.check
   cert.check_loop g panic_usage n true 0#usize
 
 /-- [rsk_link::thumb::FpClass]
-    Source: 'crates/rsk-link/src/thumb.rs', lines 54:0-63:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 60:0-69:1
     Visibility: public -/
 @[discriminant isize]
 inductive thumb.FpClass where
@@ -231,13 +231,14 @@ inductive thumb.FpClass where
 | FpscrRead : thumb.FpClass
 
 /-- [rsk_link::thumb::Effect]
-    Source: 'crates/rsk-link/src/thumb.rs', lines 10:0-50:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 10:0-56:1
     Visibility: public -/
 @[discriminant isize]
 inductive thumb.Effect where
 | SpDown : Std.U32 → thumb.Effect
 | SpUp : Std.U32 → thumb.Effect
 | SpDynamic : thumb.Effect
+| SpUnread : thumb.Effect
 | Call : Std.U32 → thumb.Effect
 | Branch : Std.U32 → thumb.Effect
 | IndirectCall : Std.U8 → thumb.Effect
@@ -256,7 +257,7 @@ inductive thumb.Effect where
 | Other : thumb.Effect
 
 /-- [rsk_link::thumb::sign_extend]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 73:0-76:1 -/
+    Source: 'crates/rsk-link/src/thumb.rs', lines 79:0-82:1 -/
 def thumb.sign_extend (v : Std.U32) (bits : Std.U32) : Result Std.I32 := do
   let shift ← 32#u32 - bits
   let i ← v <<< shift
@@ -264,7 +265,7 @@ def thumb.sign_extend (v : Std.U32) (bits : Std.U32) : Result Std.I32 := do
   i1 >>> shift
 
 /-- [rsk_link::thumb::thumb_expand_imm]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 79:0-95:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 85:0-106:1
     Visibility: public -/
 def thumb.thumb_expand_imm (imm12 : Std.U32) : Result Std.U32 := do
   let i ← imm12 >>> 10#i32
@@ -294,10 +295,11 @@ def thumb.thumb_expand_imm (imm12 : Std.U32) : Result Std.U32 := do
     let unrotated ← lift (128#u32 ||| i2)
     let i3 ← imm12 >>> 7#i32
     let rot ← lift (i3 &&& 31#u32)
-    ok (core.num.U32.rotate_right unrotated rot)
+    let i4 ← 32#u32 - rot
+    unrotated <<< i4
 
 /-- [rsk_link::thumb::Decoded]
-    Source: 'crates/rsk-link/src/thumb.rs', lines 115:0-121:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 126:0-132:1
     Visibility: public -/
 @[discriminant isize]
 inductive thumb.Decoded where
@@ -305,7 +307,7 @@ inductive thumb.Decoded where
 | Literal : Std.U8 → Std.U32 → thumb.Decoded
 
 /-- [rsk_link::thumb::ones16]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 226:0-228:1 -/
+    Source: 'crates/rsk-link/src/thumb.rs', lines 237:0-239:1 -/
 def thumb.ones16 (v : Std.U32) : Result Std.U32 := do
   let i ← lift (v &&& 1#u32)
   let i1 ← v >>> 1#i32
@@ -355,7 +357,7 @@ def thumb.ones16 (v : Std.U32) : Result Std.U32 := do
   i42 + i44
 
 /-- [rsk_link::thumb::decode16_static]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 145:0-220:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 156:0-231:1
     Visibility: public -/
 def thumb.decode16_static
   (hw : Std.U16) (pc : Std.U32) : Result thumb.Decoded := do
@@ -497,21 +499,117 @@ def thumb.decode16_static
                             else ok (thumb.Decoded.Is thumb.Effect.Other)
 
 /-- [rsk_link::thumb::both]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 235:0-241:1 -/
+    Source: 'crates/rsk-link/src/thumb.rs', lines 246:0-252:1 -/
 def thumb.both (p : Bool) (q : Bool) : Result Bool := do
   if p
   then ok q
   else ok false
 
 /-- [rsk_link::thumb::either]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 244:0-250:1 -/
+    Source: 'crates/rsk-link/src/thumb.rs', lines 255:0-261:1 -/
 def thumb.either (p : Bool) (q : Bool) : Result Bool := do
   if p
   then ok true
   else ok q
 
+/-- [rsk_link::thumb::sp_unread]:
+    Source: 'crates/rsk-link/src/thumb.rs', lines 466:0-522:1
+    Visibility: public -/
+def thumb.sp_unread (a : Std.U32) (b : Std.U32) : Result Bool := do
+  let top ← a >>> 11#i32
+  let i ← a >>> 9#i32
+  let «class» ← lift (i &&& 3#u32)
+  let rn ← lift (a &&& 15#u32)
+  let i1 ← b >>> 8#i32
+  let rd ← lift (i1 &&& 15#u32)
+  let rt ← b >>> 12#i32
+  let i2 ← a >>> 5#i32
+  let w ← lift (i2 &&& 1#u32)
+  let i3 ← a >>> 4#i32
+  let l ← lift (i3 &&& 1#u32)
+  if top = 30#u32
+  then thumb.both (rt < 8#u32) (rd = 13#u32)
+  else
+    let b1 ← thumb.both (top = 29#u32) («class» = 0#u32)
+    if b1
+    then
+      let i4 ← a >>> 6#i32
+      let i5 ← lift (i4 &&& 1#u32)
+      if i5 = 0#u32
+      then
+        let b2 ← thumb.both (w = 1#u32) (rn = 13#u32)
+        let i6 ← b >>> 13#i32
+        let i7 ← lift (i6 &&& 1#u32)
+        let b3 ← thumb.both (l = 1#u32) (i7 = 1#u32)
+        thumb.either b2 b3
+      else
+        let i6 ← a >>> 8#i32
+        let i7 ← lift (i6 &&& 1#u32)
+        let b2 ← thumb.both (i7 = 0#u32) (w = 0#u32)
+        if b2
+        then
+          let op ← lift (i3 &&& 15#u32)
+          let b3 ← thumb.both (op = 4#u32) (rd = 13#u32)
+          let i8 ← lift (b &&& 15#u32)
+          let b4 ← thumb.both (op = 12#u32) (i8 = 13#u32)
+          let b5 ← thumb.either b3 b4
+          let b6 ← thumb.both (l = 1#u32) (rt = 13#u32)
+          thumb.either b5 b6
+        else
+          let b3 ← thumb.both (w = 1#u32) (rn = 13#u32)
+          let b4 ← thumb.either (rt = 13#u32) (rd = 13#u32)
+          let b5 ← thumb.both (l = 1#u32) b4
+          thumb.either b3 b5
+    else
+      let b2 ← thumb.both (top = 29#u32) («class» = 1#u32)
+      if b2
+      then ok (rd = 13#u32)
+      else
+        let b3 ← thumb.both (top = 31#u32) («class» = 0#u32)
+        if b3
+        then
+          let i4 ← a >>> 7#i32
+          let i5 ← lift (i4 &&& 1#u32)
+          let i6 ← b >>> 11#i32
+          let i7 ← lift (i6 &&& 1#u32)
+          let b4 ← thumb.both (i5 = 0#u32) (i7 = 1#u32)
+          let i8 ← lift (i1 &&& 1#u32)
+          let wb ← thumb.both b4 (i8 = 1#u32)
+          let b5 ← thumb.both wb (rn = 13#u32)
+          let b6 ← thumb.both (l = 1#u32) (rt = 13#u32)
+          thumb.either b5 b6
+        else
+          let b4 ← thumb.both (top = 31#u32) («class» = 1#u32)
+          if b4
+          then
+            let i4 ← a >>> 7#i32
+            let i5 ← lift (i4 &&& 3#u32)
+            let b5 ← thumb.both (i5 = 3#u32) (rt = 13#u32)
+            thumb.either (rd = 13#u32) b5
+          else
+            if «class» = 2#u32
+            then
+              let i4 ← a >>> 8#i32
+              let i5 ← lift (i4 &&& 1#u32)
+              let i6 ← a >>> 7#i32
+              let i7 ← lift (i6 &&& 1#u32)
+              let b5 ← thumb.both (i5 = 0#u32) (i7 = 0#u32)
+              let two ← thumb.both b5 (l = 1#u32)
+              let b6 ← thumb.both (w = 1#u32) (rn = 13#u32)
+              let b7 ← thumb.either (rt = 13#u32) (rn = 13#u32)
+              let b8 ← thumb.both two b7
+              thumb.either b6 b8
+            else
+              let i4 ← a >>> 8#i32
+              let i5 ← lift (i4 &&& 1#u32)
+              let i6 ← b >>> 4#i32
+              let i7 ← lift (i6 &&& 1#u32)
+              let b5 ← thumb.both (i5 = 0#u32) (i7 = 1#u32)
+              let b6 ← thumb.both (l = 1#u32) (rt = 13#u32)
+              thumb.both b5 b6
+
 /-- [rsk_link::thumb::decode32_static]:
-    Source: 'crates/rsk-link/src/thumb.rs', lines 254:0-420:1
+    Source: 'crates/rsk-link/src/thumb.rs', lines 265:0-454:1
     Visibility: public -/
 def thumb.decode32_static
   (hw1 : Std.U16) (hw2 : Std.U16) (pc : Std.U32) : Result thumb.Decoded := do
@@ -543,9 +641,14 @@ def thumb.decode32_static
         let b5 ← thumb.both (a = 62447#u32) (i6 = 32768#u32)
         if b5
         then
-          let i7 ← lift (b &&& 255#u32)
-          let i8 ← lift (UScalar.cast .U8 i7)
-          ok (thumb.Decoded.Is (thumb.Effect.Mrs i8))
+          let i7 ← b >>> 8#i32
+          let i8 ← lift (i7 &&& 15#u32)
+          if i8 = 13#u32
+          then ok (thumb.Decoded.Is thumb.Effect.SpUnread)
+          else
+            let i9 ← lift (b &&& 255#u32)
+            let i10 ← lift (UScalar.cast .U8 i9)
+            ok (thumb.Decoded.Is (thumb.Effect.Mrs i10))
         else
           if a = 59693#u32
           then
@@ -596,303 +699,343 @@ def thumb.decode32_static
                       if b7
                       then ok (thumb.Decoded.Is thumb.Effect.Return)
                       else
-                        let i11 ← b >>> 15#i32
-                        let i12 ← lift (i11 &&& 1#u32)
-                        let b8 ← thumb.either (a = 61869#u32) (a = 61885#u32)
-                        let b9 ← thumb.either b8 (a = 62125#u32)
-                        let i13 ← lift (i9 &&& 15#u32)
-                        let b10 ← thumb.both b9 (i13 = 13#u32)
-                        let b11 ← thumb.both (i12 = 0#u32) b10
-                        if b11
+                        let i11 ← lift (i9 &&& 15#u32)
+                        let b8 ← thumb.both (a = 63581#u32) (i11 = 11#u32)
+                        if b8
                         then
-                          let i14 ← a >>> 10#i32
-                          let i15 ← lift (i14 &&& 1#u32)
-                          let imm3 ← lift (i3 &&& 7#u32)
-                          let imm8 ← lift (b &&& 255#u32)
-                          let i16 ← i15 <<< 11#i32
-                          let i17 ← imm3 <<< 8#i32
-                          let i18 ← lift (i16 ||| i17)
-                          let imm12 ← lift (i18 ||| imm8)
-                          if a = 62125#u32
-                          then
-                            ok (thumb.Decoded.Is (thumb.Effect.SpDown imm12))
-                          else
-                            let imm121 ← thumb.thumb_expand_imm imm12
-                            ok (thumb.Decoded.Is (thumb.Effect.SpDown imm121))
+                          let i12 ← lift (b &&& 255#u32)
+                          ok (thumb.Decoded.Is (thumb.Effect.SpUp i12))
                         else
-                          let b12 ←
-                            thumb.either (a = 61709#u32) (a = 61725#u32)
-                          let b13 ← thumb.either b12 (a = 61965#u32)
-                          let i14 ← lift (i9 &&& 15#u32)
-                          let b14 ← thumb.both b13 (i14 = 13#u32)
-                          let b15 ← thumb.both (i12 = 0#u32) b14
-                          if b15
+                          let i12 ← b >>> 15#i32
+                          let i13 ← lift (i12 &&& 1#u32)
+                          let i14 ← lift (a &&& 64511#u32)
+                          let i15 ← lift (a &&& 64495#u32)
+                          let b9 ←
+                            thumb.either (i15 = 61869#u32) (i14 = 62125#u32)
+                          let i16 ← lift (i9 &&& 15#u32)
+                          let b10 ← thumb.both b9 (i16 = 13#u32)
+                          let b11 ← thumb.both (i13 = 0#u32) b10
+                          if b11
                           then
-                            let i15 ← a >>> 10#i32
-                            let i16 ← lift (i15 &&& 1#u32)
+                            let i17 ← a >>> 10#i32
+                            let i18 ← lift (i17 &&& 1#u32)
                             let imm3 ← lift (i3 &&& 7#u32)
                             let imm8 ← lift (b &&& 255#u32)
-                            let i17 ← i16 <<< 11#i32
-                            let i18 ← imm3 <<< 8#i32
-                            let i19 ← lift (i17 ||| i18)
-                            let imm12 ← lift (i19 ||| imm8)
-                            if a = 61965#u32
+                            let i19 ← i18 <<< 11#i32
+                            let i20 ← imm3 <<< 8#i32
+                            let i21 ← lift (i19 ||| i20)
+                            let imm12 ← lift (i21 ||| imm8)
+                            if i14 = 62125#u32
                             then
-                              ok (thumb.Decoded.Is (thumb.Effect.SpUp imm12))
+                              ok (thumb.Decoded.Is (thumb.Effect.SpDown imm12))
                             else
                               let imm121 ← thumb.thumb_expand_imm imm12
-                              ok (thumb.Decoded.Is (thumb.Effect.SpUp imm121))
+                              ok (thumb.Decoded.Is (thumb.Effect.SpDown
+                                imm121))
                           else
-                            let b16 ←
-                              thumb.either (a = 60333#u32) (a = 60349#u32)
-                            let b17 ← thumb.either b16 (a = 60173#u32)
-                            let b18 ← thumb.either b17 (a = 60189#u32)
-                            let i15 ← lift (i9 &&& 15#u32)
-                            let b19 ← thumb.both b18 (i15 = 13#u32)
-                            if b19
-                            then ok (thumb.Decoded.Is thumb.Effect.SpDynamic)
+                            let i17 ← lift (a &&& 64511#u32)
+                            let i18 ← lift (a &&& 64495#u32)
+                            let b12 ←
+                              thumb.either (i18 = 61709#u32) (i17 = 61965#u32)
+                            let i19 ← lift (i9 &&& 15#u32)
+                            let b13 ← thumb.both b12 (i19 = 13#u32)
+                            let b14 ← thumb.both (i13 = 0#u32) b13
+                            if b14
+                            then
+                              let i20 ← a >>> 10#i32
+                              let i21 ← lift (i20 &&& 1#u32)
+                              let imm3 ← lift (i3 &&& 7#u32)
+                              let imm8 ← lift (b &&& 255#u32)
+                              let i22 ← i21 <<< 11#i32
+                              let i23 ← imm3 <<< 8#i32
+                              let i24 ← lift (i22 ||| i23)
+                              let imm12 ← lift (i24 ||| imm8)
+                              if i17 = 61965#u32
+                              then
+                                ok (thumb.Decoded.Is (thumb.Effect.SpUp imm12))
+                              else
+                                let imm121 ← thumb.thumb_expand_imm imm12
+                                ok (thumb.Decoded.Is (thumb.Effect.SpUp
+                                  imm121))
                             else
-                              let i16 ← lift (a &&& 64495#u32)
-                              let i17 ← lift (a &&& 64496#u32)
-                              let b20 ←
-                                thumb.either (i16 = 61519#u32) (i17 =
-                                  62016#u32)
-                              let i18 ← lift (i9 &&& 15#u32)
-                              let b21 ← thumb.both b20 (i18 = 13#u32)
-                              let b22 ← thumb.both (i12 = 0#u32) b21
-                              if b22
+                              let b15 ←
+                                thumb.either (a = 60333#u32) (a = 60349#u32)
+                              let b16 ← thumb.either b15 (a = 60173#u32)
+                              let b17 ← thumb.either b16 (a = 60189#u32)
+                              let i20 ← lift (i9 &&& 15#u32)
+                              let b18 ← thumb.both b17 (i20 = 13#u32)
+                              if b18
                               then ok (thumb.Decoded.Is thumb.Effect.SpDynamic)
                               else
-                                let i19 ← lift (a &&& 64496#u32)
-                                let i20 ← lift (a &&& 64496#u32)
-                                let b23 ←
-                                  thumb.either (i19 = 62016#u32) (i20 =
-                                    62144#u32)
-                                let b24 ← thumb.both (i12 = 0#u32) b23
-                                if b24
+                                let i21 ← lift (a &&& 64495#u32)
+                                let i22 ← lift (a &&& 64496#u32)
+                                let b19 ←
+                                  thumb.either (i21 = 61519#u32) (i22 =
+                                    62016#u32)
+                                let i23 ← lift (i9 &&& 15#u32)
+                                let b20 ← thumb.both b19 (i23 = 13#u32)
+                                let b21 ← thumb.both (i13 = 0#u32) b20
+                                if b21
                                 then
-                                  let imm4 ← lift (a &&& 15#u32)
-                                  let i21 ← a >>> 10#i32
-                                  let i22 ← lift (i21 &&& 1#u32)
-                                  let imm3 ← lift (i3 &&& 7#u32)
-                                  let i23 ← lift (i9 &&& 15#u32)
-                                  let rd ← lift (UScalar.cast .U8 i23)
-                                  let imm8 ← lift (b &&& 255#u32)
-                                  let i24 ← imm4 <<< 12#i32
-                                  let i25 ← i22 <<< 11#i32
-                                  let i26 ← lift (i24 ||| i25)
-                                  let i27 ← imm3 <<< 8#i32
-                                  let i28 ← lift (i26 ||| i27)
-                                  let imm16 ← lift (i28 ||| imm8)
-                                  let i29 ← lift (a &&& 64496#u32)
-                                  if i29 = 62144#u32
-                                  then
-                                    let imm161 ← imm16 <<< 16#i32
-                                    ok (thumb.Decoded.Is (thumb.Effect.Constant
-                                      rd imm161))
-                                  else
-                                    ok (thumb.Decoded.Is (thumb.Effect.Constant
-                                      rd imm16))
+                                  ok (thumb.Decoded.Is thumb.Effect.SpDynamic)
                                 else
-                                  let b25 ←
-                                    thumb.either (a = 63711#u32) (a =
-                                      63583#u32)
-                                  if b25
+                                  let b22 ← thumb.sp_unread a b
+                                  if b22
                                   then
-                                    let i21 ← lift (i3 &&& 15#u32)
-                                    let rt ← lift (UScalar.cast .U8 i21)
-                                    let i22 ← pc + 4#u32
-                                    let i23 ← lift (~~~ 3#u32)
-                                    let base ← lift (i22 &&& i23)
-                                    if a = 63711#u32
-                                    then
-                                      let i24 ← lift (b &&& 4095#u32)
-                                      let addr ← base + i24
-                                      ok (thumb.Decoded.Literal rt addr)
-                                    else
-                                      let i24 ← lift (b &&& 4095#u32)
-                                      let addr ←
-                                        lift (core.num.U32.wrapping_sub base
-                                          i24)
-                                      ok (thumb.Decoded.Literal rt addr)
+                                    ok (thumb.Decoded.Is thumb.Effect.SpUnread)
                                   else
-                                    let i21 ← lift (a &&& 60416#u32)
-                                    let i22 ← lift (i9 &&& 14#u32)
-                                    let b26 ←
-                                      thumb.both (i21 = 60416#u32) (i22 =
-                                        10#u32)
-                                    if b26
+                                    let i24 ← lift (a &&& 64496#u32)
+                                    let i25 ← lift (a &&& 64496#u32)
+                                    let b23 ←
+                                      thumb.either (i24 = 62016#u32) (i25 =
+                                        62144#u32)
+                                    let b24 ← thumb.both (i13 = 0#u32) b23
+                                    if b24
                                     then
-                                      let i23 ← lift (a &&& 65024#u32)
-                                      if i23 = 60416#u32
+                                      let imm4 ← lift (a &&& 15#u32)
+                                      let i26 ← a >>> 10#i32
+                                      let i27 ← lift (i26 &&& 1#u32)
+                                      let imm3 ← lift (i3 &&& 7#u32)
+                                      let i28 ← lift (i9 &&& 15#u32)
+                                      let rd ← lift (UScalar.cast .U8 i28)
+                                      let imm8 ← lift (b &&& 255#u32)
+                                      let i29 ← imm4 <<< 12#i32
+                                      let i30 ← i27 <<< 11#i32
+                                      let i31 ← lift (i29 ||| i30)
+                                      let i32 ← imm3 <<< 8#i32
+                                      let i33 ← lift (i31 ||| i32)
+                                      let imm16 ← lift (i33 ||| imm8)
+                                      let i34 ← lift (a &&& 64496#u32)
+                                      if i34 = 62144#u32
                                       then
-                                        ok (thumb.Decoded.Is (thumb.Effect.Fp
-                                          thumb.FpClass.Move))
+                                        let imm161 ← imm16 <<< 16#i32
+                                        ok (thumb.Decoded.Is
+                                          (thumb.Effect.Constant rd imm161))
                                       else
-                                        let i24 ← lift (a &&& 65504#u32)
-                                        let i25 ← lift (b &&& 16#u32)
-                                        let b27 ←
-                                          thumb.both (i24 = 60928#u32) (i25 =
-                                            16#u32)
-                                        if b27
+                                        ok (thumb.Decoded.Is
+                                          (thumb.Effect.Constant rd imm16))
+                                    else
+                                      let b25 ←
+                                        thumb.either (a = 63711#u32) (a =
+                                          63583#u32)
+                                      if b25
+                                      then
+                                        let i26 ← lift (i3 &&& 15#u32)
+                                        let rt ← lift (UScalar.cast .U8 i26)
+                                        let i27 ← pc + 4#u32
+                                        let i28 ← lift (~~~ 3#u32)
+                                        let base ← lift (i27 &&& i28)
+                                        if a = 63711#u32
                                         then
-                                          ok (thumb.Decoded.Is (thumb.Effect.Fp
-                                            thumb.FpClass.Move))
+                                          let i29 ← lift (b &&& 4095#u32)
+                                          let addr ← base + i29
+                                          ok (thumb.Decoded.Literal rt addr)
                                         else
-                                          let i26 ← lift (b &&& 3856#u32)
-                                          let b28 ←
-                                            thumb.both (a = 61153#u32) (i26 =
-                                              2576#u32)
-                                          if b28
+                                          let i29 ← lift (b &&& 4095#u32)
+                                          let addr ←
+                                            lift (core.num.U32.wrapping_sub
+                                              base i29)
+                                          ok (thumb.Decoded.Literal rt addr)
+                                      else
+                                        let i26 ← lift (a &&& 60416#u32)
+                                        let i27 ← lift (i9 &&& 14#u32)
+                                        let b26 ←
+                                          thumb.both (i26 = 60416#u32) (i27 =
+                                            10#u32)
+                                        if b26
+                                        then
+                                          let i28 ← lift (a &&& 65024#u32)
+                                          if i28 = 60416#u32
                                           then
                                             ok (thumb.Decoded.Is
                                               (thumb.Effect.Fp
-                                              thumb.FpClass.FpscrWrite))
+                                              thumb.FpClass.Move))
                                           else
-                                            let i27 ← lift (b &&& 3856#u32)
-                                            let b29 ←
-                                              thumb.both (a = 61169#u32) (i27 =
-                                                2576#u32)
-                                            if b29
+                                            let i29 ← lift (a &&& 65504#u32)
+                                            let i30 ← lift (b &&& 16#u32)
+                                            let b27 ←
+                                              thumb.both (i29 = 60928#u32) (i30
+                                                = 16#u32)
+                                            if b27
                                             then
                                               ok (thumb.Decoded.Is
                                                 (thumb.Effect.Fp
-                                                thumb.FpClass.FpscrRead))
+                                                thumb.FpClass.Move))
                                             else
-                                              let i28 ←
-                                                lift (a &&& 65456#u32)
-                                              let i29 ← lift (b &&& 240#u32)
-                                              let b30 ←
-                                                thumb.both (i28 = 61104#u32)
-                                                  (i29 = 0#u32)
-                                              if b30
+                                              let i31 ← lift (b &&& 3856#u32)
+                                              let b28 ←
+                                                thumb.both (a = 61153#u32) (i31
+                                                  = 2576#u32)
+                                              if b28
                                               then
                                                 ok (thumb.Decoded.Is
                                                   (thumb.Effect.Fp
-                                                  thumb.FpClass.Move))
+                                                  thumb.FpClass.FpscrWrite))
                                               else
-                                                let i30 ←
-                                                  lift (a &&& 65471#u32)
-                                                let i31 ←
-                                                  lift (b &&& 208#u32)
-                                                let b31 ←
-                                                  thumb.both (i30 = 61104#u32)
-                                                    (i31 = 64#u32)
-                                                if b31
+                                                let i32 ←
+                                                  lift (b &&& 3856#u32)
+                                                let b29 ←
+                                                  thumb.both (a = 61169#u32)
+                                                    (i32 = 2576#u32)
+                                                if b29
                                                 then
                                                   ok (thumb.Decoded.Is
                                                     (thumb.Effect.Fp
-                                                    thumb.FpClass.Move))
+                                                    thumb.FpClass.FpscrRead))
                                                 else
-                                                  ok (thumb.Decoded.Is
-                                                    (thumb.Effect.Fp
-                                                    thumb.FpClass.Arith))
-                                    else
-                                      let i23 ← lift (a &&& 65520#u32)
-                                      let i24 ← lift (b &&& 65504#u32)
-                                      let b27 ←
-                                        thumb.both (i23 = 59600#u32) (i24 =
-                                          61440#u32)
-                                      if b27
-                                      then
-                                        ok (thumb.Decoded.Is
-                                          thumb.Effect.SwitchTable)
-                                      else
-                                        let i25 ← lift (a &&& 63488#u32)
-                                        let i26 ← lift (b &&& 53248#u32)
-                                        let i27 ← lift (b &&& 53248#u32)
-                                        let b28 ←
-                                          thumb.either (i26 = 53248#u32) (i27 =
-                                            36864#u32)
-                                        let b29 ←
-                                          thumb.both (i25 = 61440#u32) b28
-                                        if b29
-                                        then
-                                          let i28 ← a >>> 10#i32
-                                          let s ← lift (i28 &&& 1#u32)
-                                          let i29 ← b >>> 13#i32
-                                          let j1 ← lift (i29 &&& 1#u32)
-                                          let i30 ← b >>> 11#i32
-                                          let j2 ← lift (i30 &&& 1#u32)
-                                          let i31 ← lift (j1 ^^^ s)
-                                          let i32 ← lift (~~~ i31)
-                                          let i110 ← lift (i32 &&& 1#u32)
-                                          let i33 ← lift (j2 ^^^ s)
-                                          let i34 ← lift (~~~ i33)
-                                          let i210 ← lift (i34 &&& 1#u32)
-                                          let imm10 ← lift (a &&& 1023#u32)
-                                          let imm11 ← lift (b &&& 2047#u32)
-                                          let i35 ← s <<< 24#i32
-                                          let i36 ← i110 <<< 23#i32
-                                          let i37 ← lift (i35 ||| i36)
-                                          let i38 ← i210 <<< 22#i32
-                                          let i39 ← lift (i37 ||| i38)
-                                          let i40 ← imm10 <<< 12#i32
-                                          let i41 ← lift (i39 ||| i40)
-                                          let i42 ← imm11 <<< 1#i32
-                                          let raw ← lift (i41 ||| i42)
-                                          let imm ←
-                                            thumb.sign_extend raw 25#u32
-                                          let i43 ←
-                                            lift (UScalar.hcast .I32 pc)
-                                          let i44 ← i43 + 4#i32
-                                          let i45 ← i44 + imm
-                                          let target ←
-                                            lift (IScalar.hcast .U32 i45)
-                                          let i46 ← lift (b &&& 16384#u32)
-                                          if i46 = 16384#u32
-                                          then
-                                            ok (thumb.Decoded.Is
-                                              (thumb.Effect.Call target))
-                                          else
-                                            ok (thumb.Decoded.Is
-                                              (thumb.Effect.Branch target))
+                                                  let i33 ←
+                                                    lift (a &&& 65456#u32)
+                                                  let i34 ←
+                                                    lift (b &&& 240#u32)
+                                                  let b30 ←
+                                                    thumb.both (i33 =
+                                                      61104#u32) (i34 = 0#u32)
+                                                  if b30
+                                                  then
+                                                    ok (thumb.Decoded.Is
+                                                      (thumb.Effect.Fp
+                                                      thumb.FpClass.Move))
+                                                  else
+                                                    let i35 ←
+                                                      lift (a &&& 65471#u32)
+                                                    let i36 ←
+                                                      lift (b &&& 208#u32)
+                                                    let b31 ←
+                                                      thumb.both (i35 =
+                                                        61104#u32) (i36 =
+                                                        64#u32)
+                                                    if b31
+                                                    then
+                                                      ok (thumb.Decoded.Is
+                                                        (thumb.Effect.Fp
+                                                        thumb.FpClass.Move))
+                                                    else
+                                                      ok (thumb.Decoded.Is
+                                                        (thumb.Effect.Fp
+                                                        thumb.FpClass.Arith))
                                         else
-                                          let i28 ← lift (a &&& 63488#u32)
-                                          let i29 ← lift (b &&& 53248#u32)
-                                          let b30 ←
-                                            thumb.both (i28 = 61440#u32) (i29 =
-                                              32768#u32)
-                                          if b30
+                                          let i28 ← lift (a &&& 65520#u32)
+                                          let i29 ← lift (b &&& 65504#u32)
+                                          let b27 ←
+                                            thumb.both (i28 = 59600#u32) (i29 =
+                                              61440#u32)
+                                          if b27
                                           then
-                                            let i30 ← a >>> 10#i32
-                                            let s ← lift (i30 &&& 1#u32)
-                                            let i31 ← a >>> 6#i32
-                                            let cond ← lift (i31 &&& 15#u32)
-                                            let i32 ← lift (cond &&& 14#u32)
-                                            if i32 = 14#u32
+                                            ok (thumb.Decoded.Is
+                                              thumb.Effect.SwitchTable)
+                                          else
+                                            let i30 ← lift (a &&& 63488#u32)
+                                            let i31 ← lift (b &&& 53248#u32)
+                                            let i32 ← lift (b &&& 53248#u32)
+                                            let b28 ←
+                                              thumb.either (i31 = 53248#u32)
+                                                (i32 = 36864#u32)
+                                            let b29 ←
+                                              thumb.both (i30 = 61440#u32) b28
+                                            if b29
                                             then
-                                              ok (thumb.Decoded.Is
-                                                thumb.Effect.Other)
-                                            else
-                                              let i33 ← b >>> 13#i32
-                                              let j1 ← lift (i33 &&& 1#u32)
-                                              let i34 ← b >>> 11#i32
-                                              let j2 ← lift (i34 &&& 1#u32)
-                                              let imm6 ← lift (a &&& 63#u32)
+                                              let i33 ← a >>> 10#i32
+                                              let s ← lift (i33 &&& 1#u32)
+                                              let i34 ← b >>> 13#i32
+                                              let j1 ← lift (i34 &&& 1#u32)
+                                              let i35 ← b >>> 11#i32
+                                              let j2 ← lift (i35 &&& 1#u32)
+                                              let i36 ← lift (j1 ^^^ s)
+                                              let i37 ← lift (~~~ i36)
+                                              let i110 ← lift (i37 &&& 1#u32)
+                                              let i38 ← lift (j2 ^^^ s)
+                                              let i39 ← lift (~~~ i38)
+                                              let i210 ← lift (i39 &&& 1#u32)
+                                              let imm10 ←
+                                                lift (a &&& 1023#u32)
                                               let imm11 ←
                                                 lift (b &&& 2047#u32)
-                                              let i35 ← s <<< 20#i32
-                                              let i36 ← j2 <<< 19#i32
-                                              let i37 ← lift (i35 ||| i36)
-                                              let i38 ← j1 <<< 18#i32
-                                              let i39 ← lift (i37 ||| i38)
-                                              let i40 ← imm6 <<< 12#i32
-                                              let i41 ← lift (i39 ||| i40)
-                                              let i42 ← imm11 <<< 1#i32
-                                              let raw ← lift (i41 ||| i42)
+                                              let i40 ← s <<< 24#i32
+                                              let i41 ← i110 <<< 23#i32
+                                              let i42 ← lift (i40 ||| i41)
+                                              let i43 ← i210 <<< 22#i32
+                                              let i44 ← lift (i42 ||| i43)
+                                              let i45 ← imm10 <<< 12#i32
+                                              let i46 ← lift (i44 ||| i45)
+                                              let i47 ← imm11 <<< 1#i32
+                                              let raw ← lift (i46 ||| i47)
                                               let imm ←
-                                                thumb.sign_extend raw 21#u32
-                                              let i43 ←
+                                                thumb.sign_extend raw 25#u32
+                                              let i48 ←
                                                 lift (UScalar.hcast .I32 pc)
-                                              let i44 ← i43 + 4#i32
-                                              let i45 ← i44 + imm
-                                              let i46 ←
-                                                lift (IScalar.hcast .U32 i45)
-                                              ok (thumb.Decoded.Is
-                                                (thumb.Effect.Branch i46))
-                                          else
-                                            ok (thumb.Decoded.Is
-                                              thumb.Effect.Other)
+                                              let i49 ← i48 + 4#i32
+                                              let i50 ← i49 + imm
+                                              let target ←
+                                                lift (IScalar.hcast .U32 i50)
+                                              let i51 ←
+                                                lift (b &&& 16384#u32)
+                                              if i51 = 16384#u32
+                                              then
+                                                ok (thumb.Decoded.Is
+                                                  (thumb.Effect.Call target))
+                                              else
+                                                ok (thumb.Decoded.Is
+                                                  (thumb.Effect.Branch target))
+                                            else
+                                              let i33 ←
+                                                lift (a &&& 63488#u32)
+                                              let i34 ←
+                                                lift (b &&& 53248#u32)
+                                              let b30 ←
+                                                thumb.both (i33 = 61440#u32)
+                                                  (i34 = 32768#u32)
+                                              if b30
+                                              then
+                                                let i35 ← a >>> 10#i32
+                                                let s ← lift (i35 &&& 1#u32)
+                                                let i36 ← a >>> 6#i32
+                                                let cond ←
+                                                  lift (i36 &&& 15#u32)
+                                                let i37 ←
+                                                  lift (cond &&& 14#u32)
+                                                if i37 = 14#u32
+                                                then
+                                                  ok (thumb.Decoded.Is
+                                                    thumb.Effect.Other)
+                                                else
+                                                  let i38 ← b >>> 13#i32
+                                                  let j1 ←
+                                                    lift (i38 &&& 1#u32)
+                                                  let i39 ← b >>> 11#i32
+                                                  let j2 ←
+                                                    lift (i39 &&& 1#u32)
+                                                  let imm6 ←
+                                                    lift (a &&& 63#u32)
+                                                  let imm11 ←
+                                                    lift (b &&& 2047#u32)
+                                                  let i40 ← s <<< 20#i32
+                                                  let i41 ← j2 <<< 19#i32
+                                                  let i42 ←
+                                                    lift (i40 ||| i41)
+                                                  let i43 ← j1 <<< 18#i32
+                                                  let i44 ←
+                                                    lift (i42 ||| i43)
+                                                  let i45 ← imm6 <<< 12#i32
+                                                  let i46 ←
+                                                    lift (i44 ||| i45)
+                                                  let i47 ← imm11 <<< 1#i32
+                                                  let raw ←
+                                                    lift (i46 ||| i47)
+                                                  let imm ←
+                                                    thumb.sign_extend raw
+                                                      21#u32
+                                                  let i48 ←
+                                                    lift (UScalar.hcast .I32
+                                                      pc)
+                                                  let i49 ← i48 + 4#i32
+                                                  let i50 ← i49 + imm
+                                                  let i51 ←
+                                                    lift (IScalar.hcast .U32
+                                                      i50)
+                                                  ok (thumb.Decoded.Is
+                                                    (thumb.Effect.Branch i51))
+                                              else
+                                                ok (thumb.Decoded.Is
+                                                  thumb.Effect.Other)
 
 end rsk_link

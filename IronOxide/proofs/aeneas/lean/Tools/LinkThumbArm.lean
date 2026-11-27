@@ -33,6 +33,7 @@ import Tools.Link
 import Tools.LinkThumbDefs
 import Tools.LinkThumbSpec
 import Tools.LinkThumbProofs
+import Tools.LinkThumbProofs32
 open Aeneas Aeneas.Std Result
 
 namespace rsk_link
@@ -74,6 +75,7 @@ def SpStep (e : AEff) (s t : Arm.St) : Prop :=
   | .spDown n => t.sp = s.sp - BitVec.ofNat 32 n ∨ t.sp = s.sp
   | .spUp n => t.sp = s.sp + BitVec.ofNat 32 n ∨ t.sp = s.sp
   | .spDynamic => True
+  | .spUnread => True
   | _ => t.sp = s.sp
 
 /-- A step of the machine leaves SP, or does the instruction's operation
@@ -114,6 +116,7 @@ theorem sp_step (e : AEff) (i : Arm.Instr) (h : SpAgrees e i) (len : Arm.W) (s t
     | spDown n => exact Or.inr k
     | spUp n => exact Or.inr k
     | spDynamic => exact True.intro
+    | spUnread => exact True.intro
     | call _ => exact k
     | branch _ => exact k
     | cbranch _ => exact k
@@ -126,6 +129,7 @@ theorem sp_step (e : AEff) (i : Arm.Instr) (h : SpAgrees e i) (len : Arm.W) (s t
     | spDown n => exact Or.inl (k.trans hu')
     | spUp n => exact Or.inl (k.trans hu')
     | spDynamic => exact True.intro
+    | spUnread => exact True.intro
     | call _ => exact k.trans hu'
     | branch _ => exact k.trans hu'
     | cbranch _ => exact k.trans hu'

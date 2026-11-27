@@ -12,7 +12,7 @@ Timer: IRQ 9 (vector 25)
 
 Partitions:
   therapy (crate pacemaker_therapy, level A): fault RESTART_PARTITION, overrun RESTART_PARTITION, deadline miss RESTART_PARTITION, MIT threshold 10
-    code 65536 bytes at 0x00020000 (region 2^16, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 12288 bytes; init arena 0 bytes
+    code 65536 bytes at 0x00020000 (region 2^16, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 24576 bytes; init arena 0 bytes
     window 0x40002000 (2^12, srd 0x00, read-write): CMSDK_DUALTIMER
 
 Tasks:

@@ -6,13 +6,21 @@
 //! access to a running PG restarts the Partition and clears them, design
 //! "What the first build settled"). Nothing else differs.
 rsk::app! {
-    target = nrf52840, profile = Ravenscar, operating_duration = 45.s(),
+    // The Target with the enlarged Kernel regions (64 KiB of Kernel RAM)
+    // since 2026-11-27: with every stack-pointer decrement read by the
+    // Link_Checker and the main-stack bound of 2026-11-26 (a fault during
+    // the start, handlers nested), the 32 KiB of the plain Target left the
+    // Kernel's stack 12 bytes above its bound (2,328 of 2,340).
+    target = nrf52840_coverage, profile = Ravenscar, operating_duration = 45.s(),
     // A Health_Monitor log of 16 events (32 until 2026-11-25): the log is in
     // the Kernel's RAM, which the builds with the Kernel's trace need for
     // the Kernel's stack (finding B44); no run has logged more than five.
     safe_state = crate::safe_state, log_capacity = 16;
 
-    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 12.KiB(),
+    // A stack of 16 KiB (12 until 2026-11-27): the Link_Checker's bound for
+    // the four Tasks is 15,864 bytes once it reads the frames allocated
+    // with `sub.w sp, sp, #const` whose immediate has its top bit set.
+    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 16.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
                        mit_threshold = 10) {
         peripherals = [GPIOTE, P0, TIMER1, TIMER2, TIMER3];

@@ -41,10 +41,20 @@ pub fn safe_state() -> ! {
 ///
 /// The Sense of the script in the other Chamber, at 1,000,000, leaves no
 /// record: a single-chamber Mode does not sense it.
+///
+/// The Sense at 1,700,000 comes 400 ms after the Pace before it, which is
+/// shorter than the URL interval (500 ms at the nominal 120 ppm). In the
+/// atrium that is the Marker AT (PM18.5; `SENSE_AT_1_7`): it inhibits as
+/// any non-refractory Sense does. Until 2026-11-27 the AAI run expected a
+/// plain Sense there, as before the AT Marker existed, and failed on it.
+#[cfg(feature = "qemu-aai")]
+const SENSE_AT_1_7: u8 = pacemaker_therapy::kind::AT;
+#[cfg(not(any(feature = "nrf52840", feature = "qemu-voo", feature = "qemu-aoo", feature = "qemu-aai")))]
+const SENSE_AT_1_7: u8 = pacemaker_therapy::kind::SENSE;
 #[cfg(not(any(feature = "nrf52840", feature = "qemu-voo", feature = "qemu-aoo")))]
 const INHIBITED: [(u8, u32); 7] = {
     use pacemaker_therapy::kind::{PACE, SENSE, SENSE_REFRACTORY};
-    [(SENSE, 300_000), (SENSE_REFRACTORY, 450_000), (PACE, 800_000), (PACE, 1_300_000), (SENSE, 1_700_000), (PACE, 2_200_000), (PACE, 2_700_000)]
+    [(SENSE, 300_000), (SENSE_REFRACTORY, 450_000), (PACE, 800_000), (PACE, 1_300_000), (SENSE_AT_1_7, 1_700_000), (PACE, 2_200_000), (PACE, 2_700_000)]
 };
 
 #[cfg(not(feature = "nrf52840"))]
@@ -101,7 +111,9 @@ pub fn safe_state() -> ! {
             pacemaker_therapy::kind::PACE => b"pace_at",
             pacemaker_therapy::kind::PACE_FUSED => b"fused_pace_at",
             pacemaker_therapy::kind::SENSE => b"sense_at",
-            _ => b"refractory_sense_at",
+            pacemaker_therapy::kind::SENSE_REFRACTORY => b"refractory_sense_at",
+            pacemaker_therapy::kind::AT => b"at_sense_at",
+            _ => b"other_record_at",
         }, r.at);
         // Every record is of the paced Chamber.
         if r.chamber != paced {

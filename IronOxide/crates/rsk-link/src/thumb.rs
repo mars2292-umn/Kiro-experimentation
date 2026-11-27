@@ -14,6 +14,12 @@ pub enum Effect {
     SpUp(u32),
     /// SP written from a register or an immediate move: no static bound.
     SpDynamic,
+    /// A 32-bit instruction of a class that can write SP (as a destination
+    /// register, a loaded register, or a base register written back) in a
+    /// form this decoder reads no stack-pointer change from (`sp_unread`).
+    /// The Link_Checker refuses the function (2026-11-27): until then such
+    /// an instruction was read as leaving SP.
+    SpUnread,
     /// `bl` or a direct branch leaving the function: a call or tail call to `target`.
     Call(u32),
     /// A direct branch; `target` may be inside or outside the function.
@@ -88,9 +94,14 @@ pub fn thumb_expand_imm(imm12: u32) -> u32 {
             _ => (imm8 << 24) | (imm8 << 16) | (imm8 << 8) | imm8,
         }
     } else {
+        // ROR('1':imm7, imm12<11:7>). The rotation is by 8 to 31 here (bits
+        // 11..10 are not both zero) and the value has 8 bits, so nothing
+        // stays below: the rotation is a shift left by 32 minus the amount.
+        // Written so since 2026-11-27 (the Lean translation of
+        // `rotate_right` has no value).
         let unrotated = 0x80 | (imm12 & 0x7F);
         let rot = (imm12 >> 7) & 0x1F;
-        unrotated.rotate_right(rot)
+        unrotated << (32 - rot)
     }
 }
 
@@ -271,6 +282,10 @@ pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
         return Decoded::Is(Effect::Msr((b & 0xFF) as u8));
     }
     if both(a == 0xF3EF, b & 0xF000 == 0x8000) {
+        // mrs sp, <spec> writes SP with a value that is not in the code.
+        if (b >> 8) & 0xF == 13 {
+            return Decoded::Is(Effect::SpUnread);
+        }
         return Decoded::Is(Effect::Mrs((b & 0xFF) as u8));
     }
     // push.w / stmdb sp!, {regs}: E92D xxxx ; pop.w / ldmia sp!: E8BD xxxx
@@ -307,6 +322,12 @@ pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
     if both(a == 0xF85D, (b >> 12) == 0xF) {
         return Decoded::Is(Effect::Return);
     }
+    // ldr Rt, [sp], #imm8 (T4, P=0 U=1 W=1: bits 11..8 = 1011), the pop of
+    // one register (Rt = pc is the return above, Rt = sp the load to SP
+    // further above).
+    if both(a == 0xF85D, (b >> 8) & 0xF == 0xB) {
+        return Decoded::Is(Effect::SpUp(b & 0xFF));
+    }
     // The data-processing forms with an immediate (first halfword 11110...)
     // have bit 15 of the second halfword clear; with it set the same first
     // halfwords are branches (`bl`, `b.w`, `b<cond>.w`) and the system
@@ -315,21 +336,29 @@ pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
     // halfword one of theirs (323,584 bytes or more) was read as a
     // constant load or a stack-pointer change and its edge lost.
     let dp = (b >> 15) & 1 == 0;
-    // sub.w sp, sp, #const (T3): F1AD/F1BD 0iii 1101 iiiiiiii ; subw (T4): F2AD
-    if both(dp, both(either(either(a == 0xF1AD, a == 0xF1BD), a == 0xF2AD), (b >> 8) & 0xF == 0xD)) {
+    // sub sp, sp, #const. T2: 11110 i 0 1101 S 1101 | 0 imm3 1101 imm8 with a
+    // modified immediate (F1AD, F1BD and, with i set, F5AD, F5BD); T3
+    // (subw): 11110 i 1 0101 0 1101 with the 12 bits i:imm3:imm8 (F2AD,
+    // F6AD). Until 2026-11-27 only the forms with i clear were matched, and
+    // a decrement whose immediate has its top bit set (`sub.w sp, sp,
+    // #0x6b0`, F5AD 6DD6, the frame of the boot) was read as leaving SP.
+    let sub_w = a & 0xFBFF == 0xF2AD;
+    if both(dp, both(either(a & 0xFBEF == 0xF1AD, sub_w), (b >> 8) & 0xF == 0xD)) {
         let i = (a >> 10) & 1;
         let imm3 = (b >> 12) & 7;
         let imm8 = b & 0xFF;
         let imm12 = (i << 11) | (imm3 << 8) | imm8;
-        return Decoded::Is(Effect::SpDown(if a == 0xF2AD { imm12 } else { thumb_expand_imm(imm12) }));
+        return Decoded::Is(Effect::SpDown(if sub_w { imm12 } else { thumb_expand_imm(imm12) }));
     }
-    // add.w sp, sp, #const (T3): F10D/F11D ; addw: F20D
-    if both(dp, both(either(either(a == 0xF10D, a == 0xF11D), a == 0xF20D), (b >> 8) & 0xF == 0xD)) {
+    // add sp, sp, #const. T3: 11110 i 0 1000 S 1101 (F10D, F11D, F50D,
+    // F51D); T4 (addw): 11110 i 1 0000 0 1101 (F20D, F60D).
+    let add_w = a & 0xFBFF == 0xF20D;
+    if both(dp, both(either(a & 0xFBEF == 0xF10D, add_w), (b >> 8) & 0xF == 0xD)) {
         let i = (a >> 10) & 1;
         let imm3 = (b >> 12) & 7;
         let imm8 = b & 0xFF;
         let imm12 = (i << 11) | (imm3 << 8) | imm8;
-        return Decoded::Is(Effect::SpUp(if a == 0xF20D { imm12 } else { thumb_expand_imm(imm12) }));
+        return Decoded::Is(Effect::SpUp(if add_w { imm12 } else { thumb_expand_imm(imm12) }));
     }
     // sub/add sp, sp, Rm (register forms with Rd = sp): EBAD/EBBD, EB0D/EB1D with Rd field 1101
     if both(either(either(either(a == 0xEBAD, a == 0xEBBD), a == 0xEB0D), a == 0xEB1D), (b >> 8) & 0xF == 0xD) {
@@ -338,6 +367,11 @@ pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
     // mov.w sp, #const / movw sp: F04F 0Dxx, F24x 0Dxx (Rd = 13)
     if both(dp, both(either(a & 0xFBEF == 0xF04F, a & 0xFBF0 == 0xF240), (b >> 8) & 0xF == 0xD)) {
         return Decoded::Is(Effect::SpDynamic);
+    }
+    // Every form above that writes SP has returned. Any other instruction
+    // of a class that can write it is refused, not read as leaving it.
+    if sp_unread(a, b) {
+        return Decoded::Is(Effect::SpUnread);
     }
     // movw Rd, #imm16: F240 | i<<10 | imm4 ; hw2: imm3 Rd imm8. movt: F2C0.
     if both(dp, either(a & 0xFBF0 == 0xF240, a & 0xFBF0 == 0xF2C0)) {
@@ -417,6 +451,74 @@ pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
         return Decoded::Is(Effect::Branch((pc as i32 + 4 + imm) as u32));
     }
     Decoded::Is(Effect::Other)
+}
+
+/// Whether the 32-bit instruction `a b` belongs to a class that can write
+/// SP: register 13 is its destination, or a register it loads, or its base
+/// register with writeback (Armv7-M ARM A5.3, by class). Called by
+/// `decode32_static` after every form it reads a stack-pointer change from
+/// has returned (and `mrs`, which it tests itself), so `true` is "writes
+/// SP, or may, in a form not read". The 16-bit instructions need no such
+/// test: the only ones that reach register 13 as a destination are `mov`
+/// and `add` with a high register (both read as `SpDynamic`), `push`,
+/// `pop` and `add`/`sub sp, #imm7`. `msr` to MSP or PSP is reported as
+/// `Msr` (PR-22), not here.
+pub fn sp_unread(a: u32, b: u32) -> bool {
+    let top = a >> 11;
+    let class = (a >> 9) & 3;
+    let rn = a & 0xF;
+    let rd = (b >> 8) & 0xF;
+    let rt = b >> 12;
+    let w = (a >> 5) & 1;
+    let l = (a >> 4) & 1;
+    if top == 30 {
+        // 11110: with bit 15 of the second halfword clear, data processing
+        // with a modified or a plain immediate, Rd in bits 11..8 (the
+        // compare forms have Rd = 15). With it set: branches and system forms.
+        return both(rt < 8, rd == 13);
+    }
+    if both(top == 29, class == 0) {
+        if (a >> 6) & 1 == 0 {
+            // 1110 100x x0WL: load and store multiple. Writeback to SP, or
+            // SP in the list of a load.
+            return either(both(w == 1, rn == 13), both(l == 1, (b >> 13) & 1 == 1));
+        }
+        if both((a >> 8) & 1 == 0, w == 0) {
+            // 1110 1000 x1 0L: the exclusive forms and the table branches.
+            // strex (op 4: Rd in bits 11..8), strexb/strexh (op 12: Rd in
+            // bits 3..0), ldrex, ldrexb, ldrexh (op 5, 13: Rt in bits 15..12).
+            let op = (a >> 4) & 0xF;
+            return either(either(both(op == 4, rd == 13), both(op == 12, b & 0xF == 13)), both(l == 1, rt == 13));
+        }
+        // ldrd and strd with an immediate: writeback to SP, or SP loaded.
+        return either(both(w == 1, rn == 13), both(l == 1, either(rt == 13, rd == 13)));
+    }
+    if both(top == 29, class == 1) {
+        // 1110 101x: data processing with a shifted register, Rd in bits 11..8.
+        return rd == 13;
+    }
+    if both(top == 31, class == 0) {
+        // 1111 100x: load and store of one register. Writeback (the
+        // immediate form with bit 11 and W, bit 8, set) to SP, or SP loaded.
+        let wb = both(both((a >> 7) & 1 == 0, (b >> 11) & 1 == 1), (b >> 8) & 1 == 1);
+        return either(both(wb, rn == 13), both(l == 1, rt == 13));
+    }
+    if both(top == 31, class == 1) {
+        // 1111 1010: data processing with registers; 1111 1011: multiply,
+        // long multiply, divide. Rd (RdHi) in bits 11..8; RdLo of the long
+        // forms (bits 8..7 of the first halfword set) in bits 15..12.
+        return either(rd == 13, both((a >> 7) & 3 == 3, rt == 13));
+    }
+    if class == 2 {
+        // 111x 110x: coprocessor load and store (vldm, vstm, vldr, vstr)
+        // and the transfers of two registers. Writeback to SP, or SP as
+        // one of the two registers a transfer loads (P = U = 0, L set).
+        let two = both(both((a >> 8) & 1 == 0, (a >> 7) & 1 == 0), l == 1);
+        return either(both(w == 1, rn == 13), both(two, either(rt == 13, rn == 13)));
+    }
+    // 111x 1110: a transfer from the coprocessor to a core register (bit 4
+    // of the second halfword and L set), Rt in bits 15..12.
+    both(both((a >> 8) & 1 == 0, (b >> 4) & 1 == 1), both(l == 1, rt == 13))
 }
 
 /// Decodes a whole function body.
@@ -519,6 +621,110 @@ mod tests {
         let lit = |a: u32| if a == 0x1008 { Some(0xDEAD_BEEF) } else { None };
         assert_eq!(decode(&[0xDF, 0xF8, 0x04, 0x30], 0x1000, 0x1000, &lit).unwrap().effect, Effect::Constant(3, 0xDEAD_BEEF)); // ldr.w r3, [pc, #4]
         assert_eq!(decode(&[0x01, 0x48], 0x1000, 0x1000, &lit).unwrap().effect, Effect::Constant(0, 0xDEAD_BEEF)); // ldr r0, [pc, #4]
+    }
+
+    /// 2026-11-27: `sub`/`add sp, sp, #const` in every encoding. The first
+    /// is the frame of `Reset` in a rig build of 2026-11-26 (0x6b0 = 1,712
+    /// bytes), which was read as leaving SP.
+    #[test]
+    fn constant_stack_adjustments_with_the_top_immediate_bit_set() {
+        assert_eq!(one(&[0xAD, 0xF5, 0xD6, 0x6D]), Effect::SpDown(0x6b0)); // sub.w sp, sp, #0x6b0
+        assert_eq!(one(&[0xBD, 0xF5, 0xD6, 0x6D]), Effect::SpDown(0x6b0)); // subs.w sp, sp, #0x6b0
+        assert_eq!(one(&[0xAD, 0xF6, 0x34, 0x1D]), Effect::SpDown(0x934)); // subw sp, sp, #0x934
+        assert_eq!(one(&[0x0D, 0xF5, 0xD6, 0x6D]), Effect::SpUp(0x6b0)); // add.w sp, sp, #0x6b0
+        assert_eq!(one(&[0x1D, 0xF5, 0xD6, 0x6D]), Effect::SpUp(0x6b0)); // adds.w sp, sp, #0x6b0
+        assert_eq!(one(&[0x0D, 0xF6, 0x34, 0x1D]), Effect::SpUp(0x934)); // addw sp, sp, #0x934
+        assert_eq!(one(&[0xAD, 0xF2, 0xC4, 0x6D]), Effect::SpDown(0x6c4)); // subw sp, sp, #0x6c4
+        assert_eq!(one(&[0x5D, 0xF8, 0x04, 0xBB]), Effect::SpUp(4)); // ldr r11, [sp], #4
+        // Every i:imm3:imm8 of both encodings of the decrement is read.
+        for imm12 in 0u32..0x1000 {
+            let a = 0xF1AD | ((imm12 >> 11) << 10);
+            let b = (((imm12 >> 8) & 7) << 12) | 0x0D00 | (imm12 & 0xFF);
+            let bytes = [a as u8, (a >> 8) as u8, b as u8, (b >> 8) as u8];
+            assert_eq!(one(&bytes), Effect::SpDown(thumb_expand_imm(imm12)), "{imm12:#x}");
+            let a = 0xF2AD | ((imm12 >> 11) << 10);
+            let bytes = [a as u8, (a >> 8) as u8, b as u8, (b >> 8) as u8];
+            assert_eq!(one(&bytes), Effect::SpDown(imm12), "{imm12:#x}");
+        }
+    }
+
+    /// The prologue of `Reset` in the rig build of 2026-11-26 (commit
+    /// 0fb2aa14, isolation variant): `push {r7, lr}`, `mov r7, sp`,
+    /// `sub.w sp, sp, #0x6b0`. Its frame is 1,720 bytes; the Link_Checker
+    /// reported 8.
+    #[test]
+    fn the_frame_of_the_reset_prologue_that_was_read_as_eight_bytes() {
+        let code = [0x80, 0xB5, 0x6F, 0x46, 0xAD, 0xF5, 0xD6, 0x6D];
+        let insns = decode_function(&code, 0x289c, &none);
+        assert_eq!(insns.len(), 3);
+        assert_eq!(crate::bound_v::frame_of(&insns), 8 + 0x6b0);
+        assert!(!crate::bound_v::dynamic_of(&insns));
+    }
+
+    /// The rotation written as a shift is the manual's ROR on every
+    /// modified immediate.
+    #[test]
+    fn the_modified_immediate_is_the_rotation() {
+        for imm12 in 0x400u32..0x1000 {
+            assert_eq!(thumb_expand_imm(imm12), (0x80 | (imm12 & 0x7F)).rotate_right((imm12 >> 7) & 0x1F), "{imm12:#x}");
+        }
+    }
+
+    /// 2026-11-27, fail closed: instructions that write SP in forms the
+    /// decoder reads no change from are answered `SpUnread`, not `Other`,
+    /// and instructions that only use SP as a base or a source are not.
+    #[test]
+    fn unread_writes_of_the_stack_pointer_are_refused() {
+        for (bytes, what) in [
+            ([0xA7u8, 0xF1, 0x08, 0x0D], "sub.w sp, r7, #8"),
+            ([0x07, 0xF1, 0x08, 0x0D], "add.w sp, r7, #8"),
+            ([0xC2, 0xF2, 0x00, 0x0D], "movt sp, #0x2000"),
+            ([0x6F, 0xF0, 0x00, 0x0D], "mvn sp, #0"),
+            ([0x4F, 0xEA, 0x00, 0x0D], "mov.w sp, r0"),
+            ([0x00, 0xEA, 0x01, 0x0D], "and.w sp, r0, r1"),
+            ([0x00, 0xFA, 0x01, 0xFD], "lsl.w sp, r0, r1"),
+            ([0x00, 0xFB, 0x01, 0xFD], "mul sp, r0, r1"),
+            ([0x90, 0xFB, 0xF1, 0xFD], "sdiv sp, r0, r1"),
+            ([0xA0, 0xFB, 0x01, 0xD2], "umull sp, r2, r0, r1"),
+            ([0xEF, 0xF3, 0x08, 0x8D], "mrs sp, msp"),
+            ([0x5D, 0xF8, 0x04, 0x09], "ldr r0, [sp], #-4"),
+            ([0x5D, 0xF8, 0x04, 0x0F], "ldr r0, [sp, #4]!"),
+            ([0x4D, 0xF8, 0x04, 0x0B], "str r0, [sp], #4"),
+            ([0x4D, 0xF8, 0x04, 0x0F], "str r0, [sp, #4]!"),
+            ([0x10, 0xF8, 0x01, 0xD0], "ldrb.w sp, [r0, r1]"),
+            ([0xAD, 0xE8, 0x03, 0x00], "stmia sp!, {r0, r1}"),
+            ([0x3D, 0xE9, 0x03, 0x00], "ldmdb sp!, {r0, r1}"),
+            ([0x90, 0xE8, 0x03, 0x20], "ldmia r0, {r0, r1, sp}"),
+            ([0xFD, 0xE8, 0x02, 0x01], "ldrd r0, r1, [sp], #8"),
+            ([0xED, 0xE9, 0x02, 0x01], "strd r0, r1, [sp, #8]!"),
+            ([0xD0, 0xE9, 0x00, 0xD1], "ldrd sp, r1, [r0]"),
+            ([0x50, 0xE8, 0x00, 0xDF], "ldrex sp, [r0]"),
+            ([0x41, 0xE8, 0x00, 0x2D], "strex sp, r2, [r1]"),
+            ([0xAD, 0xEC, 0x02, 0x0A], "vstmia sp!, {s0, s1}"),
+            ([0x3D, 0xED, 0x02, 0x0A], "vldmdb sp!, {s0, s1}"),
+            ([0x10, 0xEE, 0x10, 0xDA], "vmov sp, s0"),
+            ([0x51, 0xEC, 0x10, 0xDB], "vmov sp, r1, d0"),
+        ] {
+            assert_eq!(one(&bytes), Effect::SpUnread, "{what}");
+        }
+        for (bytes, what) in [
+            ([0x0Du8, 0xF1, 0x08, 0x00], "add.w r0, sp, #8"),
+            ([0xCD, 0xF8, 0x04, 0x00], "str.w r0, [sp, #4]"),
+            ([0xDD, 0xF8, 0x04, 0x00], "ldr.w r0, [sp, #4]"),
+            ([0xCD, 0xE9, 0x02, 0x01], "strd r0, r1, [sp, #8]"),
+            ([0xDD, 0xE9, 0x02, 0x01], "ldrd r0, r1, [sp, #8]"),
+            ([0x8D, 0xE8, 0x03, 0x00], "stm sp, {r0, r1}"),
+            ([0xBD, 0xF1, 0x08, 0x0F], "cmp.w sp, #8"),
+            ([0x1D, 0xF0, 0x07, 0x0F], "tst.w sp, #7"),
+            ([0x4D, 0xF8, 0x00, 0x10], "str.w r1, [sp, r0]"),
+            ([0x8D, 0xED, 0x02, 0x0A], "vstr s0, [sp, #8]"),
+            ([0x0D, 0xEE, 0x10, 0xDA], "vmov s26, sp"),
+            ([0xF1, 0xEE, 0x10, 0xFA], "vmrs APSR_nzcv, fpscr"),
+            ([0x6D, 0x46, 0x00, 0x00], "mov r5, sp"),
+        ] {
+            assert_ne!(one(&bytes), Effect::SpUnread, "{what}");
+            assert_ne!(one(&bytes), Effect::SpDynamic, "{what}");
+        }
     }
 
     #[test]

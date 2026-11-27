@@ -12,7 +12,7 @@ here from the code that establishes them at boot:
   proofs use of `Config::wf`), by its extracted loops;
 - `bound_validate_ok`: `Bound::validate` adds that the slot table has the
   configuration's size and the log's capacity is in range;
-- `new_ok`: the state `Kernel::new` builds satisfies `KT` with no Job on
+- `new_ok`: the state `Kernel::init` builds satisfies `KT` with no Job on
   the stack;
 - `bound_kboot`: so `validate` and `init` satisfy `KBoot`, the clause
   `boot_core_establishes` rests on.
@@ -377,13 +377,16 @@ theorem timing_new_ok {cfg : logic.Config NT NR NP} (hw : CfgW cfg) {tm : logic.
     rw [repeat_get _ _ u hu]
     simp
 
-/-- **The state `Kernel::new` builds satisfies `KT`**, with no Job on the
-stack. (That `Kernel::new` returns cannot be stated: it builds the empty
-ghost history through `no_history`, which the translation keeps opaque.) -/
+/-- **The state `Kernel::init` builds satisfies `KT`**, with no Job on the
+stack. (`init` writes in place the state `Kernel::new` returned until
+2026-11-27, whatever the state before, `kold`. That it returns cannot be
+stated here: it builds the empty ghost history through `no_history`,
+which the translation keeps opaque.) -/
 theorem new_ok {cfg : logic.Config NT NR NP} (hw : CfgW cfg)
     (hne : 0 < NE.val ∧ NE.val < 1073741824) {k : logic.kernel.Kernel NT NR NP NL NS NE}
-    (h : logic.kernel.Kernel.new NL NS NE cfg = ok k) : KT k ∧ k.sched.depth.val = 0 := by
-  unfold logic.kernel.Kernel.new logic.sched.Sched.new logic.time.Slots.new logic.log.Log.new at h
+    {kold : logic.kernel.Kernel NT NR NP NL NS NE}
+    (h : logic.kernel.Kernel.init kold cfg = ok k) : KT k ∧ k.sched.depth.val = 0 := by
+  unfold logic.kernel.Kernel.init logic.sched.Sched.new logic.time.Slots.new logic.log.Log.new at h
   simp only [bind_eq_ok, lift, bind_ok] at h
   obtain ⟨tm, htm, bg, hbg, g, hg, h⟩ := h
   have h := ok_inj h

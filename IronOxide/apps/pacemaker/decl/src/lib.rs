@@ -52,7 +52,11 @@ rsk::app! {
     target = qemu_mps2_an386, profile = Ravenscar, operating_duration = 3000.ms(),
     safe_state = crate::safe_state, log_capacity = 32;
 
-    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 12.KiB(),
+    // A stack of 24 KiB (12 until 2026-11-27): the Link_Checker's bound for
+    // the four Tasks of this build is 20,176 bytes once it reads the
+    // frames allocated with `sub.w sp, sp, #const` whose immediate has its
+    // top bit set (the board's variants: 15,864 of 16 KiB).
+    partition therapy (level = A, crate = pacemaker_therapy, code = 64.KiB(), ram = 32.KiB(), stack = 24.KiB(),
                        fault = RESTART_PARTITION, overrun = RESTART_PARTITION, deadline_miss = RESTART_PARTITION,
                        mit_threshold = 10) {
         peripherals = [CMSDK_DUALTIMER];

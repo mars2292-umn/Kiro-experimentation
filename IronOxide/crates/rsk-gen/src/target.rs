@@ -153,6 +153,10 @@ pub const NRF52840: Target = Target {
 /// section 14): the instrumented Kernel's code and its counters do not fit
 /// the Flight layout's 64 KiB and 32 KiB. The Partitions' regions follow as
 /// on the plain Target; the model name stays `nrf52840` (the same silicon).
+/// Since 2026-11-27 also the Target of the builds whose Kernel stack did
+/// not fit the plain Target's 32 KiB of Kernel RAM under the main-stack
+/// bound of R37.2: the HIL isolation build of the demo and the PACEMAKER
+/// Application (`apps/*/decl`). The name is the first use's.
 pub const NRF52840_COVERAGE: Target = Target {
     name: "nrf52840_coverage",
     model_name: "nrf52840_coverage",
