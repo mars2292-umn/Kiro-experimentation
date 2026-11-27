@@ -525,3 +525,24 @@ on raw-pointer dereferences, a function pointer and a ghost closure in
 them. `HwT` (`Sched/CoreTotal.lean`) therefore remains an assumption, with
 this file as the part of it that is Kernel code outside the
 Kernel_Unsafe_Module.
+
+## The Link_Checker (`lean/Tools/Link.lean`)
+
+The certificate checker and the two static decoders of `crates/rsk-link`:
+
+```
+cd crates/rsk-link
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from 'crate::cert::check,crate::thumb::decode16_static,crate::thumb::decode32_static' \
+    --dest-file /tmp/link.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/link-out /tmp/link.llbc   # copy Link.lean to lean/Tools/
+```
+
+No axiom in the output (`count_ones` is written out as `ones16` in
+`thumb.rs` for that). After a change of `cert.rs` or of the decoders in
+`thumb.rs`: regenerate, then `lake build Tools.LinkCertProofs
+Tools.LinkThumbArm`. `Tools/LinkThumbProofs.lean` follows the extracted
+decoders line by line: a new test in a decoder is one or two more `step`s
+there and one more condition in `D16` or `D32` of
+`Tools/LinkThumbDefs.lean`.
+

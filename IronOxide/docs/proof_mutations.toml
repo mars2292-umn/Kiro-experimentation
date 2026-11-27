@@ -4324,3 +4324,15 @@ package = "rsk-link"
 # (`hw_model::lemma_kernel_ram_kept_between_entries`,
 # `entry::theorem_storage_kept_between_entries`), the storage's place in
 # the Kernel's RAM being the Config_Checker's check.
+
+# 2026-11-26: the Link_Checker's decoder against the Armv7-M semantics
+# (Tools/LinkThumbSpec.lean, LinkThumbProofs.lean, LinkThumbArm.lean).
+[[mutation]]
+id = "lean-link-decoder-vpush-with-the-d-bit-not-read"
+kills = "decode32_spec, decode32_arm (Tools/LinkThumbProofs.lean, Tools/LinkThumbArm.lean, 2026-11-26; R37.1): the compiled decoder reads a vpush whose first register is odd-numbered as lowering SP, as the semantics' operation does; with the D bit not masked (the decoder as it was) it reads a floating-point move"
+file = "proofs/aeneas/lean/Tools/Link.lean"
+find = "              let i7 ← lift (a &&& 65471#u32)\n"
+replace = "              let i7 ← lift (a &&& 65535#u32)\n"
+expect = ["Tools/LinkThumb"]
+prover = "lean"
+
