@@ -190,6 +190,13 @@ class KOpsT (ki : arch.bound.KernelOps K) (okT : outParam (K → Prop)) (TN TP :
   boot_failed : ∀ (k : K) (f : U32), okT k → ki.boot_failed k f ⦃ r => okT r ⦄
   boot_info : ∀ (k : K) (x y : Bool), okT k → ki.boot_info k x y ⦃ r => okT r ⦄
   validate : ∀ (k : K), ki.validate k ⦃ b => ki.validate k = ok b ⦄
+
+/-- `init` returns once `validate` accepted the tables, and establishes
+`okT`. A class of its own since 2026-11-27: only the boot calls `init`,
+and the other cores' theorems are then free to be used with an `okT` that
+`init` does not establish (`Sched/Trace.lean`: `okT` with "reached from
+the state the entry found"). -/
+class KInitT (ki : arch.bound.KernelOps K) (okT : K → Prop) : Prop where
   init : ∀ (k : K), ki.validate k = ok true → ki.init k ⦃ r => okT r ⦄
 
 @[step] theorem k_depth [KOpsT ki okT TN TP] (k : K)  (hk : okT k) :
@@ -690,7 +697,7 @@ set_option maxHeartbeats 16000000 in
 /-- `boot_core` returns from any state: nothing is asked of the Kernel
 before `validate` and `init`. A boot that passes its checks (the result
 `true`) leaves `okT`. -/
-@[step] theorem boot_core_t [HwT ai] [KOpsT ki okT TN TP] [TabT ti TN TP] [GhostT] (k : K) (hw : A) (tables : T) (state : arch.cm4.plan.ArchState) :
+@[step] theorem boot_core_t [HwT ai] [KOpsT ki okT TN TP] [KInitT ki okT] [TabT ti TN TP] [GhostT] (k : K) (hw : A) (tables : T) (state : arch.cm4.plan.ArchState) :
     arch.cm4.entry.boot_core ki ai ti k hw tables state ⦃ r => r.1 = true → okT r.2.1 ⦄ := by
   unfold arch.cm4.entry.boot_core
   simp only [max_irqs]
@@ -699,7 +706,7 @@ before `validate` and `init`. A boot that passes its checks (the result
   split
   · rename_i hbt
     have hv : ki.validate k = ok true := by rw [hb, hbt]
-    have hin := KOpsT.init (okT := okT) k hv
+    have hin := KInitT.init (ki := ki) (okT := okT) k hv
     step as ⟨ state1 ⟩
     step as ⟨ g ⟩
     refine WP.spec_bind hin (fun k1 hk1 => ?_)

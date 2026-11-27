@@ -40,9 +40,14 @@ linked Kernel is the run's before and after the entry (each method of
 `Bound` keeps it, `Sched/BoundAll.lean` `*_kp`; that is not composed over
 the cores here), and `QBound` that the five interface functions read are
 `Bound`'s. That every execution of the Kernel is such a run (each entry's
-writes to the Kernel are the transitions between its two boundaries) is
+writes to the Kernel are the transitions between its two boundaries) was
 read from the code function by function (`Sched/Timer.lean`,
-`Sched/Endpoint.lean`), not proven of a whole entry. -/
+`Sched/Endpoint.lean`). Since 2026-11-27 `Sched/Trace.lean` proves the
+code's half for a whole entry: the configuration is kept, and the Kernel
+state an entry leaves is reached from the one it found by a sequence of
+the functions the run's transitions carry (`entryof_lsteps`). Which
+functions, in what order, and the model's side of each transition stay as
+they were. -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

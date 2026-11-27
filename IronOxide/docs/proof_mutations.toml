@@ -4357,6 +4357,17 @@ replace = "  then thumb.both (rt < 8#u32) (rd = 14#u32)\n"
 expect = ["Tools/LinkThumb"]
 prover = "lean"
 
+# 2026-11-27: what an entry does to the Kernel is a sequence of the run's
+# functions (Sched/Trace.lean). The mutant is killed by an earlier file.
+[[mutation]]
+id = "lean-code-take-reinit-writes-the-kernel-without-an-acknowledgement"
+kills = "the totality proof of `Bound`'s `take_reinit` (Sched/TotalBound.lean), which is before Sched/Trace.lean in the build and fails first (run 2026-11-27): `take_reinit` changes the Kernel's state only by `ack_reinit`; with a write of its own in the branch that acknowledges nothing, the entry's writes are no longer a sequence of the functions the run's transitions carry (`btake_reinit_tr`, `coreret_trace`). The trace theorem has no mutant that reaches it"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      let k ← rsk_logic.logic.kernel.Kernel.ack_reinit self.kernel self.cfg p\n      ok (v, { self with kernel := k })\n    else ok (v, self)\n"
+replace = "      let k ← rsk_logic.logic.kernel.Kernel.ack_reinit self.kernel self.cfg p\n      ok (v, { self with kernel := k })\n    else ok (v, { self with kernel := { self.kernel with started := false } })\n"
+expect = ["Sched/"]
+prover = "lean"
+
 # 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
 [[mutation]]
 id = "link-frame-skips-a-decrement"

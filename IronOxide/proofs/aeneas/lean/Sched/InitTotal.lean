@@ -117,9 +117,14 @@ theorem binit_returns (hnh : NoHist NT NR NP NL NS NE)
   obtain ⟨b', hb', _⟩ := spec_returns ht
   exact ⟨b', hb'⟩
 
-/-- `KOpsT` for the Kernel that is linked, with `init`'s return proven. -/
+/-- `KOpsT` for the Kernel that is linked. -/
 theorem bound_kopst_nh {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS NE)}
-    (hb : IsBoundT ki) (hnh : NoHist NT NR NP NL NS NE) : KOpsT ki BX NT.val NP.val :=
-  bound_kopst hb (binit_returns hnh)
+    (hb : IsBoundT ki) (_hnh : NoHist NT NR NP NL NS NE) : KOpsT ki BX NT.val NP.val :=
+  bound_kopst hb
+
+/-- `KInitT` for the Kernel that is linked, with `init`'s return proven. -/
+theorem bound_kinit_nh {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS NE)}
+    (hb : IsBoundT ki) (hnh : NoHist NT NR NP NL NS NE) : KInitT ki BX :=
+  bound_kinit hb (binit_returns hnh)
 
 end P18

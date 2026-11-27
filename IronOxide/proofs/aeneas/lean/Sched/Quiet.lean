@@ -20,7 +20,7 @@ extracted code:
   keeps a quieted Kernel quieted.
 - `bound_dispatch_q`: `Bound`'s `dispatch` ends in `Kernel::settle`.
 - `dma_request_core_true`, `dma_write_core_true`,
-  `endpoint_recv_core_kept`: an accepted EasyDMA request or register write
+  `endpoint_recv_core_same`: an accepted EasyDMA request or register write
   and a receive that is not refused return the Kernel they were given.
 - `svc_service_core_left`, `svc_core_left`: so an SVC leaves the Kernel it
   found, one `apply_core` returned, or the lock service's result.
@@ -198,7 +198,7 @@ theorem dma_write_core_true {k k' : K} {hw hw' : A} {tables : T} {i : Usize} {p 
   all_goals simp_all
 
 /-- A receive that is not refused leaves the Kernel as it found it. -/
-theorem endpoint_recv_core_kept {k k' : K} {hw hw' : A} {tables : T}
+theorem endpoint_recv_core_same {k k' : K} {hw hw' : A} {tables : T}
     {state state' : _root_.rsk_kernel.arch.cm4.plan.ArchState} {arg ptr len : U32} {r}
     (h : _root_.rsk_kernel.arch.cm4.entry.endpoint_recv_core ki ai ti k hw tables state arg ptr len
       = ok (r, k', hw', state'))
@@ -227,7 +227,7 @@ theorem svc_service_core_left (hac : ApplyQ ki ai ti Q)
     | (subst_vars; first
         | exact Or.inl (dma_request_core_true ki ai ti (by assumption))
         | exact Or.inl (dma_write_core_true ki ai ti (by assumption)))
-    | (refine Or.inl (endpoint_recv_core_kept ki ai ti (by assumption) ?_); simp_all)
+    | (refine Or.inl (endpoint_recv_core_same ki ai ti (by assumption) ?_); simp_all)
     | (exfalso; simp_all [_root_.rsk_kernel.arch.cm4.entry.SVC_SEND, _root_.rsk_kernel.arch.cm4.entry.SVC_RECV])
 
 set_option maxHeartbeats 8000000 in

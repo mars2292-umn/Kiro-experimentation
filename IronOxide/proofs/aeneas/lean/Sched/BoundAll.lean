@@ -570,10 +570,8 @@ structure IsBoundT (ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS N
 
 /-- **Every method the entry cores call returns on the Kernel that is
 linked, from a state satisfying `BX`, and the ones that change it keep
-`BX`.** The one assumption is `hinit`: `init` returns once `validate`
-accepted the tables. -/
-theorem bound_kopst {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS NE)} (hb : IsBoundT ki)
-    (hinit : ∀ b : arch.bound.Bound NT NR NP NL NS NE, arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.validate b = ok true → ∃ b', arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init b = ok b') :
+`BX`.** Nothing is assumed (`init` is `bound_kinit`'s, since 2026-11-27). -/
+theorem bound_kopst {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS NE)} (hb : IsBoundT ki) :
     KOpsT ki BX NT.val NP.val where
   depth := fun k _ => by rw [hb.depth]; exact bdepth_x k
   top := fun k hk => by rw [hb.top]; exact btop_total k hk.bt
@@ -617,6 +615,12 @@ theorem bound_kopst {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS 
     obtain ⟨r, hr, _⟩ := spec_returns (bvalidate_t k)
     rw [hr]
     exact (WP.spec_ok _).mpr rfl
+
+/-- **`init` establishes `BX` on the Kernel that is linked.** The one
+assumption is `hinit`: `init` returns once `validate` accepted the tables. -/
+theorem bound_kinit {ki : arch.bound.KernelOps (arch.bound.Bound NT NR NP NL NS NE)} (hb : IsBoundT ki)
+    (hinit : ∀ b : arch.bound.Bound NT NR NP NL NS NE, arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.validate b = ok true → ∃ b', arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init b = ok b') :
+    KInitT ki BX where
   init := fun k hv => by
     rw [hb.validate] at hv
     rw [hb.init]

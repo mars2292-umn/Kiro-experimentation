@@ -144,6 +144,7 @@ theorem boot_core_real [HwT ai] [TabT ti NT.val NP.val] (hb : IsBoundT ki)
     (k : arch.bound.Bound NT NR NP NL NS NE) (hw : A) (tables : T) (state : arch.cm4.plan.ArchState) :
     arch.cm4.entry.boot_core ki ai ti k hw tables state ⦃ r => r.1 = true → BX r.2.1 ⦄ := by
   haveI := bound_kopst_nh hb (nohist NT NR NP NL NS NE)
+  haveI := bound_kinit_nh hb (nohist NT NR NP NL NS NE)
   exact boot_core_t k hw tables state
 
 end P18
