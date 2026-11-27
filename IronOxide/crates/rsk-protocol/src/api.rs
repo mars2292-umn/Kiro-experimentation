@@ -199,31 +199,34 @@ fn next_state(trans: &Vec<Trans>, r: usize, i: usize, label: u32) -> (j: Option<
     None
 }
 
-/// The operations of state `i` of role `r`.
-fn state_ops(tbl: &Vec<LE>, trans: &Vec<Trans>, r: usize, i: usize) -> (st: StateOps)
+/// The operations of the branch list `list` of state `i` of role `r`, in
+/// the list's order (`tbl` is read by the contract alone).
+fn ops_of(list: &LsE, _tbl: &Vec<LE>, trans: &Vec<Trans>, r: usize, i: usize) -> (ops: Vec<Op>)
     requires
-        i < tbl@.len(),
-        role_trans_ok(trans@, r, tbl_view(tbl@)),
-    ensures offers(st, tbl_view(tbl@), tbl@[i as int]@),
+        i < _tbl@.len(),
+        role_trans_ok(trans@, r, tbl_view(_tbl@)),
+        list@ == ls_of(_tbl@[i as int]@),
+    ensures
+        ops@.len() == ls_labels(list@).len(),
+        forall|k: int| 0 <= k < ops@.len() ==> {
+            let op = #[trigger] ops@[k];
+            &&& op.label as int == ls_labels(list@)[k]
+            &&& (op.to as int) < tbl_view(_tbl@).len()
+            &&& ls_lookup(list@, op.label as int) is Some
+            &&& tbl_view(_tbl@)[op.to as int] == lhead(ls_lookup(list@, op.label as int).unwrap())
+        },
 {
-    let ghost tb = tbl_view(tbl@);
-    let ghost e = tbl@[i as int]@;
+    let ghost tb = tbl_view(_tbl@);
+    let ghost e = _tbl@[i as int]@;
     assert(tb[i as int] == e);
-    let (kind, peer, list): (u8, usize, &LsE) = match &tbl[i] {
-        LE::Send { to, ls } => (KIND_SEND, *to, &**ls),
-        LE::Recv { from, ls } => (KIND_RECV, *from, &**ls),
-        _ => {
-            return StateOps { kind: KIND_END, peer: 0, ops: Vec::new() };
-        }
-    };
-    assert(list@ == ls_of(e));
     let mut ops: Vec<Op> = Vec::new();
     let mut cur: &LsE = list;
     loop
         invariant
             (i as int) < tb.len(),
-            tb == tbl_view(tbl@),
+            tb == tbl_view(_tbl@),
             tb[i as int] == e,
+            list@ == ls_of(e),
             role_trans_ok(trans@, r, tb),
             ls_labels(ls_of(e)) == ops@.map(|k: int, op: Op| op.label as int) + ls_labels(cur@),
             forall|k: int| 0 <= k < ops@.len() ==> {
@@ -235,43 +238,44 @@ fn state_ops(tbl: &Vec<LE>, trans: &Vec<Trans>, r: usize, i: usize) -> (st: Stat
         ensures cur@ is Nil,
         decreases cur,
     {
-        let (label, rest): (&u32, &LsE) = match cur {
+        match cur {
             LsE::Nil => {
                 break;
             }
-            LsE::Cons { label, l: _, rest } => (label, &**rest),
-        };
-        let ghost done = ops@.map(|k: int, op: Op| op.label as int);
-        proof {
-            // This label is the next of the entry's, so the lookup finds it.
-            assert(ls_labels(cur@) == seq![*label as int] + ls_labels(rest@));
-            assert(ls_labels(ls_of(e))[done.len() as int] == *label as int);
-            lemma_label_found(ls_of(e), done.len() as int);
-        }
-        let to = match next_state(trans, r, i, *label) {
-            Some(to) => to,
-            None => {
+            LsE::Cons { label, l: _, rest } => {
+                let ghost done = ops@.map(|k: int, op: Op| op.label as int);
                 proof {
-                    // A branch of the entry has a transition (`role_trans_ok`).
-                    assert(ls_lookup(ls_of(tb[i as int]), *label as int) is Some);
-                    let k = choose|k: int| 0 <= k < trans@.len() && (#[trigger] trans@[k]).role == r && trans@[k].from == (i as int) as usize && trans@[k].label == (*label as int) as u32;
-                    assert(trans@[k].role == r && trans@[k].from == i && trans@[k].label == *label);
-                    assert(false);
+                    // This label is the next of the entry's, so the lookup finds it.
+                    assert(ls_labels(cur@) == seq![*label as int] + ls_labels(rest@));
+                    assert(ls_labels(ls_of(e))[done.len() as int] == *label as int);
+                    lemma_label_found(ls_of(e), done.len() as int);
                 }
-                0
+                let to = match next_state(trans, r, i, *label) {
+                    Some(to) => to,
+                    None => {
+                        proof {
+                            // A branch of the entry has a transition (`role_trans_ok`).
+                            assert(ls_lookup(ls_of(tb[i as int]), *label as int) is Some);
+                            let k = choose|k: int| 0 <= k < trans@.len() && (#[trigger] trans@[k]).role == r && trans@[k].from == (i as int) as usize && trans@[k].label == (*label as int) as u32;
+                            assert(trans@[k].role == r && trans@[k].from == i && trans@[k].label == *label);
+                            assert(false);
+                        }
+                        0
+                    }
+                };
+                proof {
+                    let k = choose|k: int| 0 <= k < trans@.len() && (#[trigger] trans@[k]).role == r && trans@[k].from == i && trans@[k].label == *label && trans@[k].to == to;
+                    assert(trans@[k].role == r);
+                }
+                ops.push(Op { label: *label, to });
+                proof {
+                    let now = ops@.map(|k: int, op: Op| op.label as int);
+                    assert(now == done + seq![*label as int]);
+                    assert(done + seq![*label as int] + ls_labels(rest@) == done + (seq![*label as int] + ls_labels(rest@)));
+                }
+                cur = &**rest;
             }
-        };
-        proof {
-            let k = choose|k: int| 0 <= k < trans@.len() && (#[trigger] trans@[k]).role == r && trans@[k].from == i && trans@[k].label == *label && trans@[k].to == to;
-            assert(trans@[k].role == r);
         }
-        ops.push(Op { label: *label, to });
-        proof {
-            let now = ops@.map(|k: int, op: Op| op.label as int);
-            assert(now == done + seq![*label as int]);
-            assert(done + seq![*label as int] + ls_labels(rest@) == done + (seq![*label as int] + ls_labels(rest@)));
-        }
-        cur = rest;
     }
     proof {
         assert(ls_labels(cur@) == Seq::<int>::empty());
@@ -281,7 +285,28 @@ fn state_ops(tbl: &Vec<LE>, trans: &Vec<Trans>, r: usize, i: usize) -> (st: Stat
             assert(labels[k] == ops@[k].label as int);
         }
     }
-    StateOps { kind, peer, ops }
+    ops
+}
+
+/// The operations of state `i` of role `r`.
+fn state_ops(tbl: &Vec<LE>, trans: &Vec<Trans>, r: usize, i: usize) -> (st: StateOps)
+    requires
+        i < tbl@.len(),
+        role_trans_ok(trans@, r, tbl_view(tbl@)),
+    ensures offers(st, tbl_view(tbl@), tbl@[i as int]@),
+{
+    assert(tbl_view(tbl@)[i as int] == tbl@[i as int]@);
+    match &tbl[i] {
+        LE::Send { to, ls } => {
+            let ops = ops_of(ls, tbl, trans, r, i);
+            StateOps { kind: KIND_SEND, peer: *to, ops }
+        }
+        LE::Recv { from, ls } => {
+            let ops = ops_of(ls, tbl, trans, r, i);
+            StateOps { kind: KIND_RECV, peer: *from, ops }
+        }
+        _ => StateOps { kind: KIND_END, peer: 0, ops: Vec::new() },
+    }
 }
 
 /// R38.4: the operations of every state of role `r`, from its verified

@@ -22,10 +22,10 @@ for them is a second class (`HSpec2`), of the same form as `HSpec`.
   leaves the floating-point access as it was or sets it to the declaration
   of the Task on top of the Kernel's stack**.
 
-Not here: that the lines `boot_vectors` wrote are still so at
-`boot_core`'s return and after (the actions after it are not shown to
-leave them), and A13 (an intake line enabled exactly when its source is
-unmasked). -/
+That the lines `boot_vectors` wrote are still so at `boot_core`'s return
+is in `Sched/ArchHwBootRet.lean` (`boot_core_vectors`). Not here: that
+they are still so after later entries, and A13 (an intake line enabled
+exactly when its source is unmasked). -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

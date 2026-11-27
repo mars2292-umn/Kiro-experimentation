@@ -14,11 +14,12 @@ in it. This file has the others, as Verus states them (`entry.rs`):
   the safe state, where it is 0 (`dispatch_vector_core_a1`). An entry that
   does not rewrite BASEPRI leaves the Kernel's state as well.
 
-`Sched/ArchHwA1Svc.lean` has the same of a supervisor call. Not proven
-here: the same of an interrupt entry (`irq_entry_core`, which runs one of
-the dispatch vector's, the intake's, the time base's and the unbound
-line's cores; two attempts did not check), and `svc_check_core`, which is
-not in the translation. -/
+`Sched/ArchHwA1Svc.lean` has the same of a supervisor call,
+`Sched/ArchHwA1Irq.lean` of an interrupt entry (`irq_entry_core`, which
+runs one of the dispatch vector's, the intake's, the time base's and the
+unbound line's cores), and `Sched/ArchHwSvcCheck.lean` of the supervisor
+call's stack check (`svc_check_core`, translated apart in
+`Sched/SvcCheck.lean`). -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

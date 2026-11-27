@@ -448,16 +448,28 @@ pub trait KernelOps: Sized {
         ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             old(self).spec_depth() > 0 ==> final(self).spec_depth() == old(self).spec_depth() - 1;
-    fn svc_lock(&mut self, r: u8) -> bool
+    /// R8.1, R8.7, R8.10 (2026-11-26): whether the lock of Resource `r` the
+    /// executing Job asks for is granted, on the state the request finds
+    /// (for the linked Kernel: a Job executes, `r` is a Resource its Task
+    /// may access, no Job holds it, and the lock list has room;
+    /// `Kernel::svc_lock`'s own statement).
+    spec fn spec_lock_grants(&self, r: int) -> bool;
+    /// R8.2, R8.6 (2026-11-26): whether the unlock of Resource `r` is
+    /// granted (for the linked Kernel: a Job executes and `r` is the
+    /// Resource it locked last and still holds; `Kernel::svc_unlock`'s).
+    spec fn spec_unlock_grants(&self, r: int) -> bool;
+    fn svc_lock(&mut self, r: u8) -> (ok: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
+        ensures ok == old(self).spec_lock_grants(r as int),
+            final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(),
             // 2026-11-15: a lock admits no Task that was not admitted and arms no Budget event.
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
-    fn svc_unlock(&mut self, r: u8) -> bool
+    fn svc_unlock(&mut self, r: u8) -> (ok: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures ok == old(self).spec_unlock_grants(r as int),
+            final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn ceiling(&self) -> (c: u8)
@@ -472,6 +484,18 @@ pub trait KernelOps: Sized {
     fn select(&self) -> (sel: Option<u8>)
         requires self.inv(),
         ensures sel.is_some() ==> (sel.unwrap() as int) < self.task_count_spec() && self.task_eligible(sel.unwrap() as int);
+    /// A4, exactly (2026-11-26): Task `t` is the one whose dispatch the
+    /// Kernel's state calls for: the system is started and not in the safe
+    /// state, and `t` is the selection of R7.1 under DD-03's order
+    /// (`hw_model::srp_selection`: eligible, of the highest Priority among
+    /// the Tasks with a Release pending, the first of them in declaration
+    /// order). `settle` returns exactly this Task, and `entry::apply_core`
+    /// pends its vector and no other (`entry::selection_pended`).
+    spec fn spec_selected(&self, t: int) -> bool;
+    /// At most one Task is selected, a Task of the configuration that R7.1 admits.
+    proof fn lemma_selected(&self, t: int, u: int)
+        requires self.inv(), self.spec_selected(t),
+        ensures 0 <= t < self.task_count_spec(), self.task_eligible(t), self.spec_selected(u) ==> u == t;
     /// 2026-11-15 (Verification_Plan 7.3): no Budget event is armed while
     /// a dispatch is pending. Every Kernel entry leaves this state
     /// (`settle`, called by `entry::apply_core`), so a Budget event has no
@@ -499,6 +523,12 @@ pub trait KernelOps: Sized {
             forall|t: int| #[trigger] final(self).spec_source_masked(t) == old(self).spec_source_masked(t),
             forall|p: int| #[trigger] final(self).spec_partition_stopped(p) == old(self).spec_partition_stopped(p),
             r.0.is_some() ==> (r.0.unwrap() as int) < final(self).task_count_spec() && final(self).task_eligible(r.0.unwrap() as int),
+            // A4, exactly (2026-11-26): the Task returned is the selection,
+            // none is returned only when none is selected, and the
+            // selection is the same after as before.
+            r.0.is_some() ==> old(self).spec_selected(r.0.unwrap() as int),
+            r.0.is_none() ==> forall|t: int| !#[trigger] old(self).spec_selected(t),
+            forall|t: int| #[trigger] final(self).spec_selected(t) == old(self).spec_selected(t),
             final(self).spec_dispatch_guard(),
             final(self).spec_safe() == old(self).spec_safe();
     /// `offender`: the Task a threshold response is for (DD-10; audit finding
@@ -555,6 +585,7 @@ pub trait KernelOps: Sized {
         ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_safe() == old(self).spec_safe(),
+            forall|t: int| #[trigger] final(self).spec_selected(t) == old(self).spec_selected(t),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn take_stop_dma(&mut self, p: u8) -> bool
@@ -562,6 +593,7 @@ pub trait KernelOps: Sized {
         ensures final(self).inv(), old(self).spec_deadline_owned() ==> final(self).spec_deadline_owned(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_safe() == old(self).spec_safe(),
+            forall|t: int| #[trigger] final(self).spec_selected(t) == old(self).spec_selected(t),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn log_len(&self) -> usize
@@ -922,7 +954,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
     }
 
-    fn svc_lock(&mut self, r: u8) -> bool {
+    open spec fn spec_lock_grants(&self, r: int) -> bool {
+        &&& self.kernel.sched.depth > 0
+        &&& 0 <= r < NR
+        &&& self.cfg.may_access(self.kernel.sched.top(), r)
+        &&& !self.kernel.sched.held(r)
+        &&& self.kernel.sched.lock_len < NL
+    }
+
+    open spec fn spec_unlock_grants(&self, r: int) -> bool {
+        &&& self.kernel.sched.depth > 0
+        &&& self.kernel.sched.lock_len > 0
+        &&& self.kernel.sched.lock_res[self.kernel.sched.lock_len - 1] as int == r
+        &&& self.kernel.sched.entry_of_top(self.kernel.sched.lock_len - 1)
+    }
+
+    fn svc_lock(&mut self, r: u8) -> (ok: bool) {
         if self.kernel.sched.depth == 0 || (r as usize) >= NR {
             return false;
         }
@@ -941,7 +988,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ok
     }
 
-    fn svc_unlock(&mut self, r: u8) -> bool {
+    fn svc_unlock(&mut self, r: u8) -> (ok: bool) {
         if self.kernel.sched.depth == 0 {
             return false;
         }
@@ -971,6 +1018,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn spec_deadline_owned(&self) -> bool {
         self.kernel.deadline_slots_owned(&self.cfg)
+    }
+
+    open spec fn spec_selected(&self, t: int) -> bool {
+        self.kernel.started && !self.kernel.safe_state && hw_model::srp_selection(&self.kernel.sched, &self.cfg, t)
+    }
+
+    proof fn lemma_selected(&self, t: int, u: int) {
     }
 
     fn settle(&mut self) -> (r: (Option<u8>, bool)) {

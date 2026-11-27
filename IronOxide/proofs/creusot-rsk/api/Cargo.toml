@@ -1,0 +1,30 @@
+[package]
+name = "rsk-api-proof"
+description = "Creusot proof of rsk's own bodies: the functions of the Partition API whose contracts the App_Prover does not take on trust (the real source, compiled as the crate under proof)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "rsk"
+path = "../../../crates/rsk/src/lib.rs"
+
+[dependencies]
+rsk-kernel = { path = "../../../crates/rsk-kernel", default-features = false }
+rsk-macros = { path = "../../../crates/rsk-macros" }
+vstd = { version = "=0.0.0-2026-10-04-0306", default-features = false }
+verus_builtin = { version = "=0.0.0-2026-09-16-0054" }
+verus_builtin_macros = { version = "=0.0.0-2026-09-20-0158" }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)", "cfg(kani)", "cfg(verus_keep_ghost)", "cfg(verus_verify_core)", "cfg(verus_keep_ghost_body)"]
+
+# `rsk`'s features as its source names them: `creusot` on (the contracts),
+# the others off as in the plain members.
+[features]
+default = ["creusot"]
+creusot = []
+quiet = []
+hw-dt = ["rsk-kernel/hw-dt"]

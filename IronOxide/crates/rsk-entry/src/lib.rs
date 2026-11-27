@@ -19,7 +19,7 @@
 
 use rsk_kernel::arch::cm4 as arch;
 use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
-use rsk_kernel::arch::{System, SystemTables};
+use rsk_kernel::arch::SystemTables;
 #[cfg(feature = "app-p1-demo")]
 use rsk_system::Sys;
 #[cfg(feature = "app-hil-stimulus")]
@@ -163,10 +163,9 @@ pub unsafe extern "C" fn Reset() -> ! {
     arch::trace_expect(ppi_probe_system::TRACE_EXPECT.0, ppi_probe_system::TRACE_EXPECT.1, ppi_probe_system::TRACE_EXPECT.2);
     #[cfg(feature = "app-pacemaker")]
     arch::trace_expect(pacemaker_system::TRACE_EXPECT.0, pacemaker_system::TRACE_EXPECT.1, pacemaker_system::TRACE_EXPECT.2);
-    if !arch::boot::<Sys>() {
-        Sys::safe_state();
-    }
-    arch::start::<Sys>();
+    // Boot, then instant 0 only after a boot that passed; a failed boot
+    // ends in `Sys::safe_state` (the verified order: `arch::reset_shell`).
+    arch::reset::<Sys>();
     loop {
         hw::wait_for_interrupt();
     }

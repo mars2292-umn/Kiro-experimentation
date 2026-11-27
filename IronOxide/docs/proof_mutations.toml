@@ -2467,8 +2467,8 @@ package = "rsk-protocol"
 id = "role-ops-send-offered-as-receive"
 kills = "state_ops' postcondition (R38.4, `offers`): a state whose local type sends is a send state; rendered as a receive state the role module would offer `try_recv` where the projection has a send"
 file = "crates/rsk-protocol/src/api.rs"
-find = "        LE::Send { to, ls } => (KIND_SEND, *to, &**ls),\n"
-replace = "        LE::Send { to, ls } => (KIND_RECV, *to, &**ls),\n"
+find = "            StateOps { kind: KIND_SEND, peer: *to, ops }\n"
+replace = "            StateOps { kind: KIND_RECV, peer: *to, ops }\n"
 expect = ["api.rs", "postcondition not satisfied"]
 package = "rsk-protocol"
 
@@ -2836,16 +2836,13 @@ package = "rsk-link"
 id = "stack-certificate-panic-charge-unchecked"
 kills = "cert::check and theorem_one_panic_within_total (R37.1): the panic path's charge covers the usage of every function a panic edge enters"
 file = "crates/rsk-link/src/cert.rs"
-find = "                if callee.bounded && callee.own > panic_usage {\n                    return false;\n                }\n"
-replace = ""
+find = "if callee.bounded && callee.own > panic_usage {"
+replace = "if false {"
 expect = ["cert.rs", "invariant not satisfied"]
 package = "rsk-link"
 
-# R16.1 between entries (2026-11-22): the Kernel's RAM, and the Endpoint
-# storage in it, keeps its words while a Job runs
-# (`hw_model::lemma_kernel_ram_kept_between_entries`,
-# `entry::theorem_storage_kept_between_entries`), the storage's place in
-# the Kernel's RAM being the Config_Checker's check.
+# 2026-11-26: `cert::check` is cut into `walked_check`, `cut_check` and
+# `node_check` (one loop each, ended by a flag) for its Lean translation.
 [[mutation]]
 id = "kernel-ram-kept-for-a-word-that-leaves-the-interval"
 kills = "lemma_kernel_ram_kept_between_entries (R16.1): a word is kept only when all four of its bytes are in the Kernel's RAM; one that straddles its end may be written through a Partition's region"
@@ -3762,3 +3759,568 @@ replace = "    ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_wo
 expect = ["lib.rs"]
 package = "rsk"
 
+# 2026-11-26: the Health_Monitor's remaining containment claim in Lean
+# (Sched/ContainSlots.lean): the other Partitions' timer slots and timing
+# fields under a response.
+
+[[mutation]]
+id = "lean-response-slot-of-any-task"
+kills = "sk_du, clear_loop_qs, apply_response_sr (Sched/ContainSlots.lean, 2026-11-26; R14.9): a response leaves the other Partitions' timer slots because every slot it disarms is one a Task of its Partition owns; without that the deadline slot disarmed may be another Partition's"
+file = "proofs/aeneas/lean/Sched/ContainSlots.lean"
+find = "    (hi : cfg.slot_deadline.index_usize t = ok i) (hin : inP t.val) :\n    SK (WP cfg inP) sl sl' :=\n  SK.disarm"
+replace = "    (hi : cfg.slot_deadline.index_usize t = ok i) (hin : True) :\n    SK (WP cfg inP) sl sl' :=\n  SK.disarm"
+expect = ["Sched/ContainSlots.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-response-budget-slot-of-the-resumed-task-kept"
+kills = "sr_frame, apply_response_slots (Sched/ContainSlots.lean, 2026-11-26; R14.9, task_unchanged): the Budget slot of a Task outside the Partition is as it was only when its Job is not the one resumed; claimed of every Task outside, the slot arm_budget re-arms for the resumed Job is among those written"
+file = "proofs/aeneas/lean/Sched/ContainSlots.lean"
+find = "        u ≠ stk k'.sched (k'.sched.depth.val - 1)) →\n      slotAt k'.slots (bslot cfg u) = slotAt k.slots (bslot cfg u)) := by\n  have nw"
+replace = "        u ≠ stk k'.sched (k'.sched.depth.val - 1) ∨ True) →\n      slotAt k'.slots (bslot cfg u) = slotAt k.slots (bslot cfg u)) := by\n  have nw"
+expect = ["Sched/ContainSlots.lean"]
+prover = "lean"
+
+
+# 2026-11-26: the remainder of the row "Entry cores over the hardware
+# model": the vector lines at boot_core's return and the supervisor call's
+# stack check (svc_check_core).
+
+[[mutation]]
+id = "lean-boot-disable-counted-among-actions-that-leave-the-lines"
+kills = "HE.apply, boot_core_vectors (Sched/ArchHwBootRet.lean, 2026-11-26; A3, R19.5): the lines boot_vectors set are still so at boot_core's return because no action after it writes a line's priority or enable bit; were a Disable counted among the actions that leave the lines, the frame would not follow from the model's step"
+file = "proofs/aeneas/lean/Sched/ArchHwBootRet.lean"
+find = "  | .Enable _ => False\n  | .Disable _ => False\n"
+replace = "  | .Enable _ => False\n  | .Disable _ => True\n"
+expect = ["Sched/ArchHwBootRet.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-svc-check-report-without-the-stacking-fault-discard"
+kills = "svc_check_core_some (Sched/ArchHwSvcCheck.lean, 2026-11-26; R16.5): a stack check that reports returns the hardware after the discard of the pending stacking fault; were the hardware of before the discard returned, the statement that the report is the stack violation's core followed by the discard would not hold of the function"
+file = "proofs/aeneas/lean/Sched/SvcCheck.lean"
+find = "        ok (some (hop, safe), k1, hw2, state1)\n"
+replace = "        ok (some (hop, safe), k1, hw1, state1)\n"
+expect = ["Sched/ArchHwSvcCheck.lean"]
+prover = "lean"
+
+
+# The Analyzer's input check and Endpoint terms in Lean (2026-11-26):
+# crates/rsk-analyzer/src/terms.rs (the loops of check_inputs as functions
+# of their own), proofs/aeneas/lean/Rta/Inputs.lean.
+
+[[mutation]]
+id = "analyzer-input-check-takes-a-task-without-priority"
+kills = "first_unfit_task, and through it check_inputs (2026-11-26): `None` only when every Task has a Budget and a Priority above the idle level (Property 18's `hbud` and the positive Priority of `hprio`)"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "        if tasks[i].budget == 0 || tasks[i].priority == 0 {\n"
+replace = "        if tasks[i].budget == 0 { // (mutant) the Priority is not looked at\n"
+expect = ["terms.rs", "invariant not satisfied"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "analyzer-input-check-takes-a-site-of-the-task-past-the-last"
+kills = "first_stray_site, and through it check_inputs (2026-11-26): `None` only when every site names a Task of the set (Property 18's `hsok`; `analyse_all` requires it)"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "        if sites[k].task >= n {\n"
+replace = "        if sites[k].task > n { // (mutant) a site may name Task n\n"
+expect = ["terms.rs", "invariant not satisfied"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "lean-input-check-statement-without-the-deadlines"
+kills = "check_inputs_spec (Rta/Inputs.lean, 2026-11-26): the compiled check_inputs answers `None` exactly when the inputs are admissible; a predicate that does not ask a deadline within its period or MIT is not the one the code decides (the code refuses more)"
+file = "proofs/aeneas/lean/Rta/Inputs.lean"
+find = "def windowAdmissible (w : terms.Window) : Prop := w.deadline.val ≤ w.period.val\n"
+replace = "def windowAdmissible (w : terms.Window) : Prop := w.deadline.val ≤ w.period.val ∨ True\n"
+expect = ["Rta/Inputs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-endpoint-cost-statement-counts-only-sends"
+kills = "endpoint_cost_add_spec (Rta/Inputs.lean, R40.2, 2026-11-26): the compiled endpoint_cost_add charges each declared Endpoint operation the larger of Δ_send and Δ_recv, not Δ_send"
+file = "proofs/aeneas/lean/Rta/Inputs.lean"
+find = "  if p.send.val ≥ p.recv.val then p.send.val else p.recv.val\n"
+replace = "  if p.send.val ≥ p.recv.val then p.send.val else p.send.val\n"
+expect = ["Rta/Inputs.lean"]
+prover = "lean"
+
+
+# The shells, the entries' pending set and view, and the supervisor call's
+# replies (2026-11-26; crates/rsk-kernel/src/arch/cm4/mod.rs, entry.rs,
+# svc_abi.rs, arch/bound.rs).
+
+[[mutation]]
+id = "reset-starts-after-a-failed-boot"
+kills = "reset_shell (R12.2, R12.4, A11): instant 0 is reached only after a boot that passed; start_core requires the invariant, the vector tables' agreement and the entry cores' invariant, which only boot_shell's `ok` establishes"
+file = "crates/rsk-kernel/src/arch/cm4/mod.rs"
+find = "    if !boot_shell(k, hw, tables, state, env) {\n        env.enter_boot_safe_state();\n    }\n"
+replace = "    let _ = boot_shell(k, hw, tables, state, env);\n"
+expect = ["mod.rs", "precondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "svc-shell-returns-from-the-safe-state"
+kills = "svc_shell's contract: the shell returns to the stub only when its core did not end in the safe state (a1_step with `false`: BASEPRI is the value the Kernel's state calls for at every return)"
+file = "crates/rsk-kernel/src/arch/cm4/mod.rs"
+find = "    mirror_events(k);\n    if safe {\n        env.enter_safe_state();\n    }\n    #[cfg(feature = \"trace-ram\")]\n    span_close(k, tables, if stale {"
+replace = "    mirror_events(k);\n    #[cfg(feature = \"trace-ram\")]\n    span_close(k, tables, if stale {"
+expect = ["mod.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "irq-shell-swaps-the-stubs-arguments"
+kills = "irq_entry_shell's contract: the core is handed the stub's arguments in their places (irq_rel is stated of the EXC_RETURN value the stub passed)"
+file = "crates/rsk-kernel/src/arch/cm4/mod.rs"
+find = "    let (plan, safe) = entry::irq_entry_core(k, hw, tables, state, ipsr, psp, control, exc_return);\n"
+replace = "    let (plan, safe) = entry::irq_entry_core(k, hw, tables, state, ipsr, psp, exc_return, control);\n"
+expect = ["mod.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "epilogue-shell-drops-the-next-level"
+kills = "epilogue_shell's contract: the shell returns the core's result, the next level to unwind with it (arch_inv and epi_rel are stated of the plan returned)"
+file = "crates/rsk-kernel/src/arch/cm4/mod.rs"
+find = "    pins_running(k.top());\n    r\n}"
+replace = "    pins_running(k.top());\n    (r.0, r.1, r.2, 0)\n}"
+expect = ["mod.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "timer-entry-pends-another-vector"
+kills = "timer_core's pends_only (A4 at the entries): a Kernel entry pends no vector but the selected Task's"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    // Fed last: a handler that did not complete does not feed (ORQ-31).\n    hw.apply(Action::WatchdogFeed);\n"
+replace = "    hw.apply(Action::Pend(tables.timer_vector()));\n    hw.apply(Action::WatchdogFeed);\n"
+expect = ["entry.rs", "precondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "apply-pends-an-eligible-task-beside-the-selection"
+kills = "apply_core's selection_pended (A4, exactly): the one vector pended is the selected Task's; a second Task that R7.1 admits but DD-03's order does not select is not pended (the earlier statement, vectors_applied, admits any eligible Task's vector)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let ghost h1 = hw.hw();\n    let ghost k1 = *k;\n"
+replace = "    if k.eligible(0) {\n        hw.apply(Action::Pend(tables.dispatch_vector(0)));\n    }\n    let ghost h1 = hw.hw();\n    let ghost k1 = *k;\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "apply-clears-the-selected-vector"
+kills = "apply_core's selection_pended (A4, exactly): the selected Task's vector is pending when apply_core returns; the intake loop's clear of a pending bit is of an intake vector, never the selection's"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                    hw.apply(Action::ClearPending(v));\n"
+replace = "                    hw.apply(Action::ClearPending(tables.dispatch_vector(0)));\n"
+expect = ["entry.rs", "invariant not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "irq-entry-pends-a-deferred-vector-from-handler-mode"
+kills = "irq_entry_core's pends_only with irq_others (A4 at the entries, 5.8a): the deferred vectors are pended again only by an entry taken from Thread mode"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            if v != 0 {\n                proof {\n                    assert(s0.deferred[i as int] == v);\n                    assert(deferred_vector(s0, v as int));\n                }\n                hw.apply(Action::Enable(v));\n                hw.apply(Action::Pend(v));\n                state.deferred[i] = 0;\n            }\n            i += 1;\n        }\n    }\n"
+replace = "            if v != 0 {\n                proof {\n                    assert(s0.deferred[i as int] == v);\n                    assert(deferred_vector(s0, v as int));\n                }\n                hw.apply(Action::Enable(v));\n                hw.apply(Action::Pend(v));\n                state.deferred[i] = 0;\n            }\n            i += 1;\n        }\n    } else {\n        hw.apply(Action::Pend(state.deferred[0]));\n    }\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "dispatch-loads-the-preempted-partitions-view"
+kills = "dispatch_job_core's view clause (A6 at the return to a Job): the view loaded is the dispatched Job's Partition's"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    hw.apply(Action::LoadView(info.partition, view));\n"
+replace = "    hw.apply(Action::LoadView(previous_partition, view));\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "lock-service-answers-granted-whatever-the-scheduler-says"
+kills = "svc_core's svc_served, lock clause: the reply is 1 exactly when the scheduler grants the lock on the state found (KernelOps::spec_lock_grants)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        let ok = k.svc_lock(frame[0] as u8);\n        frame[0] = if ok { 1 } else { 0 };\n"
+replace = "        let ok = k.svc_lock(frame[0] as u8);\n        frame[0] = if ok { 1 } else { 1 };\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "lock-grant-specified-without-the-holder"
+kills = "Bound::svc_lock against spec_lock_grants (R8.1): a Resource a Job holds is not granted; the specification without that clause is not what the linked Kernel does"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "        &&& !self.kernel.sched.held(r)\n"
+replace = ""
+expect = ["bound.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "unlock-grant-specified-for-any-held-resource"
+kills = "Bound::svc_unlock against spec_unlock_grants (R8.2, R8.6): only the Resource locked last by the executing Job is released"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "        &&& self.kernel.sched.lock_res[self.kernel.sched.lock_len - 1] as int == r\n"
+replace = ""
+expect = ["bound.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "violation-report-not-recorded"
+kills = "violation_core's report_served (R41.2): a well-formed violation report records EV_PROTOCOL_VIOLATION against the executing Task and its Partition"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        k.record_event(EV_PROTOCOL_VIOLATION, t);\n        endpoint_reinit_one(state, e);\n"
+replace = "        endpoint_reinit_one(state, e);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "violation-report-keeps-the-endpoint"
+kills = "violation_core's report_served (R41.2, A-P6): a well-formed violation report re-initializes the Endpoint (endpoint_restarted)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        k.record_event(EV_PROTOCOL_VIOLATION, t);\n        endpoint_reinit_one(state, e);\n"
+replace = "        k.record_event(EV_PROTOCOL_VIOLATION, t);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "violation-report-accepted-with-high-bits"
+kills = "violation_core's report_served: a report word with a bit above the role is API misuse of the caller and changes no Endpoint (violation_report_ok requires the bits clear)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        if (arg >> 20) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS || role >= MAX_ROLES {\n"
+replace = "        if e >= tables.endpoint_count() || e >= MAX_ENDPOINTS || role >= MAX_ROLES {\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "clock-reply-high-half-zero"
+kills = "svc_core's now_served: the two reply words are the low and the high half of one reading of the time base"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        frame[1] = (now >> 32) as u32;\n        (0, false)\n"
+replace = "        frame[1] = 0;\n        (0, false)\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "rsk-lock-unlocks-before-the-closure"
+kills = "Shared::lock (rsk, 2026-11-26; R8.1, R8.2): the closure is run on the cell with the evidence of the granted lock (LockHeld), which the unlock call takes; with the unlock issued first the evidence is gone and the cell is reached outside the Critical_Section"
+file = "crates/rsk/src/lib.rs"
+find = "        let r = cell_with_held(self.cell, f, Tracked(held.borrow()));\n        let _ = k_unlock(self.id, held);\n        r\n"
+replace = "        let _ = k_unlock(self.id, held);\n        let r = cell_with_held(self.cell, f, Tracked(held.borrow()));\n        r\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-lock-runs-the-closure-on-a-refusal"
+kills = "Shared::lock (rsk, 2026-11-26; PR-19): a refused lock does not return; without the panic the closure runs on a Resource the Job does not hold (cell_with_held requires the lock granted)"
+file = "crates/rsk/src/lib.rs"
+find = "        if !granted {\n            lock_refused();\n        }\n"
+replace = ""
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-send-with-the-word-count-as-length"
+kills = "Endpoint::send_to (rsk, 2026-11-26; sent_to): the send is issued with the buffer's length in bytes, 4 * W; with W the Kernel copies a quarter of the message or refuses the request"
+file = "crates/rsk/src/lib.rs"
+find = "        let len = (4 * W) as u32;\n        let r = send_request("
+replace = "        let len = W as u32;\n        let r = send_request("
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-recv-delivers-a-rejected-message"
+kills = "Endpoint::recv_from (rsk, 2026-11-26; R42.4, received_from): Ok(Some(m)) only for a message the validation function accepted"
+file = "crates/rsk/src/lib.rs"
+find = "                if V::accept(&m) {\n                    assert(accepted::<T, V>(m, true));\n"
+replace = "                if !V::accept(&m) {\n                    assert(accepted::<T, V>(m, true));\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-recv-rejection-reported-with-the-roles-exchanged"
+kills = "Endpoint::recv_from (rsk, 2026-11-26; R42.4, rejection_reported): the rejection is reported for this Endpoint, the receiving role and the sending role, from which the Kernel finds the Partition at fault; exchanged, it names the receiver"
+file = "crates/rsk/src/lib.rs"
+find = "                    report_rejected_message(self.id, self.role, peer);\n                    assert(words_read"
+replace = "                    report_rejected_message(self.id, peer, self.role);\n                    assert(words_read"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-recv-peer-report-delivered-as-empty"
+kills = "Endpoint::recv_from (rsk, 2026-11-26; R42.3, received_from): Err(PeerChanged) exactly for the Kernel's peer-state reply and Ok(None) for no such reply"
+file = "crates/rsk/src/lib.rs"
+find = "            RecvAnswer::PeerChanged => Err(RecvError::PeerChanged),\n            RecvAnswer::Nothing => Ok(None),\n"
+replace = "            RecvAnswer::PeerChanged => Ok(None),\n            RecvAnswer::Nothing => Ok(None),\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-reclaim-without-the-address-test"
+kills = "DmaBuf::reclaim (rsk, 2026-11-26; R17.5, read_at): a transfer is accepted only when the address it was requested with is the address read of this buffer; without the test any lent buffer is released by any transfer's stop (the Kani mutant kani-dma-reclaim-with-another-buffers-transfer on the same line, now killed by Verus too)"
+file = "crates/rsk/src/lib.rs"
+find = "        if self.lent == 0 || transfer.buffer != self.address() {\n"
+replace = "        if self.lent == 0 {\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-dropped-transfer-not-stopped"
+kills = "Drop for DmaTransfer (rsk, 2026-11-26; stop_issued): a transfer dropped with its stop not requested has it requested by the drop; with the test inverted a transfer no Task holds runs on"
+file = "crates/rsk/src/lib.rs"
+find = "        if !self.stop_requested {\n            self.request_stop();\n"
+replace = "        if self.stop_requested {\n            self.request_stop();\n"
+expect = ["lib.rs"]
+package = "rsk"
+
+[[mutation]]
+id = "rsk-stop-request-without-the-stop-task"
+kills = "DmaTransfer::request_stop (rsk, 2026-11-26; stop_issued): the four register writes, the last the STOP task; without it the events are cleared and the transfer runs on"
+file = "crates/rsk/src/lib.rs"
+find = "        let _ = k_dma_write(self.channel, spim::TASKS_STOP, 1);\n"
+replace = ""
+expect = ["lib.rs"]
+package = "rsk"
+
+
+# 2026-11-26: the ELF reader (rsk-elf, reader_v) and the Config_Checker's
+# table builder (rsk-confcheck, tables_v), verified.
+
+[[mutation]]
+id = "elf-word-read-past-the-end"
+kills = "u32_at's contract (rsk-elf reader_v, 2026-11-26): every read of the file is in bounds; with the length test one byte short the last byte of a word may lie beyond the file"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    if n < 4 || off > n - 4 {\n"
+replace = "    if n < 4 || off > n - 3 {\n"
+expect = ["reader_v.rs"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-symbol-value-from-the-size-word"
+kills = "sym_entry's contract, entry_ok (rsk-elf reader_v, 2026-11-26; R26.4): a symbol's value is the entry's second word; read from the third it is the size"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    let value = match u32_at(d, b as u64 + 4) {"
+replace = "    let value = match u32_at(d, b as u64 + 8) {"
+expect = ["reader_v.rs", "postcondition not satisfied"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-lookup-skips-the-first-byte-of-the-name"
+kills = "name_is's contract (rsk-elf reader_v, 2026-11-26; R26.4): the lookup answers for a symbol whose name bytes are exactly the name asked for; with the first byte not compared another symbol's entry is taken"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "        if d[s.name_start + i] != name[i] {\n"
+replace = "        if i > 0 && d[s.name_start + i] != name[i] {\n"
+expect = ["reader_v.rs"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-lookup-takes-a-name-that-starts-with-the-name"
+kills = "name_is's contract (rsk-elf reader_v, 2026-11-26; R26.4): with the lengths not compared for equality a symbol whose name starts with the name asked for is taken"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    if s.name_end - s.name_start != name.len() {\n"
+replace = "    if s.name_end - s.name_start < name.len() {\n"
+expect = ["reader_v.rs"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-symbols-miss-the-last-entry"
+kills = "sym_entries' contract, syms_ok (rsk-elf reader_v, 2026-11-26): every entry of every symbol table is among the symbols, so a lookup that finds none means there is none; with the loop one entry short the last entry of a table is missing"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    while te - pos >= e\n"
+replace = "    while te - pos > e\n"
+expect = ["reader_v.rs", "postcondition not satisfied"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-read-at-from-the-start-of-the-section"
+kills = "read_at's contract, bytes_at (rsk-elf reader_v, 2026-11-26; R26.4): the bytes at an address are the file's at the section's offset plus the address's offset in the section; without the second term every symbol reads as the first of its section"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    let start = s.offset as u64 + (addr - s.addr) as u64;\n"
+replace = "    let start = s.offset as u64;\n"
+expect = ["reader_v.rs", "bytes_at"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-section-at-takes-a-section-not-allocated"
+kills = "section_at's contract, sec_holds (rsk-elf reader_v, 2026-11-26): the section an address is read from is allocated; without the flag test a debug section at address 0 answers for an address"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "        if secs[i].flags & SHF_ALLOC != 0 && secs[i].size > 0 && addr >= secs[i].addr"
+replace = "        if secs[i].size > 0 && addr >= secs[i].addr"
+expect = ["reader_v.rs"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "elf-string-ends-at-the-file-not-at-its-table"
+kills = "sym_entry's contract, is_str (rsk-elf reader_v, 2026-11-26): a symbol's name ends inside its string table; searched to the end of the file a name without a terminator runs into the bytes after the table"
+file = "crates/rsk-elf/src/reader_v.rs"
+find = "    let name_end = str_end(d, name_start, se);\n"
+replace = "    let name_end = str_end(d, name_start, d.len());\n"
+expect = ["reader_v.rs"]
+package = "rsk-elf"
+
+[[mutation]]
+id = "confcheck-tables-take-a-priority-of-256"
+kills = "narrow_u8's contract, task_ok (rsk-confcheck tables_v, 2026-11-26; R26.4): no value of the Task_Model is truncated into its table field; with the bound one too high a Priority of 256 enters the tables as 0"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "    if v > 255 {\n        Err(BuildErr::Narrow(f, v))\n"
+replace = "    if v > 256 {\n        Err(BuildErr::Narrow(f, v))\n"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-tables-ceiling-of-the-last-accessor"
+kills = "ceiling's contract, ceiling_is (rsk-confcheck tables_v, 2026-11-26; R8.7, R26.2): the expected Ceiling is the greatest Priority among the accessors; taking every differing Priority it is the last accessor's"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "                if m.tasks[t].priority > c {\n"
+replace = "                if m.tasks[t].priority != c {\n"
+expect = ["tables_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-tables-access-row-of-the-first-task"
+kills = "access_row's contract, tables_ok (rsk-confcheck tables_v, 2026-11-26; R26.4): the expected access matrix has, for each Task, the Resources that list that Task; with the first Task's id in every row every Task has the first Task's row"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "        let b = lists(m, r, &m.tasks[i].id);\n"
+replace = "        let b = lists(m, r, &m.tasks[0].id);\n"
+expect = ["tables_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-tables-kind-codes-swapped"
+kills = "task_cfg's contract, task_ok (rsk-confcheck tables_v, 2026-11-26; R26.4): the expected kind code of a sporadic Task is KIND_SPORADIC"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "        kind: if task.sporadic { KIND_SPORADIC } else { KIND_PERIODIC },\n"
+replace = "        kind: if task.sporadic { KIND_PERIODIC } else { KIND_SPORADIC },\n"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-tables-slot-count-one-short"
+kills = "build_tables' contract, tables_ok (rsk-confcheck tables_v, 2026-11-26; R9.4, R26.4): the expected slot count is three per Task and two"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "    let slot_count: u8 = (3 * n + 2) as u8;\n"
+replace = "    let slot_count: u8 = (3 * n + 1) as u8;\n"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-tables-partition-by-any-match"
+kills = "partition_index's contract, partition_is (rsk-confcheck tables_v, 2026-11-26; R26.4): a Task's Partition in the expected tables is the first Partition of the id it names; a search that starts at the second misses the first"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "    let mut i: usize = 0;\n    while i < m.partitions.len()\n        invariant i <= m.partitions@.len(), forall|q: int| 0 <= q < i ==> (#[trigger] m.partitions@[q]).id@ != id@,\n"
+replace = "    let mut i: usize = if m.partitions.len() > 1 { 1 } else { 0 };\n    while i < m.partitions.len()\n        invariant i <= m.partitions@.len(), forall|q: int| 0 <= q < i ==> (#[trigger] m.partitions@[q]).id@ != id@,\n"
+expect = ["tables_v.rs", "invariant not satisfied before loop"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-response-code-of-another-response"
+kills = "response_code's contract, response_of (rsk-confcheck tables_v, 2026-11-26; R26.4): the code of STOP_PARTITION is RESP_STOP_PARTITION"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "    } else if name == \"STOP_PARTITION\" {\n        Some(RESP_STOP_PARTITION)\n    } else if name == \"SAFE_STATE\" {\n        Some(RESP_SAFE_STATE)\n    } else if name == \"RECORD_ONLY\" {\n        Some(RESP_RECORD_ONLY)\n    } else if name == \"RECORD_AND_CONTINUE\" {\n        Some(RESP_RECORD_AND_CONTINUE)\n    } else {\n        None\n    }\n}\n\nfn narrow_u8"
+replace = "    } else if name == \"STOP_PARTITION\" {\n        Some(RESP_SAFE_STATE)\n    } else if name == \"SAFE_STATE\" {\n        Some(RESP_SAFE_STATE)\n    } else if name == \"RECORD_ONLY\" {\n        Some(RESP_RECORD_ONLY)\n    } else if name == \"RECORD_AND_CONTINUE\" {\n        Some(RESP_RECORD_AND_CONTINUE)\n    } else {\n        None\n    }\n}\n\nfn narrow_u8"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-layout-unused-window-slot-read-only"
+kills = "window_slots' contract, window_slot_ok (rsk-confcheck tables_v, 2026-11-26; R16.7, R26.4): an unused window slot of the expected layout is (0, 5), not read-only, as the Kernel's table has it"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "            out.push((0, 5, false));\n"
+replace = "            out.push((0, 5, true));\n"
+expect = ["tables_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-layout-ram-interval-for-the-code"
+kills = "part_layout's contract, part_layout_ok (rsk-confcheck tables_v, 2026-11-26; R16.7, R26.2): a Partition's expected code interval is the Task_Model's code region"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "    let code = match interval(&part.code) {"
+replace = "    let code = match interval(&part.ram) {"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-layout-window-count-of-the-slots"
+kills = "part_layout's contract, part_layout_ok (rsk-confcheck tables_v, 2026-11-26; R16.7, R26.4): a Partition's expected window count is the number of windows the Task_Model gives it, not the number of slots"
+file = "crates/rsk-confcheck/src/tables_v.rs"
+find = "window_count: part.windows.len() as u8, windows })"
+replace = "window_count: MAX_WINDOWS as u8, windows })"
+expect = ["tables_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "lean-elf-word-with-the-high-byte-in-the-third-place"
+kills = "u32_at_spec and with it sym_entry_spec, lookup_spec, parse_spec (Tools/ElfProofs.lean, 2026-11-26; R26.4): the compiled reader reads a word least significant byte first; with the fourth byte shifted as the third the extracted function does not compute le32"
+file = "proofs/aeneas/lean/Tools/Elf.lean"
+find = "      let i18 ← i17 <<< 24#i32\n"
+replace = "      let i18 ← i17 <<< 16#i32\n"
+expect = ["Tools/ElfProofs.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-elf-lookup-wants-a-function-for-an-object"
+kills = "find_spec, lookup_spec (Tools/ElfProofs.lean, 2026-11-26; R26.4): an object symbol is one whose info has type 1; with type 2 in the statement the compiled lookup does not return what the statement names"
+file = "proofs/aeneas/lean/Tools/ElfProofs.lean"
+find = "  NameIs d s nm ∧ (object = true → s.info.bv &&& 15#8 = 1#8)\n"
+replace = "  NameIs d s nm ∧ (object = true → s.info.bv &&& 15#8 = 2#8)\n"
+expect = ["Tools/ElfProofs.lean"]
+prover = "lean"
+
+
+# The Protocol_Checker's role operations, projections and progress
+# certificate on the code as compiled (Lean, 2026-11-26): Proto/RoleOps.lean,
+# Proto/ProjExec.lean, Proto/CertSpec.lean, Proto/CertExec.lean,
+# Proto/Certify.lean over the translation Proto/Proto.lean.
+
+[[mutation]]
+id = "lean-proto-code-next-state-of-the-source"
+kills = "next_state_spec (api::next_state as extracted answers the target state of the transition it finds; answering its source state, `role_ops` would lead every operation back to its own state)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "        then ok (done (some t.to))\n"
+replace = "        then ok (done (some t.from))\n"
+expect = ["Proto/RoleOps.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-certify-ignores-a-waiting-set"
+kills = "configs_closed_spec, certify_spec (certify as extracted refuses a list with a configuration for which has_deadlock answers true)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "        let b2 ← progress.has_deadlock s c\n        if b2\n"
+replace = "        let b2 ← progress.has_deadlock s c\n        if false\n"
+expect = ["Proto/Certify.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "certify-successor-not-looked-up"
+kills = "successors_listed's contract (R41.3, `certificate`'s closure clause): every enabled operation of a listed configuration leads to a listed one; a check that accepts a successor outside the list would certify a list that is not closed"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "            if !contains(list, &next) {\n                return false;\n            }\n        }\n        j += 1;\n"
+replace = "            if false && !contains(list, &next) {\n                return false;\n            }\n        }\n        j += 1;\n"
+expect = ["progress.rs", "invariant not satisfied"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "certify-configuration-not-checked-for-capacity"
+kills = "configs_closed's contract (R41.1, `certificate`): every listed configuration is within the capacity"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "        if !wf_config(s, c) || !capacity_ok(s, c) || has_deadlock(s, c) {\n            return false;\n        }\n        if !successors_listed(s, list, c) {\n"
+replace = "        if !wf_config(s, c) || has_deadlock(s, c) {\n            return false;\n        }\n        if !successors_listed(s, list, c) {\n"
+expect = ["progress.rs", "invariant not satisfied"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "stack-certificate-node-skips-its-followed-calls"
+kills = "cert::node_check (R37.1; 2026-11-26): a bounded function's followed calls are each checked before its panic edges are"
+file = "crates/rsk-link/src/cert.rs"
+find = "    } else if !walked_check(g, i) {\n        false\n    } else {"
+replace = "    } else {"
+expect = ["cert.rs", "postcondition not satisfied"]
+package = "rsk-link"
+
+[[mutation]]
+id = "stack-certificate-panic-edge-from-an-unmarked-function"
+kills = "cert::cut_check and theorem_one_panic_within_total (R37.1): a function with a panic edge is marked as able to panic, so the panic path's charge is in its reported total"
+file = "crates/rsk-link/src/cert.rs"
+find = "if c >= n || !node.panics {"
+replace = "if c >= n {"
+expect = ["cert.rs", "invariant not satisfied"]
+package = "rsk-link"
+
+# R16.1 between entries (2026-11-22): the Kernel's RAM, and the Endpoint
+# storage in it, keeps its words while a Job runs
+# (`hw_model::lemma_kernel_ram_kept_between_entries`,
+# `entry::theorem_storage_kept_between_entries`), the storage's place in
+# the Kernel's RAM being the Config_Checker's check.

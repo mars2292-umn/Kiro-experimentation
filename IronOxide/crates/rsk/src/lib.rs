@@ -49,14 +49,17 @@ mod spec {
         }
     }
 
-    // The gate's model is opaque (the field is private, so that no body
-    // can forge an open gate); the three operations carry the trusted
-    // contracts: closed at construction, open after `open`, read by `is_open`.
+    // The gate's model is its field, known inside this crate only
+    // (`open(crate)`: to a Partition crate the model is opaque and the field
+    // private, so that no body can forge an open gate). The three
+    // operations' contracts (closed at construction, open after `open`,
+    // read by `is_open`) are proven of their bodies by the App_Prover
+    // (2026-11-26, `proofs/creusot-rsk`), no longer trusted.
     impl View for super::Gate {
         type ViewTy = bool;
-        #[logic(opaque)]
+        #[logic(open(crate))]
         fn view(self) -> bool {
-            dead
+            self.open
         }
     }
 
@@ -68,14 +71,15 @@ mod spec {
         }
     }
 
-    // An Endpoint's model is its (Endpoint index, role) pair, opaque (the
-    // fields are private): `new` establishes it, the word-level operations'
-    // contracts name it (A-P2, `channel`).
+    // An Endpoint's model is its (Endpoint index, role) pair: the two
+    // private fields, known inside this crate only (`open(crate)`). `new`
+    // establishes it, proven of its body (2026-11-26, `proofs/creusot-rsk`);
+    // the word-level operations' contracts name it (A-P2, `channel`).
     impl<T: super::Plain, const W: usize, V: super::Validate<T>> View for super::Endpoint<T, W, V> {
         type ViewTy = (u8, u8);
-        #[logic(opaque)]
+        #[logic(open(crate))]
         fn view(self) -> (u8, u8) {
-            dead
+            (self.id, self.role)
         }
     }
 }
@@ -91,7 +95,22 @@ use rsk_kernel::arch::cm4::unsafe_module::stubs;
 use rsk_kernel::arch::cm4::entry::{ENDPOINT_FULL, ENDPOINT_OK, ENDPOINT_PEER, SVC_DMA, SVC_LOCK, SVC_RAISE, SVC_RECV, SVC_SEND, SVC_UNLOCK, SVC_VIOLATION};
 #[allow(unused_imports)]
 use rsk_kernel::arch::cm4::svc_abi::*;
+// Under the App_Prover this crate does not name `vstd` (2026-11-26). With
+// `vstd` named here, Creusot's compiler (rustc nightly-2026-08-03) does not
+// finish translating this crate: for a function of a trait implementation
+// it prints the trait's path, rustc computes the map of visible paths over
+// every crate this one names, and that computation does not end on `vstd`
+// (observed: no end within 8 minutes, against 0.2 s with `vstd` not named;
+// a scratch crate of one `Drop` implementation shows the same). The erased
+// form of the `verus!` blocks needs the macro and the type of ghost
+// arguments only, which `verus_builtin_macros` and `verus_builtin` have.
+#[cfg(not(feature = "creusot"))]
 use vstd::prelude::*;
+#[cfg(feature = "creusot")]
+#[allow(unused_imports)]
+use verus_builtin::Tracked;
+#[cfg(feature = "creusot")]
+use verus_builtin_macros::verus;
 
 verus! {
 
@@ -104,24 +123,197 @@ verus! {
 // What the Kernel's handler leaves in the reply word for such a request is
 // proven on the Kernel's side (`svc_served`, of `svc_core`).
 
-#[inline(always)]
+/// The evidence of one lock call's answer (2026-11-26), a ghost value with
+/// no run-time form: `k_lock` hands one out with the Resource it was asked
+/// for and whether the Kernel granted it, the access to a Resource's cell
+/// (`cell_with_held`) requires one that says granted, and `k_unlock` takes
+/// it. It cannot be copied and no verified code can make one, so the body
+/// of `Shared::lock` verifies only if the cell is reached after a lock call
+/// that was granted and before the unlock call of the same Resource.
 #[verifier::external_body]
-fn k_lock(r: u8) -> (ok: bool)
-    ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_LOCK, r as u32, r1, r2, out) && ok == (out != 0),
-{
-    stubs::svc_lock(r)
+pub tracked struct LockHeld {
+    _private: (),
+}
+
+impl LockHeld {
+    /// The Resource the lock call named.
+    pub uninterp spec fn resource(&self) -> u8;
+
+    /// The Kernel granted it (the reply word was not 0).
+    pub uninterp spec fn granted(&self) -> bool;
 }
 
 #[inline(always)]
 #[verifier::external_body]
-fn k_unlock(r: u8) -> (ok: bool)
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn k_lock(r: u8) -> (ret: (bool, Tracked<LockHeld>))
+    ensures
+        exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_LOCK, r as u32, r1, r2, out) && ret.0 == (out != 0),
+        ret.1@.resource() == r,
+        ret.1@.granted() == ret.0,
+{
+    (stubs::svc_lock(r), Tracked::assume_new())
+}
+
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn k_unlock(r: u8, Tracked(held): Tracked<LockHeld>) -> (ok: bool)
+    requires held.resource() == r, held.granted(),
     ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_UNLOCK, r as u32, r1, r2, out) && ok == (out != 0),
 {
     stubs::svc_unlock(r)
 }
 
+/// A refused lock: the Job panics into its Partition's fault response
+/// (PR-19) and this call does not return. Trusted: `panic!` has no model.
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn lock_refused()
+    ensures false,
+{
+    panic!("rsk: lock refused");
+}
+
+// The three items of the Kernel_Unsafe_Module this library's generic shells
+// are written over, as the proofs see them (2026-11-26). The types are
+// opaque (their bodies are an `UnsafeCell` and a buffer the Kernel writes
+// through a raw pointer); the trait is known by name only. Each function
+// below is one call of an operation of theirs, with a trusted
+// specification (`docs/proof_assumptions.toml`). None of the
+// specifications makes a cell's content, a buffer's address, or what a
+// buffer holds after the Kernel wrote it a function of a Rust value: they
+// are relations (`words_of`, `words_read`, `words_at`) that say what one
+// call returned and nothing of another.
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(T)]
+pub struct ExResourceCell<T>(ResourceCell<T>);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+pub struct ExWords<const W: usize>(Words<W>);
+
+#[verifier::external_trait_specification]
+pub trait ExPlain: Copy {
+    type ExternalTraitSpecificationFor: Plain;
+}
+
+/// `ResourceCell::with` (UJ-051: "called only by `rsk::Shared::lock` while
+/// the Resource is held"): the closure is run once on the cell's value,
+/// whatever that value is (other Tasks change it between Critical_Sections),
+/// and its result returned. Requires the evidence of a granted lock.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn cell_with_held<T, R, F: FnOnce(&mut T) -> R>(cell: &ResourceCell<T>, f: F, Tracked(held): Tracked<&LockHeld>) -> (r: R)
+    requires
+        held.granted(),
+        forall|v: &mut T| #[trigger] f.requires((v,)),
+    ensures exists|v: &mut T| #[trigger] f.ensures((v,), r),
+{
+    cell.with(f)
+}
+
+/// `ResourceCell::with_unprivileged` (UJ-053, per-Task state): the closure
+/// is run once on the cell's value and its result returned.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn cell_with_own<T, R, F: FnOnce(&mut T) -> R>(cell: &ResourceCell<T>, f: F) -> (r: R)
+    requires forall|v: &mut T| #[trigger] f.requires((v,)),
+    ensures exists|v: &mut T| #[trigger] f.ensures((v,), r),
+{
+    cell.with_unprivileged(f)
+}
+
+/// `ResourceCell::peek_unprivileged` (UJ-054): a copy of the cell's value.
+/// No specification: the value is the cell's content, which is not a
+/// function of the reference.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn cell_peek_own<T: Copy>(cell: &ResourceCell<T>) -> T {
+    cell.peek_unprivileged()
+}
+
+/// `w` is a word buffer `message_to_words` returned for the message `m`
+/// (UJ-058: the value's bytes at the start, the rest zero).
+pub uninterp spec fn words_of<T, const W: usize>(m: T, w: Words<W>) -> bool;
+
+/// `m` is a message `message_from_words` returned for a buffer the proofs
+/// see as `w` (UJ-059: the buffer's first bytes as they are in memory when
+/// read, which the Kernel may have written).
+pub uninterp spec fn words_read<T, const W: usize>(w: Words<W>, m: T) -> bool;
+
+/// A read of the address of a word buffer the proofs see as `w` returned
+/// `a`. A relation: the address is a fact of where the buffer lies.
+pub uninterp spec fn words_at<const W: usize>(w: Words<W>, a: u32) -> bool;
+
+/// The length an Endpoint operation hands the Kernel: the buffer's bytes.
+pub open spec fn payload_len<const W: usize>() -> u32 {
+    (4 * W) as u32
+}
+
+/// `message_to_words`. That `4 * W` does not overflow is the layout's: a
+/// value of `[u32; W]` exists.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn to_words<T: Plain, const W: usize>(m: &T) -> (w: Words<W>)
+    ensures words_of(*m, w), 4 * W <= usize::MAX,
+{
+    message_to_words::<T, W>(m)
+}
+
+/// `message_from_words`.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn from_words<T: Plain, const W: usize>(w: &Words<W>) -> (m: T)
+    ensures words_read(*w, m),
+{
+    message_from_words::<T, W>(w)
+}
+
+/// `Words::zero`; the layout's fact as for `to_words`.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn zero_words<const W: usize>() -> (w: Words<W>)
+    ensures 4 * W <= usize::MAX,
+{
+    Words::<W>::zero()
+}
+
+/// The address of a word buffer, for a send.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn words_address<const W: usize>(w: &Words<W>) -> (a: u32)
+    ensures words_at(*w, a),
+{
+    w.0.as_ptr() as usize as u32
+}
+
+/// The address of a word buffer the Kernel is about to write through, for
+/// a receive. From this call on the proofs know nothing of what the buffer
+/// holds (`final(w)` is unconstrained): the Kernel's write is no
+/// assignment the proofs see, so the buffer's value is left open here.
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+fn words_address_mut<const W: usize>(w: &mut Words<W>) -> (a: u32)
+    ensures words_at(*final(w), a),
+{
+    w.0.as_mut_ptr() as usize as u32
+}
+
+#[inline(always)]
+#[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_now() -> (t: u64)
     ensures exists|lo: u32, hi: u32| #[trigger] svc_ret_now(lo, hi) && t == ((hi as u64) << 32) | lo as u64,
 {
@@ -130,6 +322,7 @@ fn k_now() -> (t: u64)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_dma(i: u8, ptr: u32, len: u32) -> (ok: bool)
     ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_request_word(i), ptr, len, out) && ok == (out == 0),
     no_unwind
@@ -139,6 +332,7 @@ fn k_dma(i: u8, ptr: u32, len: u32) -> (ok: bool)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_dma_write(i: u8, offset: u32, value: u32) -> (ok: bool)
     ensures exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(i), offset, value, out) && ok == (out == 0),
     opens_invariants none
@@ -149,6 +343,7 @@ fn k_dma_write(i: u8, offset: u32, value: u32) -> (ok: bool)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_raise(signal: u8) -> (ok: bool)
     ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_RAISE, signal as u32, r1, r2, out) && ok == (out == 0),
 {
@@ -157,6 +352,7 @@ fn k_raise(signal: u8) -> (ok: bool)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_send(arg: u32, ptr: u32, len: u32) -> (code: u32)
     ensures svc_ret(SVC_SEND, arg, ptr, len, code),
 {
@@ -165,6 +361,7 @@ fn k_send(arg: u32, ptr: u32, len: u32) -> (code: u32)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_recv(arg: u32, ptr: u32, len: u32) -> (code: u32)
     ensures svc_ret(SVC_RECV, arg, ptr, len, code),
 {
@@ -173,6 +370,7 @@ fn k_recv(arg: u32, ptr: u32, len: u32) -> (code: u32)
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_violation(arg: u32)
     ensures exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_VIOLATION, arg, r1, r2, out),
 {
@@ -185,6 +383,7 @@ pub uninterp spec fn reg_ret(addr: u32, value: u32) -> bool;
 
 #[inline(always)]
 #[verifier::external_body]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn k_read(addr: u32) -> (value: u32)
     ensures reg_ret(addr, value),
 {
@@ -201,17 +400,27 @@ pub trait Mutex {
     fn lock<R>(&mut self, f: impl FnOnce(&mut Self::T) -> R) -> R;
 }
 
+verus! {
+
 /// The proxy of one declared Resource in a Task's Context (R8.7).
+#[verifier::reject_recursive_types(T)]
 pub struct Shared<'a, T: 'static> {
     cell: &'a ResourceCell<T>,
     id: u8,
 }
 
 impl<'a, T: 'static> Shared<'a, T> {
+    /// The Resource's identifier in Generated_Config.
+    pub closed spec fn resource(&self) -> u8 {
+        self.id
+    }
+
     /// Constructed by generated code only (PR-06): the Resource identifier
     /// is the one of Generated_Config.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn new(cell: &'a ResourceCell<T>, id: u8) -> Shared<'a, T> {
+    pub fn new(cell: &'a ResourceCell<T>, id: u8) -> (s: Shared<'a, T>)
+        ensures s.resource() == id,
+    {
         Shared { cell, id }
     }
 
@@ -222,20 +431,38 @@ impl<'a, T: 'static> Shared<'a, T> {
     // App_Prover contract (task 17.1, trusted: the body is the Kernel's SVC
     // pair, R8.1 to R8.3): the closure runs once on the Resource's value and
     // its result is returned; the closure must be ready for any value.
+    // Proven by Verus (2026-11-26): a return means that the lock call of
+    // this Resource was issued and granted, that the closure was run once
+    // on the cell and its result is the one returned, and that the unlock
+    // call of this Resource was issued; the closure is run only with the
+    // evidence of the granted lock, which the unlock call then takes
+    // (`LockHeld`: the order lock, closure, unlock), and on a refusal the
+    // function does not return and the closure is not run.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) && (*self)@[*v] ==> f.precondition((v,))))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T, r: R> inv(v) && (*self)@[*v] && f.postcondition_once((v,), r) ==> (*self)@[^v]))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == (*self)@))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && (*self)@[*v] && (*self)@[^v] && f.postcondition_once((v,), result)))]
-    pub fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
-        if !k_lock(self.id) {
-            panic!("rsk: lock refused");
+    pub fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> (r: R)
+        requires forall|v: &mut T| #[trigger] f.requires((v,)),
+        ensures
+            *final(self) == *old(self),
+            exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_LOCK, old(self).resource() as u32, r1, r2, out) && out != 0,
+            exists|v: &mut T| #[trigger] f.ensures((v,), r),
+            exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_UNLOCK, old(self).resource() as u32, r1, r2, out),
+    {
+        assert(self.resource() == self.id);
+        let (granted, held) = k_lock(self.id);
+        if !granted {
+            lock_refused();
         }
-        let r = self.cell.with(f);
-        let _ = k_unlock(self.id);
+        let r = cell_with_held(self.cell, f, Tracked(held.borrow()));
+        let _ = k_unlock(self.id, held);
         r
     }
 }
+
+} // verus!
 
 impl<'a, T: 'static> Mutex for Shared<'a, T> {
     type T = T;
@@ -245,11 +472,14 @@ impl<'a, T: 'static> Mutex for Shared<'a, T> {
     }
 }
 
+verus! {
+
 /// Per-Task state (PR-25): declared `state <task>.<name>: T = init;` in
 /// the App_Declaration and held in the Task's Context. Only this Task's
 /// Jobs touch the cell, and one Job of a Task is in progress at a time
 /// (Property 2), so no lock is needed; the Generator emits the cell, so
 /// Partition code declares no interior-mutable `static` (PR-05).
+#[verifier::reject_recursive_types(T)]
 pub struct PerTask<'a, T: 'static> {
     cell: &'a ResourceCell<T>,
 }
@@ -263,11 +493,20 @@ impl<'a, T: 'static> PerTask<'a, T> {
 
     /// Runs `f` on the state. App_Prover contract (task 17.1, trusted): the
     /// closure runs once on the state and its result is returned.
+    // Proven by Verus (2026-11-26): the closure was run once on the cell
+    // and its result is the one returned. That the value it finds is the
+    // one the last access left (the App_Prover's model of a `PerTask`) is
+    // not: the cell's content has no specification.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) && *v == (*self)@ ==> f.precondition((v,))))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && *v == (*self)@ && ^v == (^self)@ && f.postcondition_once((v,), result)))]
-    pub fn with<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
-        self.cell.with_unprivileged(f)
+    pub fn with<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> (r: R)
+        requires forall|v: &mut T| #[trigger] f.requires((v,)),
+        ensures
+            *final(self) == *old(self),
+            exists|v: &mut T| #[trigger] f.ensures((v,), r),
+    {
+        cell_with_own(self.cell, f)
     }
 
     /// A copy of the state.
@@ -277,16 +516,18 @@ impl<'a, T: 'static> PerTask<'a, T> {
     where
         T: Copy,
     {
-        self.cell.peek_unprivileged()
+        cell_peek_own(self.cell)
     }
 
     /// Replaces the state.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == value))]
     pub fn set(&mut self, value: T) {
-        self.with(|v| *v = value)
+        self.with(|v: &mut T| { *v = value; })
     }
 }
+
+} // verus!
 
 verus! {
 
@@ -303,7 +544,6 @@ impl Signal {
 
     /// Constructed by generated code only: the identifier is the one of
     /// Generated_Config's signal table.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn new(id: u8) -> (s: Signal)
         ensures s.index() == id,
     {
@@ -464,7 +704,11 @@ fn endpoint_word(id: u8, role: u8, peer: u8) -> (a: u32)
 
 /// The other role of a two-role Endpoint (the plain form): 0 or 1, and not
 /// this role when this role is 0 or 1.
+// Trusted by the App_Prover, whose solvers do not show that `role & 1` is
+// at most 1 (the subtraction's check); Verus proves it, by bit-vector
+// reasoning, with the function's contract.
 #[inline]
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 fn other_role_of(role: u8) -> (o: u8)
     ensures o == other_role(role), o <= 1, role <= 1 ==> o != role,
 {
@@ -534,6 +778,8 @@ mod answers_kani {
     }
 }
 
+verus! {
+
 /// A receiver-side validation function (R42.4, task 21.4): the Generator
 /// requires one for each role that receives messages from a Partition of
 /// lower Criticality_Level and binds it through this trait, so that the
@@ -549,9 +795,59 @@ pub struct Accept;
 
 impl<T> Validate<T> for Accept {
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == true))]
-    fn accept(_m: &T) -> bool {
+    fn accept(_m: &T) -> (b: bool)
+        ensures b,
+    {
         true
     }
+}
+
+/// A call of the role's validation function `V::accept` on `m` returned
+/// `b`: the function's own postcondition (for `Accept`: `b` is true; for an
+/// Application's function, which is not Verus code, nothing more than that
+/// such a call returned so).
+pub open spec fn accepted<T, V: Validate<T>>(m: T, b: bool) -> bool {
+    call_ensures(V::accept, (&m,), b)
+}
+
+/// What a send of `m` by `role` of Endpoint `id` to `peer` did, for the
+/// result `r`: the send supervisor call was issued with the request word
+/// of that Endpoint, role and peer, the address read of a word buffer
+/// `message_to_words` made of `m`, and the buffer's length in bytes; `r`
+/// is the reading of the reply (`send_result_spec`).
+pub open spec fn sent_to<T, const W: usize>(id: u8, role: u8, peer: u8, m: T, r: Result<(), SendError>) -> bool {
+    exists|w: Words<W>, a: u32, code: u32|
+        #![trigger words_at(w, a), svc_ret(SVC_SEND, endpoint_arg(id, role, peer), a, payload_len::<W>(), code)]
+        words_of(m, w) && words_at(w, a) && svc_ret(SVC_SEND, endpoint_arg(id, role, peer), a, payload_len::<W>(), code) && r == send_result_spec(code)
+}
+
+/// What a receive by `role` of Endpoint `id` from `peer` did, for the
+/// result `r`: the receive supervisor call was issued with the request
+/// word of that Endpoint, role and peer, the address read of a word buffer
+/// and its length in bytes, and
+///
+/// - `Ok(Some(m))` only for the reply `ENDPOINT_OK`, with `m` read from
+///   that buffer and accepted by the validation function;
+/// - `Err(Rejected)` only for the reply `ENDPOINT_OK` with a message read
+///   from that buffer that the validation function did not accept, and
+///   then the rejection was reported for this Endpoint, role and peer;
+/// - `Err(PeerChanged)` exactly for the peer-state reply;
+/// - `Ok(None)` exactly for every other reply.
+pub open spec fn received_from<T, const W: usize, V: Validate<T>>(id: u8, role: u8, peer: u8, r: Result<Option<T>, RecvError>) -> bool {
+    exists|w: Words<W>, a: u32, code: u32|
+        #![trigger words_at(w, a), svc_ret(SVC_RECV, endpoint_arg(id, role, peer), a, payload_len::<W>(), code)]
+        words_at(w, a) && svc_ret(SVC_RECV, endpoint_arg(id, role, peer), a, payload_len::<W>(), code) && match r {
+            Ok(Some(m)) => code == ENDPOINT_OK && words_read(w, m) && accepted::<T, V>(m, true),
+            Err(RecvError::Rejected) => code == ENDPOINT_OK && (exists|m: T| #[trigger] words_read(w, m) && accepted::<T, V>(m, false)) && rejection_reported(id, role, peer),
+            Err(RecvError::PeerChanged) => code == ENDPOINT_PEER,
+            Ok(None) => code != ENDPOINT_OK && code != ENDPOINT_PEER,
+        }
+}
+
+/// The report supervisor call was issued with the rejection word of this
+/// Endpoint, receiving role and sending role (`report_rejected_message`).
+pub open spec fn rejection_reported(id: u8, role: u8, from: u8) -> bool {
+    exists|r1: u32, r2: u32, out: u32| #[trigger] svc_ret(SVC_VIOLATION, rejection_word(id, role, from), r1, r2, out)
 }
 
 /// A Task's role of an Endpoint (task 21.2; DD-09, R38.1, R40.1), held in
@@ -573,43 +869,94 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// R38.1: the payload type fits the declared payload (checked at compile
     /// time for every instantiation; the Generator asserts the same on the
     /// declaration's payload bytes).
+    #[verifier::external]
     const FITS: () = assert!(Words::<W>::fits::<T>(), "the Endpoint's payload type exceeds its declared payload or is more than 8-byte aligned (R38.1)");
+
+    /// Names `FITS`, so that the assertion is evaluated for every
+    /// instantiation that sends or receives (a compile-time fact; nothing
+    /// at run time, and nothing the proofs use).
+    #[inline(always)]
+    #[verifier::external_body]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    fn fits_checked() {
+        let () = Self::FITS;
+    }
+
+    /// The Endpoint's index in Generated_Config.
+    pub closed spec fn endpoint(&self) -> u8 {
+        self.id
+    }
+
+    /// The Task's role of it.
+    pub closed spec fn this_role(&self) -> u8 {
+        self.role
+    }
 
     /// Constructed by generated code only (PR-06): the Endpoint index of
     /// Generated_Config and the Task's role (0 or 1).
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == (id, role)))]
-    pub const fn new(id: u8, role: u8) -> Endpoint<T, W, V> {
+    pub const fn new(id: u8, role: u8) -> (e: Endpoint<T, W, V>)
+        ensures e.endpoint() == id, e.this_role() == role,
+    {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
 
     /// The other role of a two-role Endpoint (the plain form).
-    fn other(&self) -> u8 {
+    fn other(&self) -> (o: u8)
+        ensures o == other_role(self.this_role()),
+    {
         other_role_of(self.role)
     }
 
     /// Sends `m` to role `peer` (task 21.7: one channel per ordered pair of
     /// roles); the contract of `send` otherwise.
+    // Proven by Verus (2026-11-26): `sent_to`.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn send_to(&self, peer: u8, m: &T) -> Result<(), SendError> {
-        let () = Self::FITS;
-        let words = message_to_words::<T, W>(m);
-        send_request(self.id, self.role, peer, words.0.as_ptr() as usize as u32, (4 * W) as u32)
+    pub fn send_to(&self, peer: u8, m: &T) -> (r: Result<(), SendError>)
+        ensures sent_to::<T, W>(self.endpoint(), self.this_role(), peer, *m, r),
+    {
+        Self::fits_checked();
+        let words = to_words::<T, W>(m);
+        let address = words_address(&words);
+        let len = (4 * W) as u32;
+        let r = send_request(self.id, self.role, peer, address, len);
+        proof {
+            assert(self.endpoint() == self.id && self.this_role() == self.role);
+            assert(len == payload_len::<W>());
+            let code = choose|code: u32| #[trigger] svc_ret(SVC_SEND, endpoint_arg(self.id, self.role, peer), address, len, code) && r == send_result_spec(code);
+            assert(words_at(words, address) && svc_ret(SVC_SEND, endpoint_arg(self.id, self.role, peer), address, payload_len::<W>(), code));
+        }
+        r
     }
 
     /// Receives the oldest message role `peer` sent to this role (task
     /// 21.7); the contract of `recv` otherwise.
+    // Proven by Verus (2026-11-26): `received_from`.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn recv_from(&self, peer: u8) -> Result<Option<T>, RecvError> {
-        let () = Self::FITS;
-        let mut words = Words::<W>::zero();
-        match recv_request(self.id, self.role, peer, words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
+    pub fn recv_from(&self, peer: u8) -> (r: Result<Option<T>, RecvError>)
+        ensures received_from::<T, W, V>(self.endpoint(), self.this_role(), peer, r),
+    {
+        Self::fits_checked();
+        let mut words = zero_words::<W>();
+        let address = words_address_mut(&mut words);
+        let len = (4 * W) as u32;
+        let answer = recv_request(self.id, self.role, peer, address, len);
+        proof {
+            assert(self.endpoint() == self.id && self.this_role() == self.role);
+            assert(len == payload_len::<W>());
+        }
+        let ghost code = choose|code: u32| #[trigger] svc_ret(SVC_RECV, endpoint_arg(self.id, self.role, peer), address, len, code) && answer == recv_answer_spec(code);
+        assert(words_at(words, address) && svc_ret(SVC_RECV, endpoint_arg(self.id, self.role, peer), address, payload_len::<W>(), code));
+        match answer {
             RecvAnswer::Message => {
-                let m = message_from_words::<T, W>(&words);
+                let m = from_words::<T, W>(&words);
                 if V::accept(&m) {
+                    assert(accepted::<T, V>(m, true));
                     Ok(Some(m))
                 } else {
                     report_rejected_message(self.id, self.role, peer);
+                    assert(words_read(words, m) && accepted::<T, V>(m, false));
+                    assert(rejection_reported(self.id, self.role, peer));
                     Err(RecvError::Rejected)
                 }
             }
@@ -625,7 +972,9 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// the other Partition's stop or restart (R42.3). Never waits (PR-08,
     /// R40.4).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn send(&self, m: &T) -> Result<(), SendError> {
+    pub fn send(&self, m: &T) -> (r: Result<(), SendError>)
+        ensures sent_to::<T, W>(self.endpoint(), self.this_role(), other_role(self.this_role()), *m, r),
+    {
         self.send_to(self.other(), m)
     }
 
@@ -638,10 +987,14 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// (R42.3). A refusal (API misuse, a fault of the Partition) reads as
     /// empty, the Kernel having recorded it.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn recv(&self) -> Result<Option<T>, RecvError> {
+    pub fn recv(&self) -> (r: Result<Option<T>, RecvError>)
+        ensures received_from::<T, W, V>(self.endpoint(), self.this_role(), other_role(self.this_role()), r),
+    {
         self.recv_from(self.other())
     }
 }
+
+} // verus!
 
 /// The channel facts the generated role modules' contracts speak of
 /// (A-P2's message half, Verification_Plan 5.15, 2026-11-09): opaque
@@ -824,7 +1177,6 @@ impl Gate {
     }
 
     /// Closed: no receive has completed in this Job.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == false))]
     pub const fn closed() -> (g: Gate)
         ensures !g.opened(),
@@ -833,7 +1185,6 @@ impl Gate {
     }
 
     /// Opens the gate on the evidence of a completed receive.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == true))]
     pub fn open<W: Received>(&mut self, _witness: &W)
         ensures final(self).opened(),
@@ -842,7 +1193,6 @@ impl Gate {
     }
 
     /// Whether a receive has completed in this Job.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == (*self)@))]
     pub fn is_open(&self) -> (b: bool)
         ensures b == self.opened(),
@@ -940,7 +1290,6 @@ pub struct DmaChannel {
 
 impl DmaChannel {
     /// Constructed by generated code only.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub const fn generated(index: u8, window: u32) -> (c: DmaChannel)
         ensures c.index_spec() == index, c.window_spec() == window,
     {
@@ -948,7 +1297,6 @@ impl DmaChannel {
     }
 
     /// The channel's index, as [`dma_write`] takes it.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub const fn index(&self) -> (i: u8)
         ensures i == self.index_spec(),
     {
@@ -1024,7 +1372,6 @@ pub struct DmaHeld {
 
 impl DmaHeld {
     /// Nothing held: every byte zero.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub const fn none() -> (h: DmaHeld)
         ensures !h.holds(),
     {
@@ -1042,7 +1389,6 @@ impl DmaHeld {
     }
 
     /// Whether a transfer is kept here.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn is_some(&self) -> (b: bool)
         ensures b == self.holds(),
     {
@@ -1141,19 +1487,26 @@ impl<const N: usize> DmaBuf<N> {
     }
 
     /// Whether a transfer has the bytes.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn is_lent(&self) -> (b: bool)
         ensures b == self.lent_spec(),
     {
         self.lent != 0
     }
 
+    /// A read of the address of a buffer holding this value returned `a`.
+    /// A relation and not a function: the address is a fact of where the
+    /// buffer lies, not of its value (two buffers of equal value lie at
+    /// two addresses, and a buffer moved has another), so two reads are
+    /// related by nothing here.
+    pub uninterp spec fn read_at(&self, a: u32) -> bool;
+
     /// The address of the bytes (for a report; no access).
-    // Not specified: the address is a fact of where the buffer lies, not
-    // of its value, and the proofs below use none.
+    // Specified (2026-11-26) as far as is sound: the result is an address
+    // read of this buffer (`read_at`).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[verifier::external_body]
-    pub fn address(&self) -> u32
+    pub fn address(&self) -> (a: u32)
+        ensures self.read_at(a),
         no_unwind
     {
         self.bytes.as_ptr() as usize as u32
@@ -1183,6 +1536,7 @@ impl<const N: usize> DmaBuf<N> {
             final(self).lent_spec() == (old(self).lent_spec() || r is Some),
             !old(self).lent_spec() ==> exists|buffer: u32, out: u32|
                 #[trigger] svc_ret(SVC_DMA, dma_request_word(channel.index_spec()), buffer, Self::request_len(), out)
+                && old(self).read_at(buffer)
                 && (r is Some <==> out == 0)
                 && (r is Some ==> r->Some_0 == DmaTransfer::made(channel.index_spec(), channel.window_spec(), buffer, false)),
     {
@@ -1221,6 +1575,19 @@ impl<const N: usize> DmaBuf<N> {
             r is Err && r->Err_0 is NotThisBuffer ==> r->Err_0->NotThisBuffer_0 == transfer && *final(self) == *old(self),
             r is Err && r->Err_0 is NotStopped ==> old(self).lent_spec()
                 && r->Err_0->NotStopped_0 == DmaTransfer::made(transfer.channel_spec(), transfer.window_spec(), transfer.buffer_spec(), true),
+            // 2026-11-26: a transfer is accepted (the buffer released, or
+            // kept for a stop not yet reported) only when the address it
+            // was requested with is the address read of this buffer now,
+            // and refused only when the buffer is not lent or that read
+            // returned another address. With `lend`'s clause (the address
+            // a transfer carries is the address read of its buffer when it
+            // was lent): the transfer accepted is one requested at the
+            // address this buffer has now.
+            !(r is Err && r->Err_0 is NotThisBuffer) ==> old(self).read_at(transfer.buffer_spec()),
+            r is Err && r->Err_0 is NotThisBuffer ==> !old(self).lent_spec()
+                || exists|a: u32| #[trigger] old(self).read_at(a) && a != transfer.buffer_spec(),
+            // The stop of an accepted transfer was requested.
+            !(r is Err && r->Err_0 is NotThisBuffer) ==> stop_issued(transfer.channel_spec()),
     {
         if self.lent == 0 || transfer.buffer != self.address() {
             return Err(DmaReclaimError::NotThisBuffer(transfer));
@@ -1379,6 +1746,18 @@ pub open spec fn stop_evidence(window: u32) -> bool {
     ||| exists|v: u32| #[trigger] reg_ret(vstd::wrapping::u32_specs::wrapping_add(window, spim::EVENTS_STOPPED), v) && v != 0
 }
 
+/// The stop of a transfer on `channel` was requested: the four
+/// Kernel-mediated register writes of [`DmaTransfer::request_stop`] were
+/// issued for that channel (the shortcuts off, the STOPPED and END events
+/// cleared, the STOP task triggered). Whether the Kernel performed each is
+/// its reply's (`svc_served`: only for a channel of the Partition).
+pub open spec fn stop_issued(channel: u8) -> bool {
+    &&& exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), spim::SHORTS, 0, out)
+    &&& exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), spim::EVENTS_STOPPED, 0, out)
+    &&& exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), spim::EVENTS_END, 0, out)
+    &&& exists|out: u32| #[trigger] svc_ret(SVC_DMA, dma_write_word(channel), spim::TASKS_STOP, 1, out)
+}
+
 impl DmaTransfer {
     /// The value with these fields (the fields are private).
     pub closed spec fn made(channel: u8, window: u32, buffer: u32, stop_requested: bool) -> DmaTransfer {
@@ -1399,8 +1778,13 @@ impl DmaTransfer {
         self.buffer
     }
 
+    /// The stop has been requested by `end` or `reclaim`, or the value is
+    /// kept in a `DmaHeld`: its drop does not ask.
+    pub closed spec fn stop_requested_spec(&self) -> bool {
+        self.stop_requested
+    }
+
     /// The channel the transfer was requested on.
-    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn channel(&self) -> (c: u8)
         ensures c == self.channel_spec(),
     {
@@ -1412,7 +1796,11 @@ impl DmaTransfer {
     /// this stop cleared, then the STOP task. Through the Kernel
     /// ([`dma_write`]), which refuses a channel that is not the
     /// Partition's.
+    // Proven (2026-11-26): the four register writes were issued for the
+    // transfer's channel (`stop_issued`). Their order is the body's; the
+    // statement has no order.
     fn request_stop(&self)
+        ensures stop_issued(self.channel),
         opens_invariants none
         no_unwind
     {
@@ -1454,7 +1842,9 @@ impl DmaTransfer {
     /// reported that it stopped. The buffer stays lent either way.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn end(self) -> (stopped: bool)
-        ensures stopped ==> stop_evidence(self.window_spec()),
+        ensures
+            stopped ==> stop_evidence(self.window_spec()),
+            stop_issued(self.channel_spec()),
     {
         // `self` rebound: Verus does not take a `mut self` parameter.
         let mut transfer = self;
@@ -1466,7 +1856,10 @@ impl DmaTransfer {
 
 impl Drop for DmaTransfer {
     /// A transfer no Task holds any more is stopped.
+    // Proven (2026-11-26): a transfer dropped whose stop was not requested
+    // has it requested here (`stop_issued`), on its own channel.
     fn drop(&mut self)
+        ensures !old(self).stop_requested_spec() ==> stop_issued(old(self).channel_spec()),
         opens_invariants none
         no_unwind
     {

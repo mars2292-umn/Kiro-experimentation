@@ -1,0 +1,19 @@
+# The App_Prover on the Partition API itself (2026-11-26). `rsk` is a
+# dependency of every member of proofs/creusot, and Creusot proves no body
+# of a dependency: a contract of `rsk` not marked `trusted` was checked by
+# nothing there. The member here compiles `rsk`'s real source
+# (`[lib] path`) as the crate under proof, so that every function of it
+# without `trusted` is proven against its contract (the gate's three
+# operations, `Endpoint::new`, `Accept::accept`, and the functions with no
+# contract, of which Creusot proves that they do not panic or overflow).
+# Kept apart from proofs/creusot, whose members are the configurations'
+# Partitions. Run from this directory:
+#     cargo creusot -- --offline
+[workspace]
+resolver = "2"
+members = ["api"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false

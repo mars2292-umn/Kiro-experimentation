@@ -1360,36 +1360,80 @@ pub fn check_inputs(tasks: &Vec<TaskIn>, sites: &Vec<Site>, windows: &Vec<Window
             _ => false,
         },
 {
-    let mut k: usize = 0;
-    while k < sites.len()
-        invariant k <= sites.len(), forall|m: int| 0 <= m < k ==> (#[trigger] sites@[m]).task < tasks.len(),
-        decreases sites.len() - k,
-    {
-        if sites[k].task >= tasks.len() {
-            return Some((1, k));
-        }
-        k = k + 1;
+    match first_stray_site(sites, tasks.len()) {
+        Some(k) => return Some((1, k)),
+        None => {}
     }
     if windows.len() != tasks.len() {
         return Some((2, 0));
     }
+    match first_unfit_task(tasks) {
+        Some(i) => return Some((3, i)),
+        None => {}
+    }
+    match first_late_window(windows) {
+        Some(j) => return Some((4, j)),
+        None => {}
+    }
+    None
+}
+
+/// The first site that names no Task of a set of `n` Tasks, `None` when
+/// each names one. (A loop of `check_inputs`, a function of its own since
+/// 2026-11-26 for the translation to Lean, which takes a `return` in a
+/// loop only when the loop ends its function.)
+fn first_stray_site(sites: &Vec<Site>, n: usize) -> (r: Option<usize>)
+    ensures
+        r.is_none() ==> forall|m: int| 0 <= m < sites.len() ==> (#[trigger] sites@[m]).task < n,
+        r matches Some(k) ==> k < sites.len() && sites@[k as int].task >= n,
+{
+    let mut k: usize = 0;
+    while k < sites.len()
+        invariant k <= sites.len(), forall|m: int| 0 <= m < k ==> (#[trigger] sites@[m]).task < n,
+        decreases sites.len() - k,
+    {
+        if sites[k].task >= n {
+            return Some(k);
+        }
+        k = k + 1;
+    }
+    None
+}
+
+/// The first Task with no Budget or no Priority, `None` when every Task
+/// has both.
+fn first_unfit_task(tasks: &Vec<TaskIn>) -> (r: Option<usize>)
+    ensures
+        r.is_none() ==> forall|m: int| 0 <= m < tasks.len() ==> task_admissible(#[trigger] tasks@[m]),
+        r matches Some(i) ==> i < tasks.len() && !task_admissible(tasks@[i as int]),
+{
     let mut i: usize = 0;
     while i < tasks.len()
         invariant i <= tasks.len(), forall|m: int| 0 <= m < i ==> task_admissible(#[trigger] tasks@[m]),
         decreases tasks.len() - i,
     {
         if tasks[i].budget == 0 || tasks[i].priority == 0 {
-            return Some((3, i));
+            return Some(i);
         }
         i = i + 1;
     }
+    None
+}
+
+/// The first window whose deadline is later than its period or MIT,
+/// `None` when there is none.
+fn first_late_window(windows: &Vec<Window>) -> (r: Option<usize>)
+    ensures
+        r.is_none() ==> forall|m: int| 0 <= m < windows.len() ==> window_admissible(#[trigger] windows@[m]),
+        r matches Some(j) ==> j < windows.len() && !window_admissible(windows@[j as int]),
+{
     let mut j: usize = 0;
     while j < windows.len()
         invariant j <= windows.len(), forall|m: int| 0 <= m < j ==> window_admissible(#[trigger] windows@[m]),
         decreases windows.len() - j,
     {
         if windows[j].deadline > windows[j].period {
-            return Some((4, j));
+            return Some(j);
         }
         j = j + 1;
     }

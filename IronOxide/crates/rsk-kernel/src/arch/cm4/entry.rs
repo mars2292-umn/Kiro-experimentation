@@ -409,8 +409,14 @@ pub trait KernelArch: Sized {
             old(self).hw().store.contains_key(src as int) ==> first as int == old(self).hw().store[src as int],
             first as int == old(self).hw().mem[src as int],
             copied(old(self).hw().mem, final(self).hw().mem, dst as int, src as int, len as int);
+    /// Ghost (2026-11-26): `t` is a value the time base's reading
+    /// returned. Uninterpreted for the hardware: it says of a value only
+    /// that `now` returned it, so that what a core does with a reading can
+    /// be stated (`svc_abi::now_served`).
+    spec fn clock_reading(&self, t: u64) -> bool;
     /// The 64-bit time base (DD-05, HW-12).
-    fn now(&self) -> u64;
+    fn now(&self) -> (t: u64)
+        ensures self.clock_reading(t);
     /// DWT CYCCNT (HW-13).
     fn cycles(&self) -> u32;
     /// The boot checks of R12.1 as a bit set of failures (0 when all pass).
@@ -515,6 +521,10 @@ pub trait Tables {
 }
 
 // ------------------------------------------------ the Cortex-M4F hardware
+
+/// `t` is a value `hw::timebase_now` returned (2026-11-26): uninterpreted,
+/// the name of the readings of the Target's time base.
+pub uninterp spec fn timebase_reading(t: u64) -> bool;
 
 /// The Cortex-M4F registers behind `KernelArch`. The ghost `model` is the
 /// state the Kernel has written since this value was created (one value
@@ -672,9 +682,13 @@ impl KernelArch for Cm4Hw {
         first
     }
 
+    open spec fn clock_reading(&self, t: u64) -> bool {
+        timebase_reading(t)
+    }
+
     /// Trusted: the extended TIMER counter (DD-05).
     #[verifier::external_body]
-    fn now(&self) -> u64 {
+    fn now(&self) -> (t: u64) {
         super::unsafe_module::hw::timebase_now()
     }
 
@@ -953,6 +967,10 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         final(k).task_count_spec() == old(k).task_count_spec(),
         // A4 and A13 (`vectors_applied`).
         vectors_applied(old(k), tables, old(hw).hw(), final(hw).hw()),
+        // A4, exactly (2026-11-26): the selected Task's vector is pended and
+        // no other, and the selection is not changed.
+        selection_pended(final(k), tables, old(hw).hw(), final(hw).hw()),
+        forall|t: int| #[trigger] final(k).spec_selected(t) == old(k).spec_selected(t),
         final(k).inv(),
         final(k).top_level() == old(k).top_level(),
         final(k).ceiling_level() == old(k).ceiling_level(),
@@ -994,6 +1012,10 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         }
     }
     let ghost h0 = hw.hw();
+    let ghost dv: int = match sel {
+        Some(t) => spec_dispatch_vector_of(tables, t as int),
+        None => -1,
+    };
     match sel {
         Some(t) => {
             hw.apply(Action::Pend(tables.dispatch_vector(t)));
@@ -1021,12 +1043,18 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask && hw.hw().primask_cleared == h1.primask_cleared && hw.hw().watchdog_fed == h1.watchdog_fed && hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt,
             forall|v: int| #[trigger] hw.hw().pending.contains(v) ==> h1.pending.contains(v),
             forall|u: int| 0 <= u < t ==> #[trigger] intake_done(&k1, tables, hw.hw(), u),
+            sel.is_some() ==> (sel.unwrap() as int) < k1.task_count_spec() && dv == spec_dispatch_vector_of(tables, sel.unwrap() as int)
+                && hw.hw().pending.contains(dv),
         decreases n - t,
     {
         let ghost hb = hw.hw();
         proof {
             // The vector touched in this round is no earlier Task's.
             assert(vectors_of_ok(tables, t as int));
+            // Nor the selected Task's dispatch vector, which stays pended.
+            if sel.is_some() {
+                assert(vectors_of_ok(tables, sel.unwrap() as int));
+            }
             assert forall|u: int| 0 <= u < t implies spec_intake_vector_of(tables, u) != spec_intake_vector_of(tables, t as int)
                 || spec_intake_vector_of(tables, t as int) is None by {
                 assert(vectors_of_ok(tables, u));
@@ -1072,6 +1100,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             k.task_count_spec() == k1.task_count_spec(),
             k.spec_dispatch_guard(),
             k.spec_safe() == k1.spec_safe(),
+            forall|t: int| #[trigger] k.spec_selected(t) == k1.spec_selected(t),
             super::plan::arch_frame(*state, *old(state)),
             hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask && hw.hw().primask_cleared == h1.primask_cleared && hw.hw().watchdog_fed == h1.watchdog_fed && hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt,
@@ -1118,6 +1147,21 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             assert(k1.spec_partition_stopped(k1.spec_part()[u]) == old(k).spec_partition_stopped(k1.spec_part()[u]));
         }
         reveal(vectors_applied);
+        // A4, exactly: what was pended is the selection's vector, still pended.
+        assert forall|v: int| #[trigger] hw.hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
+            implies selected_vector(k, tables, v) by {
+            assert(h2.pending.contains(v));
+            assert(h1.pending.contains(v));
+            assert(v == dv && sel.is_some());
+            assert(k.spec_selected(sel.unwrap() as int));
+        }
+        assert forall|u: int| k.spec_selected(u) implies hw.hw().pending.contains(#[trigger] spec_dispatch_vector_of(tables, u)) by {
+            assert(old(k).spec_selected(u));
+            assert(sel.is_some());
+            old(k).lemma_selected(sel.unwrap() as int, u);
+            assert(h2.pending.contains(dv));
+        }
+        reveal(selection_pended);
     }
     safe
 }
@@ -1194,6 +1238,131 @@ pub open spec fn intake_done<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwMo
 pub open spec fn vectors_applied<K: KernelOps, T: Tables>(k: &K, tables: &T, h0: HwModel, h: HwModel) -> bool {
     &&& forall|v: int| #[trigger] h.pending.contains(v) && !h0.pending.contains(v) ==> eligible_vector(k, tables, v)
     &&& forall|u: int| 0 <= u < k.task_count_spec() ==> #[trigger] intake_done(k, tables, h, u)
+}
+
+/// A4, exactly (2026-11-26): vector `v` is the dispatch vector of the Task
+/// the Kernel's state selects (`KernelOps::spec_selected`).
+pub open spec fn selected_vector<K: KernelOps, T: Tables>(k: &K, tables: &T, v: int) -> bool {
+    exists|u: int| k.spec_selected(u) && v == #[trigger] spec_dispatch_vector_of(tables, u)
+}
+
+/// What `apply_core` pends (A4, exactly; 2026-11-26), from the hardware
+/// state `h0` at its entry to `h` at its return, `k` the Kernel state it
+/// returns (whose selection is the one of the state it was called on): a
+/// vector pending in `h` and not in `h0` is the dispatch vector of the
+/// selected Task, and that Task's vector is pending in `h`. So with no
+/// Task selected nothing is pended, and with one selected its vector is
+/// pended and no other. Opaque: the cores carry it as one fact.
+#[verifier::opaque]
+pub open spec fn selection_pended<K: KernelOps, T: Tables>(k: &K, tables: &T, h0: HwModel, h: HwModel) -> bool {
+    &&& forall|v: int| #[trigger] h.pending.contains(v) && !h0.pending.contains(v) ==> selected_vector(k, tables, v)
+    &&& forall|u: int| k.spec_selected(u) ==> h.pending.contains(#[trigger] spec_dispatch_vector_of(tables, u))
+}
+
+/// What a Kernel entry pends (A4 at the entries; 2026-11-26), from the
+/// hardware state `h0` its core was called with to `h1` at its return, `k1`
+/// the Kernel state it returns: a vector pending in `h1` and not in `h0` is
+/// the dispatch vector of the Task `k1` selects, or one of `others` (empty
+/// for every entry but a dispatch vector's own, `irq_others`). Opaque: the
+/// cores carry it as one fact, through the three lemmas below.
+#[verifier::opaque]
+pub open spec fn pends_only<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, h1: HwModel, others: ISet<int>) -> bool {
+    forall|v: int| #[trigger] h1.pending.contains(v) && !h0.pending.contains(v) ==> selected_vector(k1, tables, v) || others.contains(v)
+}
+
+/// No vector: the `others` of every entry but a dispatch vector's own.
+pub open spec fn no_others() -> ISet<int> {
+    ISet::new(|v: int| false)
+}
+
+/// An entry that pends nothing but vectors of `others`.
+pub proof fn lemma_pends_none<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, h1: HwModel, others: ISet<int>)
+    requires forall|v: int| #[trigger] h1.pending.contains(v) ==> h0.pending.contains(v) || others.contains(v),
+    ensures pends_only(k1, tables, h0, h1, others),
+{
+    reveal(pends_only);
+}
+
+/// An entry whose one `apply_core` ran from `ha` to `hb` and left the
+/// Kernel state `k1`, and that pends nothing else but vectors of `others`.
+pub proof fn lemma_pends_applied<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, ha: HwModel, hb: HwModel, h1: HwModel, others: ISet<int>)
+    requires
+        selection_pended(k1, tables, ha, hb),
+        forall|v: int| #[trigger] ha.pending.contains(v) ==> h0.pending.contains(v) || others.contains(v),
+        forall|v: int| #[trigger] h1.pending.contains(v) ==> hb.pending.contains(v) || others.contains(v),
+    ensures pends_only(k1, tables, h0, h1, others),
+{
+    reveal(pends_only);
+    reveal(selection_pended);
+}
+
+/// `lemma_pends_applied` for an entry that pends nothing itself.
+pub proof fn lemma_pends_applied_only<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, ha: HwModel, hb: HwModel, h1: HwModel)
+    requires selection_pended(k1, tables, ha, hb), ha.pending == h0.pending, h1.pending == hb.pending,
+    ensures pends_only(k1, tables, h0, h1, no_others()),
+{
+    lemma_pends_applied(k1, tables, h0, ha, hb, h1, no_others());
+}
+
+/// An entry that leaves the pending set as it found it.
+pub proof fn lemma_pends_same<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, h1: HwModel)
+    requires h1.pending == h0.pending,
+    ensures pends_only(k1, tables, h0, h1, no_others()),
+{
+    lemma_pends_none(k1, tables, h0, h1, no_others());
+}
+
+/// `lemma_pends_none` and `lemma_pends_applied` with the pending sets equal, for any `others`.
+pub proof fn lemma_pends_kept<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, h1: HwModel, others: ISet<int>)
+    requires h1.pending == h0.pending,
+    ensures pends_only(k1, tables, h0, h1, others),
+{
+    lemma_pends_none(k1, tables, h0, h1, others);
+}
+
+pub proof fn lemma_pends_applied_kept<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, ha: HwModel, hb: HwModel, h1: HwModel, others: ISet<int>)
+    requires selection_pended(k1, tables, ha, hb), ha.pending == h0.pending, h1.pending == hb.pending,
+    ensures pends_only(k1, tables, h0, h1, others),
+{
+    lemma_pends_applied(k1, tables, h0, ha, hb, h1, others);
+}
+
+/// The one vector a dispatch vector's entry pends besides the selection's:
+/// its own (exception number `n`), pended again by an entry taken from
+/// Thread mode (EXC_RETURN bit 3 set) that consumed an owed unwind (5.8a)
+/// or reported a stack violation of the preempted Job (R16.5): the vector
+/// is taken again from the context the unwind resumes.
+pub open spec fn own_vector(n: int, exc_return: u32) -> ISet<int> {
+    ISet::new(|v: int| v == n && exc_return & 0x8 != 0)
+}
+
+/// Vector `v` was deferred from a dispatch stub's entry instruction (5.8a)
+/// and is recorded in `s0`.
+pub open spec fn deferred_vector(s0: ArchState, v: int) -> bool {
+    exists|i: int| 0 <= i < 8 && s0.deferred[i] != 0 && v == #[trigger] s0.deferred[i] as int
+}
+
+/// The vectors `irq_entry_core` pends besides the selection's, and only
+/// when taken from Thread mode (EXC_RETURN bit 3 set): its own, when it is
+/// a dispatch vector (`own_vector`), and the vectors deferred from a
+/// dispatch stub's entry instruction, which it enables and pends again
+/// (5.8a). An entry taken from Handler mode pends nothing but the selection.
+pub open spec fn irq_others<T: Tables>(tables: &T, s0: ArchState, n: int, exc_return: u32) -> ISet<int> {
+    ISet::new(|v: int| exc_return & 0x8 != 0 && ((v == n && spec_binding_of(tables, n) is Dispatch) || deferred_vector(s0, v)))
+}
+
+/// An entry that contains another's run from `ha` to `hb` (which pends
+/// only the selection and `inner`), and pends nothing else but vectors of
+/// `others`.
+pub proof fn lemma_pends_within<K: KernelOps, T: Tables>(k1: &K, tables: &T, h0: HwModel, ha: HwModel, hb: HwModel, h1: HwModel, inner: ISet<int>, others: ISet<int>)
+    requires
+        pends_only(k1, tables, ha, hb, inner),
+        forall|v: int| #[trigger] ha.pending.contains(v) ==> h0.pending.contains(v) || others.contains(v),
+        forall|v: int| #[trigger] h1.pending.contains(v) ==> hb.pending.contains(v) || others.contains(v),
+        forall|v: int| #[trigger] inner.contains(v) ==> others.contains(v),
+    ensures pends_only(k1, tables, h0, h1, others),
+{
+    reveal(pends_only);
 }
 
 /// A4: vector `v` is the dispatch vector of a Task the Kernel finds eligible.
@@ -1517,6 +1686,8 @@ pub open spec fn dma_accepts<K: KernelOps, T: Tables>(k: &K, tables: &T, i: int,
 fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, ptr: u32, len: u32) -> (ok: bool)
     requires old(k).inv(),
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // 2026-11-26: the service pends no vector.
+        final(hw).hw().pending == old(hw).hw().pending,
         ok ==> *final(k) == *old(k),
         // R17.1, R17.2 (2026-11-16): the request is accepted exactly when
         // the channel is one of the executing Job's own Partition and the
@@ -1592,6 +1763,8 @@ pub open spec fn dma_reg_unmediated<T: Tables>(tables: &T, i: int, reg: u32) -> 
 fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, offset: u32, value: u32) -> (ok: bool)
     requires old(k).inv(),
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // 2026-11-26: the service pends no vector.
+        final(hw).hw().pending == old(hw).hw().pending,
         ok ==> *final(k) == *old(k),
         // R17.3 (2026-11-16): a write is performed only for a channel of
         // the executing Job's own Partition, at a word of that channel's
@@ -1664,6 +1837,8 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
 fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize) -> (ok: bool)
     requires old(k).inv(),
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // 2026-11-26: the service pends no vector.
+        final(hw).hw().pending == old(hw).hw().pending,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // R10.5, R10.7 (2026-11-21): a raise is taken as an event exactly
@@ -2131,6 +2306,8 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
+        // What is recorded for the report word (2026-11-26, `svc_abi`).
+        super::svc_abi::report_served(old(k), final(k), tables, *old(state), *final(state), arg),
 {
     let t = match k.top() {
         Some(t) => t,
@@ -2199,6 +2376,11 @@ fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &Endpoint
         !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
         spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
             forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+        // 2026-11-26: a report the Kernel does not permit is API misuse of
+        // the caller on the state found; a permitted one re-initializes
+        // the Endpoint.
+        !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> final(k).spec_fault_of(old(k), EV_API_MISUSE, false),
+        spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> super::svc_abi::endpoint_restarted(*old(state), *final(state), e as int),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
 {
@@ -2529,6 +2711,8 @@ pub open spec fn send_offender<K: KernelOps>(k0: &K, receiver: int) -> int {
 fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
     requires old(k).inv(),
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // 2026-11-26: the service pends no vector.
+        final(hw).hw().pending == old(hw).hw().pending,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // A-P2 (2026-11-09): an accepted send appends the message's first
@@ -2702,6 +2886,8 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (r: (u32, Ghost<int>))
     requires old(k).inv(),
     ensures old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(), final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // 2026-11-26: the service pends no vector.
+        final(hw).hw().pending == old(hw).hw().pending,
         // A receive that is not refused leaves the Kernel's stack as it was.
         r.0 != ENDPOINT_REFUSED ==> final(k).spec_depth() == old(k).spec_depth(),
         // 2026-11-15: and the Kernel's state with it.
@@ -2796,7 +2982,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
-        final(k).inv(),
+        final(k).inv(), final(k).task_count_spec() == old(k).task_count_spec(),
         // A1 across entries (R7, 2026-11-21): the run theorem's step.
         a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), safe),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
@@ -2806,19 +2992,26 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         records_same(*final(state), *old(state)),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
     hw.apply(Action::PrimaskSet);
     state.last_switch = hw.cycles();
     k.start();
+    let ghost ha = hw.hw();
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, 0);
     }
     hw.apply(Action::Trace(TR_START, 0));
     if !safe {
         hw.apply(Action::PrimaskClear);
+    }
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
     }
     safe
 }
@@ -2897,12 +3090,20 @@ pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
         // A1 (R7, 2026-11-21): a reported stack violation ends with BASEPRI
         // rewritten from the Kernel's state after the response.
         r is Some && !r.unwrap().1 ==> basepri_matches(final(k), final(hw)),
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {
+        proof {
+            lemma_pends_none(k, tables, old(hw).hw(), hw.hw(), no_others());
+        }
         return None;
     }
     let (hop, safe) = stack_violation_core(k, hw, tables, state);
     hw.stacking_fault_discard();
+    proof {
+        lemma_pends_within(k, tables, old(hw).hw(), old(hw).hw(), hw.hw(), hw.hw(), no_others(), no_others());
+    }
     Some((hop, safe))
 }
 
@@ -2944,6 +3145,8 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2952,10 +3155,15 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
     hw.apply(Action::Trace(TR_INVALID, 2));
     let depth_before = k.depth();
     k.fault(EV_STACK_VIOLATION, false);
+    let ghost ha = hw.hw();
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
     }
     (hop, safe)
 }
@@ -3492,6 +3700,12 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
             && final(state).pending_unwind == 0
             && final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A6 at the return to a Job (2026-11-26): the view loaded is the view
+        // of the dispatched Job's Partition, the Job the Kernel now executes.
+        r.0.psp != 0 ==> final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        // A4 at the entries (2026-11-26): no vector is pended but the
+        // selection's and, from Thread mode, this vector again (`own_vector`).
+        !r.1 ==> pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), own_vector(n as int, exc_return)),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3522,9 +3736,11 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         // configuration the Generator rejects; the backstop is a
         // Kernel fault into the safe state.
         k.fault(EV_HARDFAULT, true);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
+            lemma_pends_applied_kept(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (no_change, safe);
     }
@@ -3543,9 +3759,11 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
     };
     if frame == 0 {
         k.fault(EV_HARDFAULT, true);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
+            lemma_pends_applied_kept(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (no_change, safe);
     }
@@ -3555,9 +3773,11 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         // The Kernel refused the dispatch of a Task it found eligible
         // (before instant 0): nothing to record or to return to.
         k.fault(EV_HARDFAULT, true);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
+            lemma_pends_applied_kept(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (no_change, safe);
     }
@@ -3612,6 +3832,7 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         assert(state.chain_levels@.drop_last() =~= s0.chain_levels@);
         assert(state.chain_levels@.last() == level as int);
         assert(dispatched(s0, *state, exc_return as int));
+        lemma_pends_kept(k, tables, old(hw).hw(), hw.hw(), own_vector(n as int, exc_return));
     }
     (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
 }
@@ -3654,6 +3875,12 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A6 at the return to a Job (2026-11-26): the view loaded is the view
+        // of the dispatched Job's Partition, the Job the Kernel now executes.
+        r.0.psp != 0 ==> final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        // A4 at the entries (2026-11-26): no vector is pended but the
+        // selection's and, from Thread mode, this vector again (`own_vector`).
+        !r.1 ==> pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), own_vector(n as int, exc_return)),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3669,6 +3896,7 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::Pend(n));
         proof {
             lemma_chain_frame(k, &k0, *state, s0);
+            lemma_pends_none(k, tables, old(hw).hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
     }
@@ -3707,13 +3935,16 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
             state.deferred[slot] = n;
             proof {
                 lemma_kernel_entry(k, &k0, *state, s0, 0);
+                lemma_pends_kept(k, tables, old(hw).hw(), hw.hw(), own_vector(n as int, exc_return));
             }
             return (no_change, false);
         }
         k.fault(EV_HARDFAULT, true);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
+            lemma_pends_applied_kept(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (no_change, safe);
     }
@@ -3724,6 +3955,7 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         // number is not 0, which is how an unwind plan names it.
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
+            lemma_pends_kept(k, tables, old(hw).hw(), hw.hw(), own_vector(n as int, exc_return));
         }
         return (no_change, false);
     }
@@ -3739,10 +3971,13 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         }
         let depth_before = k.depth();
         let (hop, safe) = stack_violation_core(k, hw, tables, state);
+        let ghost hs = hw.hw();
         hw.apply(Action::Pend(n));
         svc_of_ended_job_core(k, hw, depth_before);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+            assert((exc_return & 0xC) == 0xC ==> exc_return & 0x8 != 0) by (bit_vector);
+            lemma_pends_within(k, tables, old(hw).hw(), old(hw).hw(), hs, hw.hw(), no_others(), own_vector(n as int, exc_return));
         }
         return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
     }
@@ -3811,6 +4046,8 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         // R10.5 (2026-11-22): the entry is that Task's Release_Source event.
         intake_entry(old(k), final(k), task as int, partition as int, intake_stack_violation(tables, *old(state), psp, exc_return)),
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3827,10 +4064,12 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::Trace(TR_INVALID, 2));
         k.fault(EV_STACK_VIOLATION, false);
     }
+    let ghost ha = hw.hw();
     let ghost ka = *k;
     k.intake(task, partition, now, task);
     let ghost kb = *k;
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     let ghost kc = *k;
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
@@ -3841,6 +4080,9 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         assert(*k == kc);
         assert(kb.spec_intake_of(&ka, task as int, partition as int, task as int, now));
         assert(applied_from(k, &kb));
+    }
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
     }
     (hop, safe)
 }
@@ -3864,6 +4106,8 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3872,12 +4116,17 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
     hw.apply(Action::Disable(n));
     let depth_before = k.depth();
     k.fault(EV_UNBOUND_IRQ, true);
+    let ghost ha = hw.hw();
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
     svc_of_ended_job_core(k, hw, depth_before);
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
+    }
     (hop, safe)
 }
 
@@ -3938,6 +4187,13 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         },        // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
         // A dispatch, an intake and an unbound vector leave it as it was.
         !(spec_binding_of(tables, (ipsr & 0x1FF) as int) is Kernel) ==> final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A6 at the return to a Job (2026-11-26): the view loaded is the view
+        // of the dispatched Job's Partition, the Job the Kernel now executes.
+        r.0.psp != 0 ==> final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        // A4 at the entries (2026-11-26): no vector is pended but the
+        // selection's and, by an entry taken from Thread mode, a dispatch
+        // vector's own and the deferred ones (`irq_others`).
+        !r.1 ==> pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), irq_others(tables, *old(state), (ipsr & 0x1FF) as int, exc_return)),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3957,10 +4213,16 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 k.inv(), i <= 8, old(k).spec_deadline_owned() ==> k.spec_deadline_owned(),
                 super::plan::arch_frame(*state, s0),
                 hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask && hw.hw().primask_cleared == h0.primask_cleared && hw.hw().watchdog_fed == h0.watchdog_fed && hw.hw().kernel_exceptions_level0 == h0.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h0.prigroup_all_preempt,
+                forall|j: int| i <= j < 8 ==> state.deferred[j] == s0.deferred[j],
+                forall|v: int| #[trigger] hw.hw().pending.contains(v) ==> h0.pending.contains(v) || deferred_vector(s0, v),
             decreases 8 - i,
         {
             let v = state.deferred[i];
             if v != 0 {
+                proof {
+                    assert(s0.deferred[i as int] == v);
+                    assert(deferred_vector(s0, v as int));
+                }
                 hw.apply(Action::Enable(v));
                 hw.apply(Action::Pend(v));
                 state.deferred[i] = 0;
@@ -3968,6 +4230,8 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             i += 1;
         }
     }
+    let ghost hp = hw.hw();
+    let ghost others = irq_others(tables, s0, n as int, exc_return);
     proof {
         assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
         assert(n as int == (ipsr & 0x1FF) as int);
@@ -4006,6 +4270,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             } else {
                 proof {
                     lemma_kernel_entry(k, &k0, *state, s0, 0);
+                    lemma_pends_same(k, tables, hp, hw.hw());
                 }
                 (no_change, false)
             }
@@ -4018,6 +4283,16 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
     };
+    proof {
+        if !r.1 {
+            assert(forall|v: int| #[trigger] hp.pending.contains(v) ==> old(hw).hw().pending.contains(v) || others.contains(v));
+            if spec_binding_of(tables, n as int) is Dispatch {
+                lemma_pends_within(k, tables, old(hw).hw(), hp, hw.hw(), hw.hw(), own_vector(n as int, exc_return), others);
+            } else {
+                lemma_pends_within(k, tables, old(hw).hw(), hp, hw.hw(), hw.hw(), no_others(), others);
+            }
+        }
+    }
     // A Kernel-level entry that ended a Job while a dispatch stub was at its
     // entry instruction (EXC_RETURN bit 3 clear: that stub is active and
     // has pushed nothing yet) cannot unwind from here: the MSP top is this
@@ -4068,6 +4343,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         final(hw).hw().view == old(hw).hw().view,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4079,7 +4356,9 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let running = charge_point(hw, state);
     let depth_before = k.depth();
     k.timer_event(now, running);
+    let ghost ha = hw.hw();
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
@@ -4087,6 +4366,9 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     // Fed last: a handler that did not complete does not feed (ORQ-31).
     hw.apply(Action::WatchdogFeed);
     svc_of_ended_job_core(k, hw, depth_before);
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
+    }
     (hop, safe)
 }
 
@@ -4123,6 +4405,8 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         // service's result for the request in words 0 to 2, under the
         // service's own contract.
         super::svc_abi::svc_served(old(k), tables, *old(state), old(hw).hw(), number, old(frame)[0], old(frame)[1], old(frame)[2], final(frame)[0]),
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4147,10 +4431,17 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         };
         frame[0] = if ok { 0 } else { 1 };
         if ok {
+            proof {
+                lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+            }
             (0, false)
         } else {
+            let ghost ha = hw.hw();
             let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+            proof {
+                lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+            }
             (hop, safe)
         }
     } else if number == SVC_RAISE {
@@ -4163,8 +4454,12 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         frame[0] = if ok { 0 } else { 1 };
         // The released Task is pended if eligible; a refusal applied the
         // Partition's fault response, which may have ended the Job.
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+        proof {
+            lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+        }
         (hop, safe)
     } else if number == SVC_VIOLATION {
         // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
@@ -4176,9 +4471,17 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         // Partition unless the sender is its own), hence the plan.
         let depth_before = k.depth();
         violation_core(k, tables, state, frame[0]);
+        proof {
+            let ghost km = *k;
+            assert(super::svc_abi::report_served(&k0, &km, tables, s0, *state, old(frame)[0]));
+        }
         frame[0] = 0;
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+        proof {
+            lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+        }
         (hop, safe)
     } else if number == SVC_SEND || number == SVC_RECV {
         // Task 21.2: as for the raise, the executing Job is read before the
@@ -4201,18 +4504,29 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         }
         frame[0] = code;
         if number == SVC_RECV && code != ENDPOINT_REFUSED {
+            proof {
+                lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+            }
             (0, false)
         } else {
+            let ghost ha = hw.hw();
             let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+            proof {
+                lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+            }
             (hop, safe)
         }
     } else if number == SVC_JOB_END {
         let elapsed = charge_point(hw, state);
         let depth_before = k.depth();
         k.job_return(elapsed);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+        proof {
+            lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+        }
         (hop, safe)
     } else {
         // SVC_PANIC and anything else: a fault of the executing Job's
@@ -4223,8 +4537,12 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         // dispatch took a UsageFault).
         let depth_before = k.depth();
         k.fault(EV_PANIC, false);
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, depth_before, gk0, gs0);
+        proof {
+            lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+        }
         (hop, safe)
     }
 }
@@ -4271,6 +4589,11 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // The reply (2026-11-26, `svc_abi`): what the handler leaves in
         // word 0 of the frame, by service, for the request it found there.
         super::svc_abi::svc_served(old(k), tables, *old(state), old(hw).hw(), number, old(frame)[0], old(frame)[1], old(frame)[2], final(frame)[0]),
+        // The clock (2026-11-26): words 0 and 1 are the two halves of one
+        // reading of the time base.
+        number == SVC_NOW ==> super::svc_abi::now_served(final(hw), final(frame)[0], final(frame)[1]),
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4280,18 +4603,31 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     // resumed frame's instruction; task 7.5): the request died with its
     // Job, nothing is served.
     let r: (ReturnPlan, bool) = if number == SVC_STALE {
+        proof {
+            lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+        }
         (0, false)
     } else if number == SVC_LOCK {
         let ok = k.svc_lock(frame[0] as u8);
         frame[0] = if ok { 1 } else { 0 };
         hw.apply(Action::SetBasepri(k.basepri_now()));
+        proof {
+            lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+        }
         (0, false)
     } else if number == SVC_UNLOCK {
         let ok = k.svc_unlock(frame[0] as u8);
         frame[0] = if ok { 1 } else { 0 };
+        let ghost ha = hw.hw();
         let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hw.hw(), hw.hw());
+        }
         (0, safe)
     } else if number == SVC_NOW {
+        proof {
+            lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+        }
         let now = hw.now();
         frame[0] = now as u32;
         frame[1] = (now >> 32) as u32;
@@ -4365,6 +4701,13 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
             && (final(state).levels[l].active ==> old(state).levels[l].active),
         // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A6 at the return to a Job (2026-11-26): when the unwind stops at a
+        // Job, the view loaded is the view of that Job's Partition, the Job
+        // the Kernel executes (`lemma_executing_partition`).
+        r.0.3 == 0 && !r.1 && final(k).spec_depth() > 0
+            ==> final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        !r.1 ==> pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost n_arg = n;
     let ghost s0 = *old(state);
@@ -4456,6 +4799,9 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
             return ((rec.psp, rec.control, rec.exc_return, 0), true);
         }
         hw.apply(Action::SetBasepri(k.basepri_now()));
+        proof {
+            lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+        }
         return ((rec.psp, rec.control, rec.exc_return, next), false);
     }
     proof {
@@ -4487,7 +4833,9 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
             if k.is_killed(t) {
                 let ghost k1 = *k;
                 k.job_return(0);
+                let ghost ha = hw.hw();
                 let safe = apply_core(k, hw, tables, state);
+                let ghost hb = hw.hw();
                 let l = k.job_info(t).priority as usize;
                 let next = state.levels[l].exception_number as u32;
                 proof {
@@ -4502,6 +4850,9 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
                     hw.apply(Action::SetBasepri(0));
                     return ((rec.psp, rec.control, rec.exc_return, 0), true);
                 }
+                proof {
+                    lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
+                }
                 return ((rec.psp, rec.control, rec.exc_return, next), safe);
             }
         }
@@ -4515,6 +4866,8 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         assert(crate::arch::bound::top_task(k) == rec.previous_task as int);
         assert(arch_inv(k, *state, 0));
         lemma_arch_matches(k, *state);
+        lemma_pends_same(k, tables, old(hw).hw(), hw.hw());
+        lemma_executing_partition(k, *state, hw);
     }
     ((rec.psp, rec.control, rec.exc_return, 0), false)
 }
@@ -4572,6 +4925,8 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         fault_entry(old(k), final(k), kind, in_kernel),
         // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
         final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        // A4 at the entries (2026-11-26): no vector is pended but the selection's.
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4586,7 +4941,9 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         assert(kernel == fault_is_kernels(&k0, kind, in_kernel));
         assert(kb.spec_fault_of(&k0, kind, kernel));
     }
+    let ghost ha = hw.hw();
     let safe = apply_core(k, hw, tables, state);
+    let ghost hb = hw.hw();
     let ghost kc = *k;
     proof {
         assert(applied_from(&kc, &kb));
@@ -4598,6 +4955,9 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     svc_of_ended_job_core(k, hw, depth_before);
     proof {
         assert(*k == kc);
+    }
+    proof {
+        lemma_pends_applied_only(k, tables, old(hw).hw(), ha, hb, hw.hw());
     }
     (hop, safe)
 }

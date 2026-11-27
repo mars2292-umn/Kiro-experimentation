@@ -20,6 +20,244 @@ set_option maxRecDepth 2048
 
 namespace rsk_protocol
 
+/-- [vstd::pervasive::{impl vstd::pervasive::VecAdditionalExecFns<T> for alloc::vec::Vec<T>}::set]:
+    Source: 'vendor/vstd-0.0.0-2026-10-04-0306/pervasive.rs', lines 390:4-390:41
+    Name pattern: [vstd::pervasive::{vstd::pervasive::VecAdditionalExecFns<alloc::vec::Vec<@T>, @T>}::set]
+    Visibility: public -/
+@[rust_fun
+  "vstd::pervasive::{vstd::pervasive::VecAdditionalExecFns<alloc::vec::Vec<@T>, @T>}::set"]
+def alloc.vec.Vec.Insts.VstdPervasiveVecAdditionalExecFns.set
+  {T : Type _} (self : alloc.vec.Vec T) (i : Std.Usize) (value : T) :
+  Result (alloc.vec.Vec T)
+  := do
+  let (_, index_mut_back) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice T) self i
+  ok (index_mut_back value)
+
+/-- [rsk_protocol::api::KIND_END]
+    Source: 'crates/rsk-protocol/src/api.rs', lines 45:0-45:27
+    Visibility: public -/
+@[global_simps, irreducible] def api.KIND_END : Std.U8 := 0#u8
+
+/-- [rsk_protocol::api::KIND_SEND]
+    Source: 'crates/rsk-protocol/src/api.rs', lines 47:0-47:28
+    Visibility: public -/
+@[global_simps, irreducible] def api.KIND_SEND : Std.U8 := 1#u8
+
+/-- [rsk_protocol::api::KIND_RECV]
+    Source: 'crates/rsk-protocol/src/api.rs', lines 49:0-49:28
+    Visibility: public -/
+@[global_simps, irreducible] def api.KIND_RECV : Std.U8 := 2#u8
+
+/-- [rsk_protocol::api::Op]
+    Source: 'crates/rsk-protocol/src/api.rs', lines 54:0-57:1
+    Visibility: public -/
+structure api.Op where
+  label : Std.U32
+  «to» : Std.Usize
+
+/-- [rsk_protocol::api::StateOps]
+    Source: 'crates/rsk-protocol/src/api.rs', lines 62:0-66:1
+    Visibility: public -/
+structure api.StateOps where
+  kind : Std.U8
+  peer : Std.Usize
+  ops : alloc.vec.Vec api.Op
+
+/-- [rsk_protocol::progress::Trans]
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 61:0-72:1
+    Visibility: public -/
+structure progress.Trans where
+  role : Std.Usize
+  «from» : Std.Usize
+  send : Bool
+  peer : Std.Usize
+  label : Std.U32
+  «to» : Std.Usize
+
+/-- [rsk_protocol::api::next_state]: loop body 0:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 188:4-200:1 -/
+@[rust_loop_body]
+def api.next_state_loop.body
+  (trans : alloc.vec.Vec progress.Trans) (r : Std.Usize) (i : Std.Usize)
+  (label : Std.U32) (k : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i1 := alloc.vec.Vec.len trans
+  if k < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Trans) trans k
+    if t.role = r
+    then
+      if t.from = i
+      then
+        if t.label = label
+        then ok (done (some t.to))
+        else let k1 ← k + 1#usize
+             ok (cont k1)
+      else let k1 ← k + 1#usize
+           ok (cont k1)
+    else let k1 ← k + 1#usize
+         ok (cont k1)
+  else ok (done none)
+
+/-- [rsk_protocol::api::next_state]: loop 0:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 188:4-200:1 -/
+@[rust_loop]
+def api.next_state_loop
+  (trans : alloc.vec.Vec progress.Trans) (r : Std.Usize) (i : Std.Usize)
+  (label : Std.U32) (k : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun k1 => api.next_state_loop.body trans r i label k1)
+    k
+
+/-- [rsk_protocol::api::next_state]:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 180:0-200:1 -/
+@[reducible]
+def api.next_state
+  (trans : alloc.vec.Vec progress.Trans) (r : Std.Usize) (i : Std.Usize)
+  (label : Std.U32) :
+  Result (Option Std.Usize)
+  := do
+  api.next_state_loop trans r i label 0#usize
+
+mutual
+
+/-- [rsk_protocol::theory::LE]
+    Source: 'crates/rsk-protocol/src/theory.rs', lines 2255:0-2261:1
+    Visibility: public -/
+@[discriminant isize]
+inductive theory.LE where
+| End : theory.LE
+| Send : Std.Usize → theory.LsE → theory.LE
+| Recv : Std.Usize → theory.LsE → theory.LE
+| Rec : theory.LE → theory.LE
+| Var : Std.Usize → theory.LE
+
+/-- [rsk_protocol::theory::LsE]
+    Source: 'crates/rsk-protocol/src/theory.rs', lines 2263:0-2266:1
+    Visibility: public -/
+@[discriminant isize]
+inductive theory.LsE where
+| Nil : theory.LsE
+| Cons : Std.U32 → theory.LE → theory.LsE → theory.LsE
+
+end
+
+/-- [rsk_protocol::api::ops_of]: loop 0:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 241:8-277:13 -/
+@[rust_loop]
+def api.ops_of_loop
+  (trans : alloc.vec.Vec progress.Trans) (r : Std.Usize) (i : Std.Usize)
+  (ops : alloc.vec.Vec api.Op) (cur : theory.LsE) :
+  Result (alloc.vec.Vec api.Op)
+  := do
+  match cur with
+  | theory.LsE.Nil => ok ops
+  | theory.LsE.Cons label _ rest =>
+    let o ← api.next_state trans r i label
+    let «to» ← match o with
+                   | none => ok 0#usize
+                   | some to1 => ok to1
+    let ops1 ← alloc.vec.Vec.push ops ({ label, «to» } : api.Op)
+    api.ops_of_loop trans r i ops1 rest
+partial_fixpoint
+
+/-- [rsk_protocol::api::ops_of]:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 204:0-289:1 -/
+@[reducible]
+def api.ops_of
+  (list : theory.LsE) (_tbl : alloc.vec.Vec theory.LE)
+  (trans : alloc.vec.Vec progress.Trans) (r : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec api.Op)
+  := do
+  api.ops_of_loop trans r i (alloc.vec.Vec.new api.Op) list
+
+/-- [rsk_protocol::api::state_ops]:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 292:0-310:1 -/
+def api.state_ops
+  (tbl : alloc.vec.Vec theory.LE) (trans : alloc.vec.Vec progress.Trans)
+  (r : Std.Usize) (i : Std.Usize) :
+  Result api.StateOps
+  := do
+  let l ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice theory.LE) tbl i
+  match l with
+  | theory.LE.End =>
+    ok
+      {
+        kind := api.KIND_END,
+        peer := 0#usize,
+        ops := (alloc.vec.Vec.new api.Op)
+      }
+  | theory.LE.Send «to» ls =>
+    let ops ← api.ops_of ls tbl trans r i
+    ok { kind := api.KIND_SEND, peer := «to», ops }
+  | theory.LE.Recv «from» ls =>
+    let ops ← api.ops_of ls tbl trans r i
+    ok { kind := api.KIND_RECV, peer := «from», ops }
+  | theory.LE.Rec _ =>
+    ok
+      {
+        kind := api.KIND_END,
+        peer := 0#usize,
+        ops := (alloc.vec.Vec.new api.Op)
+      }
+  | theory.LE.Var _ =>
+    ok
+      {
+        kind := api.KIND_END,
+        peer := 0#usize,
+        ops := (alloc.vec.Vec.new api.Op)
+      }
+
+/-- [rsk_protocol::api::role_ops]: loop body 0:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 320:4-332:5
+    Visibility: public -/
+@[rust_loop_body]
+def api.role_ops_loop.body
+  (tbl : alloc.vec.Vec theory.LE) (trans : alloc.vec.Vec progress.Trans)
+  (r : Std.Usize) (out : alloc.vec.Vec api.StateOps) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec api.StateOps) × Std.Usize)
+    (alloc.vec.Vec api.StateOps))
+  := do
+  let i1 := alloc.vec.Vec.len tbl
+  if i < i1
+  then
+    let st ← api.state_ops tbl trans r i
+    let out1 ← alloc.vec.Vec.push out st
+    let i2 ← i + 1#usize
+    ok (cont (out1, i2))
+  else ok (done out)
+
+/-- [rsk_protocol::api::role_ops]: loop 0:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 320:4-332:5
+    Visibility: public -/
+@[rust_loop]
+def api.role_ops_loop
+  (tbl : alloc.vec.Vec theory.LE) (trans : alloc.vec.Vec progress.Trans)
+  (r : Std.Usize) (out : alloc.vec.Vec api.StateOps) (i : Std.Usize) :
+  Result (alloc.vec.Vec api.StateOps)
+  := do
+  loop
+    (fun (out1, i1) => api.role_ops_loop.body tbl trans r out1 i1)
+    (out, i)
+
+/-- [rsk_protocol::api::role_ops]:
+    Source: 'crates/rsk-protocol/src/api.rs', lines 314:0-334:1
+    Visibility: public -/
+@[reducible]
+def api.role_ops
+  (tbl : alloc.vec.Vec theory.LE) (trans : alloc.vec.Vec progress.Trans)
+  (r : Std.Usize) :
+  Result (alloc.vec.Vec api.StateOps)
+  := do
+  api.role_ops_loop tbl trans r (alloc.vec.Vec.new api.StateOps) 0#usize
+
 mutual
 
 /-- [rsk_protocol::theory::GE]
@@ -194,29 +432,6 @@ def multiparty.wfn_bs_exec
     then ok b
     else ok false
 partial_fixpoint
-
-end
-
-mutual
-
-/-- [rsk_protocol::theory::LE]
-    Source: 'crates/rsk-protocol/src/theory.rs', lines 2255:0-2261:1
-    Visibility: public -/
-@[discriminant isize]
-inductive theory.LE where
-| End : theory.LE
-| Send : Std.Usize → theory.LsE → theory.LE
-| Recv : Std.Usize → theory.LsE → theory.LE
-| Rec : theory.LE → theory.LE
-| Var : Std.Usize → theory.LE
-
-/-- [rsk_protocol::theory::LsE]
-    Source: 'crates/rsk-protocol/src/theory.rs', lines 2263:0-2266:1
-    Visibility: public -/
-@[discriminant isize]
-inductive theory.LsE where
-| Nil : theory.LsE
-| Cons : Std.U32 → theory.LE → theory.LsE → theory.LsE
 
 end
 
@@ -701,5 +916,1001 @@ def multiparty.acceptn_exec (g : theory.GE) (n : Std.Usize) : Result Bool := do
 def multiparty.accept_multiparty
   (g : theory.GE) (n : Std.Usize) : Result Bool := do
   multiparty.acceptn_exec g n
+
+/-- [rsk_protocol::progress::System]
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 76:0-80:1
+    Visibility: public -/
+structure progress.System where
+  roles : Std.Usize
+  capacity : Std.Usize
+  trans : alloc.vec.Vec progress.Trans
+
+/-- [rsk_protocol::progress::Config]
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 84:0-87:1
+    Visibility: public -/
+structure progress.Config where
+  states : alloc.vec.Vec Std.Usize
+  chans : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+
+/-- [rsk_protocol::progress::copy_from]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 325:4-334:5 -/
+@[rust_loop_body]
+def progress.copy_from_loop.body
+  (src : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U32) × Std.Usize) (alloc.vec.Vec
+    Std.U32))
+  := do
+  let i1 := alloc.vec.Vec.len src
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) src i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    ok (cont (out1, i3))
+  else ok (done out)
+
+/-- [rsk_protocol::progress::copy_from]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 325:4-334:5 -/
+@[rust_loop]
+def progress.copy_from_loop
+  (src : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  loop
+    (fun (out1, i1) => progress.copy_from_loop.body src out1 i1)
+    (out, i)
+
+/-- [rsk_protocol::progress::copy_from]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 317:0-336:1 -/
+@[reducible]
+def progress.copy_from
+  (src : alloc.vec.Vec Std.U32) (start : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  progress.copy_from_loop src (alloc.vec.Vec.new Std.U32) start
+
+/-- [rsk_protocol::progress::eq_u32]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 346:4-360:1 -/
+@[rust_loop_body]
+def progress.eq_u32_loop.body
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len a
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) a i
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    if i2 != i3
+    then ok (done false)
+    else let i4 ← i + 1#usize
+         ok (cont i4)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::eq_u32]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 346:4-360:1 -/
+@[rust_loop]
+def progress.eq_u32_loop
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.eq_u32_loop.body a b i1)
+    i
+
+/-- [rsk_protocol::progress::eq_u32]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 338:0-360:1 -/
+def progress.eq_u32
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len a
+  let i1 := alloc.vec.Vec.len b
+  if i != i1
+  then ok false
+  else progress.eq_u32_loop a b 0#usize
+
+/-- [rsk_protocol::progress::eq_usize]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 370:4-384:1 -/
+@[rust_loop_body]
+def progress.eq_usize_loop.body
+  (a : alloc.vec.Vec Std.Usize) (b : alloc.vec.Vec Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len a
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize) a i
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize) b i
+    if i2 != i3
+    then ok (done false)
+    else let i4 ← i + 1#usize
+         ok (cont i4)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::eq_usize]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 370:4-384:1 -/
+@[rust_loop]
+def progress.eq_usize_loop
+  (a : alloc.vec.Vec Std.Usize) (b : alloc.vec.Vec Std.Usize) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.eq_usize_loop.body a b i1)
+    i
+
+/-- [rsk_protocol::progress::eq_usize]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 362:0-384:1 -/
+def progress.eq_usize
+  (a : alloc.vec.Vec Std.Usize) (b : alloc.vec.Vec Std.Usize) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len a
+  let i1 := alloc.vec.Vec.len b
+  if i != i1
+  then ok false
+  else progress.eq_usize_loop a b 0#usize
+
+/-- [rsk_protocol::progress::eq_cfg]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 399:4-421:1 -/
+@[rust_loop_body]
+def progress.eq_cfg_loop.body
+  (v : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let v2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) v i
+    let v3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) v1 i
+    let b ← progress.eq_u32 v2 v3
+    if b
+    then let i2 ← i + 1#usize
+         ok (cont i2)
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::eq_cfg]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 399:4-421:1 -/
+@[rust_loop]
+def progress.eq_cfg_loop
+  (v : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.eq_cfg_loop.body v v1 i1)
+    i
+
+/-- [rsk_protocol::progress::eq_cfg]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 386:0-421:1 -/
+def progress.eq_cfg
+  (a : progress.Config) (b : progress.Config) : Result Bool := do
+  let b1 ← progress.eq_usize a.states b.states
+  if b1
+  then
+    let i := alloc.vec.Vec.len a.chans
+    let i1 := alloc.vec.Vec.len b.chans
+    if i != i1
+    then ok false
+    else progress.eq_cfg_loop a.chans b.chans 0#usize
+  else ok false
+
+/-- [rsk_protocol::progress::contains]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 428:4-441:1 -/
+@[rust_loop_body]
+def progress.contains_loop.body
+  (list : alloc.vec.Vec progress.Config) (c : progress.Config) (i : Std.Usize)
+  :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len list
+  if i < i1
+  then
+    let c1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Config) list i
+    let b ← progress.eq_cfg c1 c
+    if b
+    then ok (done true)
+    else let i2 ← i + 1#usize
+         ok (cont i2)
+  else ok (done false)
+
+/-- [rsk_protocol::progress::contains]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 428:4-441:1 -/
+@[rust_loop]
+def progress.contains_loop
+  (list : alloc.vec.Vec progress.Config) (c : progress.Config) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.contains_loop.body list c i1)
+    i
+
+/-- [rsk_protocol::progress::contains]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 423:0-441:1 -/
+@[reducible]
+def progress.contains
+  (list : alloc.vec.Vec progress.Config) (c : progress.Config) :
+  Result Bool
+  := do
+  progress.contains_loop list c 0#usize
+
+/-- [rsk_protocol::progress::initial_config]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 452:4-461:5 -/
+@[rust_loop_body]
+def progress.initial_config_loop0.body
+  (n : Std.Usize) (states : alloc.vec.Vec Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.Usize) × Std.Usize) (alloc.vec.Vec
+    Std.Usize))
+  := do
+  if i < n
+  then
+    let states1 ← alloc.vec.Vec.push states 0#usize
+    let i1 ← i + 1#usize
+    ok (cont (states1, i1))
+  else ok (done states)
+
+/-- [rsk_protocol::progress::initial_config]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 452:4-461:5 -/
+@[rust_loop]
+def progress.initial_config_loop0
+  (n : Std.Usize) (states : alloc.vec.Vec Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.Usize)
+  := do
+  loop
+    (fun (states1, i1) => progress.initial_config_loop0.body n states1 i1)
+    (states, i)
+
+/-- [rsk_protocol::progress::initial_config]: loop body 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 464:4-475:5 -/
+@[rust_loop_body]
+def progress.initial_config_loop1.body
+  (n : Std.Usize) (chans : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (alloc.vec.Vec Std.U32)) × Std.Usize)
+    (alloc.vec.Vec (alloc.vec.Vec Std.U32)))
+  := do
+  let i ← n * n
+  if j < i
+  then
+    let chans1 ← alloc.vec.Vec.push chans (alloc.vec.Vec.new Std.U32)
+    let j1 ← j + 1#usize
+    ok (cont (chans1, j1))
+  else ok (done chans)
+
+/-- [rsk_protocol::progress::initial_config]: loop 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 464:4-475:5 -/
+@[rust_loop]
+def progress.initial_config_loop1
+  (n : Std.Usize) (chans : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  := do
+  loop
+    (fun (chans1, j1) => progress.initial_config_loop1.body n chans1 j1)
+    (chans, j)
+
+/-- [rsk_protocol::progress::initial_config]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 443:0-484:1 -/
+def progress.initial_config (n : Std.Usize) : Result progress.Config := do
+  let states ←
+    progress.initial_config_loop0 n (alloc.vec.Vec.new Std.Usize) 0#usize
+  let chans ←
+    progress.initial_config_loop1 n (alloc.vec.Vec.new (alloc.vec.Vec Std.U32))
+      0#usize
+  ok { states, chans }
+
+/-- [rsk_protocol::progress::wf_config]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 486:0-494:1 -/
+def progress.wf_config
+  (s : progress.System) (c : progress.Config) : Result Bool := do
+  let i := alloc.vec.Vec.len c.states
+  if i = s.roles
+  then
+    let i1 := alloc.vec.Vec.len c.chans
+    let i2 ← s.roles * s.roles
+    ok (i1 = i2)
+  else ok false
+
+/-- [rsk_protocol::progress::capacity_ok]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 501:4-514:1 -/
+@[rust_loop_body]
+def progress.capacity_ok_loop.body
+  (s : progress.System) (c : progress.Config) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len c.chans
+  if i < i1
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) c.chans i
+    let i2 := alloc.vec.Vec.len v
+    if i2 > s.capacity
+    then ok (done false)
+    else let i3 ← i + 1#usize
+         ok (cont i3)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::capacity_ok]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 501:4-514:1 -/
+@[rust_loop]
+def progress.capacity_ok_loop
+  (s : progress.System) (c : progress.Config) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.capacity_ok_loop.body s c i1)
+    i
+
+/-- [rsk_protocol::progress::capacity_ok]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 496:0-514:1 -/
+@[reducible]
+def progress.capacity_ok
+  (s : progress.System) (c : progress.Config) : Result Bool := do
+  progress.capacity_ok_loop s c 0#usize
+
+/-- [rsk_protocol::progress::chan_index]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 517:0-532:1 -/
+def progress.chan_index
+  (s : progress.System) (t : progress.Trans) : Result Std.Usize := do
+  if t.send
+  then let i ← t.role * s.roles
+       i + t.peer
+  else let i ← t.peer * s.roles
+       i + t.role
+
+/-- [rsk_protocol::progress::is_enabled]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 534:0-552:1 -/
+def progress.is_enabled
+  (s : progress.System) (c : progress.Config) (i : Std.Usize) :
+  Result Bool
+  := do
+  let t ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice progress.Trans)
+      s.trans i
+  let i1 := alloc.vec.Vec.len c.states
+  if t.role >= i1
+  then ok false
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+        c.states t.role
+    if i2 != t.from
+    then ok false
+    else
+      let ch ← progress.chan_index s t
+      if t.send
+      then ok true
+      else
+        let q ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U32)) c.chans ch
+        let i3 := alloc.vec.Vec.len q
+        if i3 > 0#usize
+        then
+          let i4 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
+              q 0#usize
+          ok (i4 = t.label)
+        else ok false
+
+/-- [rsk_protocol::progress::successor]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 568:4-579:5 -/
+@[rust_loop_body]
+def progress.successor_loop0.body
+  (c : progress.Config) (t : progress.Trans) (states : alloc.vec.Vec Std.Usize)
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.Usize) × Std.Usize) ((alloc.vec.Vec
+    (alloc.vec.Vec Std.U32)) × progress.Trans × (alloc.vec.Vec Std.Usize)))
+  := do
+  let i := alloc.vec.Vec.len c.states
+  if k < i
+  then
+    if k = t.role
+    then
+      let states1 ← alloc.vec.Vec.push states t.to
+      let k1 ← k + 1#usize
+      ok (cont (states1, k1))
+    else
+      let i1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+          c.states k
+      let states1 ← alloc.vec.Vec.push states i1
+      let k1 ← k + 1#usize
+      ok (cont (states1, k1))
+  else ok (done (c.chans, t, states))
+
+/-- [rsk_protocol::progress::successor]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 568:4-579:5 -/
+@[rust_loop]
+def progress.successor_loop0
+  (c : progress.Config) (t : progress.Trans) (states : alloc.vec.Vec Std.Usize)
+  (k : Std.Usize) :
+  Result ((alloc.vec.Vec (alloc.vec.Vec Std.U32)) × progress.Trans ×
+    (alloc.vec.Vec Std.Usize))
+  := do
+  loop
+    (fun (states1, k1) => progress.successor_loop0.body c t states1 k1)
+    (states, k)
+
+/-- [rsk_protocol::progress::successor]: loop body 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 583:4-611:5 -/
+@[rust_loop_body]
+def progress.successor_loop1.body
+  (v : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (ch : Std.Usize)
+  (t : progress.Trans) (chans : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (m : Std.Usize) :
+  Result (ControlFlow (progress.Trans × (alloc.vec.Vec (alloc.vec.Vec
+    Std.U32)) × Std.Usize) (alloc.vec.Vec (alloc.vec.Vec Std.U32)))
+  := do
+  let i := alloc.vec.Vec.len v
+  if m < i
+  then
+    let (t1, chans1) ←
+      if m = ch
+      then
+        do
+        let v1 ←
+          if t.send
+          then
+            do
+            let v2 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                (alloc.vec.Vec Std.U32)) v m
+            let q ← progress.copy_from v2 0#usize
+            let q1 ← alloc.vec.Vec.push q t.label
+            alloc.vec.Vec.push chans q1
+          else
+            do
+            let v2 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                (alloc.vec.Vec Std.U32)) v m
+            let q ← progress.copy_from v2 1#usize
+            alloc.vec.Vec.push chans q
+        ok (t, v1)
+      else
+        do
+        let v1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U32)) v m
+        let q ← progress.copy_from v1 0#usize
+        let chans2 ← alloc.vec.Vec.push chans q
+        ok (t, chans2)
+    let m1 ← m + 1#usize
+    ok (cont (t1, chans1, m1))
+  else ok (done chans)
+
+/-- [rsk_protocol::progress::successor]: loop 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 583:4-611:5 -/
+@[rust_loop]
+def progress.successor_loop1
+  (v : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (t : progress.Trans)
+  (ch : Std.Usize) (chans : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (m : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  := do
+  loop
+    (fun (t1, chans1, m1) => progress.successor_loop1.body v ch t1 chans1 m1)
+    (t, chans, m)
+
+/-- [rsk_protocol::progress::successor]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 554:0-619:1 -/
+def progress.successor
+  (s : progress.System) (c : progress.Config) (i : Std.Usize) :
+  Result progress.Config
+  := do
+  let t ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice progress.Trans)
+      s.trans i
+  let ch ← progress.chan_index s t
+  let (v, t1, states) ←
+    progress.successor_loop0 c t (alloc.vec.Vec.new Std.Usize) 0#usize
+  let chans ←
+    progress.successor_loop1 v t1 ch (alloc.vec.Vec.new (alloc.vec.Vec
+      Std.U32)) 0#usize
+  ok { states, chans }
+
+/-- [rsk_protocol::progress::is_blocked]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 631:4-649:5 -/
+@[rust_loop_body]
+def progress.is_blocked_loop.body
+  (s : progress.System) (r : Std.Usize) (c : progress.Config) (any : Bool)
+  (waits : Bool) (i : Std.Usize) :
+  Result (ControlFlow (progress.Config × Bool × Bool × Std.Usize) (Bool ×
+    Bool))
+  := do
+  let i1 := alloc.vec.Vec.len s.trans
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Trans) s.trans i
+    let (c1, any1, waits1) ←
+      if t.role = r
+      then
+        do
+        let i2 := alloc.vec.Vec.len c.states
+        let (b, b1) ←
+          if t.role < i2
+          then
+            do
+            let i3 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                Std.Usize) c.states t.role
+            if i3 = t.from
+            then
+              let b2 ←
+                if t.send
+                then ok false
+                else
+                  do
+                  let b3 ← progress.is_enabled s c i
+                  if b3
+                  then ok false
+                  else ok waits
+              ok (true, b2)
+            else ok (any, waits)
+          else ok (any, waits)
+        ok (c, b, b1)
+      else ok (c, any, waits)
+    let i2 ← i + 1#usize
+    ok (cont (c1, any1, waits1, i2))
+  else ok (done (any, waits))
+
+/-- [rsk_protocol::progress::is_blocked]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 631:4-649:5 -/
+@[rust_loop]
+def progress.is_blocked_loop
+  (s : progress.System) (c : progress.Config) (r : Std.Usize) (any : Bool)
+  (waits : Bool) (i : Std.Usize) :
+  Result (Bool × Bool)
+  := do
+  loop
+    (fun (c1, any1, waits1, i1) => progress.is_blocked_loop.body s r c1 any1
+      waits1 i1)
+    (c, any, waits, i)
+
+/-- [rsk_protocol::progress::is_blocked]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 621:0-651:1 -/
+def progress.is_blocked
+  (s : progress.System) (c : progress.Config) (r : Std.Usize) :
+  Result Bool
+  := do
+  let (any, waits) ← progress.is_blocked_loop s c r false true 0#usize
+  if any
+  then ok waits
+  else ok false
+
+/-- [rsk_protocol::progress::is_terminal]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 662:4-674:5 -/
+@[rust_loop_body]
+def progress.is_terminal_loop.body
+  (s : progress.System) (r : Std.Usize) (c : progress.Config) (any : Bool)
+  (i : Std.Usize) :
+  Result (ControlFlow (progress.Config × Bool × Std.Usize) Bool)
+  := do
+  let i1 := alloc.vec.Vec.len s.trans
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Trans) s.trans i
+    let (c1, any1) ←
+      if t.role = r
+      then
+        do
+        let i2 := alloc.vec.Vec.len c.states
+        let b ←
+          if t.role < i2
+          then
+            do
+            let i3 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                Std.Usize) c.states t.role
+            if i3 = t.from
+            then ok true
+            else ok any
+          else ok any
+        ok (c, b)
+      else ok (c, any)
+    let i2 ← i + 1#usize
+    ok (cont (c1, any1, i2))
+  else ok (done any)
+
+/-- [rsk_protocol::progress::is_terminal]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 662:4-674:5 -/
+@[rust_loop]
+def progress.is_terminal_loop
+  (s : progress.System) (c : progress.Config) (r : Std.Usize) (any : Bool)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (c1, any1, i1) => progress.is_terminal_loop.body s r c1 any1 i1)
+    (c, any, i)
+
+/-- [rsk_protocol::progress::is_terminal]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 653:0-676:1 -/
+def progress.is_terminal
+  (s : progress.System) (c : progress.Config) (r : Std.Usize) :
+  Result Bool
+  := do
+  let any ← progress.is_terminal_loop s c r false 0#usize
+  ok (¬ any)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 693:4-714:5 -/
+@[rust_loop_body]
+def progress.has_deadlock_loop0.body
+  (s : progress.System) (c : progress.Config) (cur : alloc.vec.Vec Bool)
+  (r : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Bool) × Std.Usize) (Std.Usize ×
+    Std.Usize × (alloc.vec.Vec progress.Trans) × (alloc.vec.Vec Bool)))
+  := do
+  if r < s.roles
+  then
+    let b ← progress.is_blocked s c r
+    let b1 ← if b
+               then ok true
+               else progress.is_terminal s c r
+    let cur1 ← alloc.vec.Vec.push cur b1
+    let r1 ← r + 1#usize
+    ok (cont (cur1, r1))
+  else ok (done (s.roles, s.capacity, s.trans, cur))
+
+/-- [rsk_protocol::progress::has_deadlock]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 693:4-714:5 -/
+@[rust_loop]
+def progress.has_deadlock_loop0
+  (s : progress.System) (c : progress.Config) (cur : alloc.vec.Vec Bool)
+  (r : Std.Usize) :
+  Result (Std.Usize × Std.Usize × (alloc.vec.Vec progress.Trans) ×
+    (alloc.vec.Vec Bool))
+  := do
+  loop
+    (fun (cur1, r1) => progress.has_deadlock_loop0.body s c cur1 r1)
+    (cur, r)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop body 3:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 752:16-794:17 -/
+@[rust_loop_body]
+def progress.has_deadlock_loop1_loop0_loop0.body
+  (v : alloc.vec.Vec progress.Trans) (q : Std.Usize) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) (i : Std.Usize) (removed : Bool)
+  :
+  Result (ControlFlow (progress.Config × (alloc.vec.Vec Bool) × Bool ×
+    Std.Usize × Bool) (progress.Config × (alloc.vec.Vec Bool) × Bool))
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Trans) v i
+    let (c1, cur1, changed1, removed1) ←
+      if removed
+      then ok (c, cur, changed, removed)
+      else
+        if t.role = q
+        then
+          do
+          let i2 := alloc.vec.Vec.len c.states
+          let (v1, b, b1) ←
+            if t.role < i2
+            then
+              do
+              let i3 ←
+                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                  Std.Usize) c.states t.role
+              if i3 = t.from
+              then
+                let b2 ←
+                  alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                    Bool) cur t.peer
+                if b2
+                then ok (cur, changed, removed)
+                else
+                  let cur2 ←
+                    alloc.vec.Vec.Insts.VstdPervasiveVecAdditionalExecFns.set
+                      cur q false
+                  ok (cur2, true, true)
+              else ok (cur, changed, removed)
+            else ok (cur, changed, removed)
+          ok (c, v1, b, b1)
+        else ok (c, cur, changed, removed)
+    let i2 ← i + 1#usize
+    ok (cont (c1, cur1, changed1, i2, removed1))
+  else ok (done (c, cur, changed))
+
+/-- [rsk_protocol::progress::has_deadlock]: loop 3:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 752:16-794:17 -/
+@[rust_loop]
+def progress.has_deadlock_loop1_loop0_loop0
+  (v : alloc.vec.Vec progress.Trans) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) (q : Std.Usize) (i : Std.Usize)
+  (removed : Bool) :
+  Result (progress.Config × (alloc.vec.Vec Bool) × Bool)
+  := do
+  loop
+    (fun (c1, cur1, changed1, i1, removed1) =>
+      progress.has_deadlock_loop1_loop0_loop0.body v q c1 cur1 changed1 i1
+      removed1)
+    (c, cur, changed, i, removed)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop body 2:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 733:8-797:9 -/
+@[rust_loop_body]
+def progress.has_deadlock_loop1_loop0.body
+  (i : Std.Usize) (v : alloc.vec.Vec progress.Trans) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) (q : Std.Usize) :
+  Result (ControlFlow (progress.Config × (alloc.vec.Vec Bool) × Bool ×
+    Std.Usize) (progress.Config × (alloc.vec.Vec Bool) × Bool))
+  := do
+  if q < i
+  then
+    let b ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) cur q
+    if b
+    then
+      let (c1, cur1, changed1) ←
+        progress.has_deadlock_loop1_loop0_loop0 v c cur changed q 0#usize false
+      let q1 ← q + 1#usize
+      ok (cont (c1, cur1, changed1, q1))
+    else let q1 ← q + 1#usize
+         ok (cont (c, cur, changed, q1))
+  else ok (done (c, cur, changed))
+
+/-- [rsk_protocol::progress::has_deadlock]: loop 2:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 733:8-797:9 -/
+@[rust_loop]
+def progress.has_deadlock_loop1_loop0
+  (i : Std.Usize) (v : alloc.vec.Vec progress.Trans) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) (q : Std.Usize) :
+  Result (progress.Config × (alloc.vec.Vec Bool) × Bool)
+  := do
+  loop
+    (fun (c1, cur1, changed1, q1) => progress.has_deadlock_loop1_loop0.body i v
+      c1 cur1 changed1 q1)
+    (c, cur, changed, q)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop body 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 716:4-798:5 -/
+@[rust_loop_body]
+def progress.has_deadlock_loop1.body
+  (i : Std.Usize) (v : alloc.vec.Vec progress.Trans) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) :
+  Result (ControlFlow (progress.Config × (alloc.vec.Vec Bool) × Bool)
+    (progress.Config × (alloc.vec.Vec Bool)))
+  := do
+  if changed
+  then
+    let (c1, cur1, changed1) ←
+      progress.has_deadlock_loop1_loop0 i v c cur false 0#usize
+    ok (cont (c1, cur1, changed1))
+  else ok (done (c, cur))
+
+/-- [rsk_protocol::progress::has_deadlock]: loop 1:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 716:4-798:5 -/
+@[rust_loop]
+def progress.has_deadlock_loop1
+  (i : Std.Usize) (v : alloc.vec.Vec progress.Trans) (c : progress.Config)
+  (cur : alloc.vec.Vec Bool) (changed : Bool) :
+  Result (progress.Config × (alloc.vec.Vec Bool))
+  := do
+  loop
+    (fun (c1, cur1, changed1) => progress.has_deadlock_loop1.body i v c1 cur1
+      changed1)
+    (c, cur, changed)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop body 4:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 803:4-817:5 -/
+@[rust_loop_body]
+def progress.has_deadlock_loop2.body
+  (i : Std.Usize) (i1 : Std.Usize) (v : alloc.vec.Vec progress.Trans)
+  (c : progress.Config) (cur : alloc.vec.Vec Bool) (any : Bool) (x : Std.Usize)
+  :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if x < i
+  then
+    let b ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) cur x
+    let any1 ←
+      if b
+      then
+        do
+        let b1 ←
+          progress.is_blocked { roles := i, capacity := i1, trans := v } c x
+        if b1
+        then ok true
+        else ok any
+      else ok any
+    let x1 ← x + 1#usize
+    ok (cont (any1, x1))
+  else ok (done any)
+
+/-- [rsk_protocol::progress::has_deadlock]: loop 4:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 803:4-817:5 -/
+@[rust_loop]
+def progress.has_deadlock_loop2
+  (i : Std.Usize) (i1 : Std.Usize) (v : alloc.vec.Vec progress.Trans)
+  (c : progress.Config) (cur : alloc.vec.Vec Bool) (any : Bool) (x : Std.Usize)
+  :
+  Result Bool
+  := do
+  loop
+    (fun (any1, x1) => progress.has_deadlock_loop2.body i i1 v c cur any1 x1)
+    (any, x)
+
+/-- [rsk_protocol::progress::has_deadlock]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 682:0-835:1 -/
+def progress.has_deadlock
+  (s : progress.System) (c : progress.Config) : Result Bool := do
+  let (i, i1, v, cur) ←
+    progress.has_deadlock_loop0 s c (alloc.vec.Vec.new Bool) 0#usize
+  let (c1, cur1) ← progress.has_deadlock_loop1 i v c cur true
+  progress.has_deadlock_loop2 i i1 v c1 cur1 false 0#usize
+
+/-- [rsk_protocol::progress::successors_listed]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 848:4-866:1 -/
+@[rust_loop_body]
+def progress.successors_listed_loop.body
+  (s : progress.System) (list : alloc.vec.Vec progress.Config)
+  (c : progress.Config) (j : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := alloc.vec.Vec.len s.trans
+  if j < i
+  then
+    let b ← progress.is_enabled s c j
+    if b
+    then
+      let next ← progress.successor s c j
+      let b1 ← progress.contains list next
+      if b1
+      then let j1 ← j + 1#usize
+           ok (cont j1)
+      else ok (done false)
+    else let j1 ← j + 1#usize
+         ok (cont j1)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::successors_listed]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 848:4-866:1 -/
+@[rust_loop]
+def progress.successors_listed_loop
+  (s : progress.System) (list : alloc.vec.Vec progress.Config)
+  (c : progress.Config) (j : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun j1 => progress.successors_listed_loop.body s list c j1)
+    j
+
+/-- [rsk_protocol::progress::successors_listed]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 839:0-866:1 -/
+@[reducible]
+def progress.successors_listed
+  (s : progress.System) (list : alloc.vec.Vec progress.Config)
+  (c : progress.Config) :
+  Result Bool
+  := do
+  progress.successors_listed_loop s list c 0#usize
+
+/-- [rsk_protocol::progress::configs_closed]: loop body 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 880:4-900:1 -/
+@[rust_loop_body]
+def progress.configs_closed_loop.body
+  (s : progress.System) (list : alloc.vec.Vec progress.Config) (i : Std.Usize)
+  :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len list
+  if i < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        progress.Config) list i
+    let b ← progress.wf_config s c
+    if b
+    then
+      let b1 ← progress.capacity_ok s c
+      if b1
+      then
+        let b2 ← progress.has_deadlock s c
+        if b2
+        then ok (done false)
+        else
+          let b3 ← progress.successors_listed s list c
+          if b3
+          then let i2 ← i + 1#usize
+               ok (cont i2)
+          else ok (done false)
+      else ok (done false)
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_protocol::progress::configs_closed]: loop 0:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 880:4-900:1 -/
+@[rust_loop]
+def progress.configs_closed_loop
+  (s : progress.System) (list : alloc.vec.Vec progress.Config) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  loop
+    (fun i1 => progress.configs_closed_loop.body s list i1)
+    i
+
+/-- [rsk_protocol::progress::configs_closed]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 871:0-900:1 -/
+@[reducible]
+def progress.configs_closed
+  (s : progress.System) (list : alloc.vec.Vec progress.Config) :
+  Result Bool
+  := do
+  progress.configs_closed_loop s list 0#usize
+
+/-- [rsk_protocol::progress::certify]:
+    Source: 'crates/rsk-protocol/src/progress.rs', lines 905:0-924:1
+    Visibility: public -/
+def progress.certify
+  (s : progress.System) (list : alloc.vec.Vec progress.Config) :
+  Result Bool
+  := do
+  let init ← progress.initial_config s.roles
+  let b ← progress.contains list init
+  if b
+  then progress.configs_closed s list
+  else ok false
+
+mutual
+
+/-- [rsk_protocol::theory::proj_exec]:
+    Source: 'crates/rsk-protocol/src/theory.rs', lines 2296:0-2314:1
+    Visibility: public -/
+def theory.proj_exec (g : theory.GE) (r : Std.Usize) : Result theory.LE := do
+  match g with
+  | theory.GE.End => ok theory.LE.End
+  | theory.GE.Comm «from» «to» bs =>
+    if r = «from»
+    then let le ← theory.proj_bs_exec bs r
+         ok (theory.LE.Send «to» le)
+    else
+      if r = «to»
+      then let le ← theory.proj_bs_exec bs r
+           ok (theory.LE.Recv «from» le)
+      else ok theory.LE.End
+  | theory.GE.Rec body =>
+    let l ← theory.proj_exec body r
+    ok (theory.LE.Rec l)
+  | theory.GE.Var n => ok (theory.LE.Var n)
+partial_fixpoint
+
+/-- [rsk_protocol::theory::proj_bs_exec]:
+    Source: 'crates/rsk-protocol/src/theory.rs', lines 2316:0-2324:1 -/
+def theory.proj_bs_exec
+  (bs : theory.BE) (r : Std.Usize) : Result theory.LsE := do
+  match bs with
+  | theory.BE.Nil => ok theory.LsE.Nil
+  | theory.BE.Cons label g rest =>
+    let l ← theory.proj_exec g r
+    let le ← theory.proj_bs_exec rest r
+    ok (theory.LsE.Cons label l le)
+partial_fixpoint
+
+end
 
 end rsk_protocol

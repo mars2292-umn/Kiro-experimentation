@@ -11,24 +11,22 @@
 //! Scope: ELF32 little-endian only; section headers, program headers,
 //! symbol tables, and byte access by file offset or by virtual address. Any
 //! other class, encoding, or malformed structure is an error, never a panic.
+//!
+//! Since 2026-11-26 everything read from the file's bytes is read by
+//! `reader_v`, verified with Verus (`cargo verus verify -p rsk-elf`) and, as
+//! compiled, in Lean (`proofs/aeneas/lean/Tools/ElfProofs.lean`): no read
+//! out of range for any bytes, the symbol lookup by name, and the bytes at
+//! an address. This file adds the names as text, the wording of a refusal,
+//! and the loadable image for the binary hash (ordinary Rust, tested).
 #![forbid(unsafe_code)]
+#![cfg_attr(not(verus_keep_ghost), allow(unused_imports))]
 
 use std::fmt;
 
-/// Section flag: the section occupies memory at run time.
-pub const SHF_ALLOC: u32 = 0x2;
-/// Section flag: executable instructions.
-pub const SHF_EXECINSTR: u32 = 0x4;
-/// Section flag: writable.
-pub const SHF_WRITE: u32 = 0x1;
-/// Section type: no bits in the file (`.bss`).
-pub const SHT_NOBITS: u32 = 8;
-/// Section type: symbol table.
-pub const SHT_SYMTAB: u32 = 2;
-/// Program header type: loadable segment.
-pub const PT_LOAD: u32 = 1;
-/// Machine: ARM.
-pub const EM_ARM: u16 = 40;
+pub mod reader_v;
+
+pub use reader_v::{Header, Segment, EM_ARM, PT_LOAD, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SHT_NOBITS, SHT_SYMTAB};
+use reader_v::{AtErr, ElfErr, RawSym, SecHdr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error(pub String);
@@ -40,26 +38,6 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
-
-fn err<T>(msg: impl Into<String>) -> Result<T, Error> {
-    Err(Error(msg.into()))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Header {
-    /// `e_type`: 1 relocatable, 2 executable.
-    pub kind: u16,
-    pub machine: u16,
-    pub entry: u32,
-    pub flags: u32,
-    pub phoff: u32,
-    pub shoff: u32,
-    pub phentsize: u16,
-    pub phnum: u16,
-    pub shentsize: u16,
-    pub shnum: u16,
-    pub shstrndx: u16,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
@@ -93,18 +71,6 @@ impl Section {
     pub fn contains(&self, addr: u32) -> bool {
         addr >= self.addr && (addr as u64) < self.addr as u64 + self.size as u64
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Segment {
-    pub kind: u32,
-    pub offset: u32,
-    pub vaddr: u32,
-    pub paddr: u32,
-    pub filesz: u32,
-    pub memsz: u32,
-    pub flags: u32,
-    pub align: u32,
 }
 
 /// Symbol binding and type, from `st_info`.
@@ -153,105 +119,63 @@ impl Symbol {
 #[derive(Debug, Clone)]
 pub struct Elf {
     data: Vec<u8>,
+    /// The section headers as `reader_v::parse` read them, which the
+    /// verified functions take; `sections` is the same headers with their
+    /// names as text.
+    raw: Vec<SecHdr>,
     pub header: Header,
     pub sections: Vec<Section>,
     pub segments: Vec<Segment>,
 }
 
-fn u16_at(d: &[u8], off: usize) -> Result<u16, Error> {
-    match d.get(off..off + 2) {
-        Some(b) => Ok(u16::from_le_bytes([b[0], b[1]])),
-        None => err(format!("truncated ELF: no u16 at offset {off:#x}")),
-    }
-}
-
-fn u32_at(d: &[u8], off: usize) -> Result<u32, Error> {
-    match d.get(off..off + 4) {
-        Some(b) => Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]])),
-        None => err(format!("truncated ELF: no u32 at offset {off:#x}")),
-    }
-}
-
-fn cstr(d: &[u8], off: usize) -> Result<String, Error> {
-    let bytes = d.get(off..).ok_or_else(|| Error(format!("string offset {off:#x} is outside the file")))?;
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    Ok(String::from_utf8_lossy(&bytes[..end]).into_owned())
+/// The bytes `[start, end)` of the file as text (invalid UTF-8 replaced).
+fn text(d: &[u8], start: usize, end: usize) -> String {
+    String::from_utf8_lossy(d.get(start..end).unwrap_or(&[])).into_owned()
 }
 
 impl Elf {
-    /// Parses an ELF32 little-endian image.
+    /// A refusal of `reader_v`, in words.
+    fn refusal(names: &[Section], e: ElfErr) -> Error {
+        Error(match e {
+            ElfErr::NotElf => "not an ELF file".to_string(),
+            ElfErr::NotClass32 => "not a 32-bit ELF file (only ELFCLASS32 is supported)".to_string(),
+            ElfErr::NotLittleEndian => "not a little-endian ELF file".to_string(),
+            ElfErr::NoU16(off) => format!("truncated ELF: no u16 at offset {off:#x}"),
+            ElfErr::NoU32(off) => format!("truncated ELF: no u32 at offset {off:#x}"),
+            ElfErr::StrOutside(off) => format!("string offset {off:#x} is outside the file"),
+            ElfErr::SectionOutside(i) => format!("section `{}` lies outside the file", names.get(i).map(|s| s.name.as_str()).unwrap_or("")),
+            ElfErr::MissingStrtab => "symbol table links to a missing string table".to_string(),
+        })
+    }
+
+    /// Parses an ELF32 little-endian image (`reader_v::parse`, verified).
     pub fn parse(data: Vec<u8>) -> Result<Elf, Error> {
-        if data.len() < 52 || &data[0..4] != b"\x7fELF" {
-            return err("not an ELF file");
-        }
-        if data[4] != 1 {
-            return err("not a 32-bit ELF file (only ELFCLASS32 is supported)");
-        }
-        if data[5] != 1 {
-            return err("not a little-endian ELF file");
-        }
-        let header = Header {
-            kind: u16_at(&data, 16)?,
-            machine: u16_at(&data, 18)?,
-            entry: u32_at(&data, 24)?,
-            phoff: u32_at(&data, 28)?,
-            shoff: u32_at(&data, 32)?,
-            flags: u32_at(&data, 36)?,
-            phentsize: u16_at(&data, 42)?,
-            phnum: u16_at(&data, 44)?,
-            shentsize: u16_at(&data, 46)?,
-            shnum: u16_at(&data, 48)?,
-            shstrndx: u16_at(&data, 50)?,
-        };
-        let mut segments = Vec::new();
-        for i in 0..header.phnum as usize {
-            let base = header.phoff as usize + i * header.phentsize as usize;
-            segments.push(Segment {
-                kind: u32_at(&data, base)?,
-                offset: u32_at(&data, base + 4)?,
-                vaddr: u32_at(&data, base + 8)?,
-                paddr: u32_at(&data, base + 12)?,
-                filesz: u32_at(&data, base + 16)?,
-                memsz: u32_at(&data, base + 20)?,
-                flags: u32_at(&data, base + 24)?,
-                align: u32_at(&data, base + 28)?,
-            });
-        }
-        let mut raw = Vec::new();
-        for i in 0..header.shnum as usize {
-            let base = header.shoff as usize + i * header.shentsize as usize;
-            raw.push((
-                u32_at(&data, base)?,
-                Section {
-                    index: i,
-                    name: String::new(),
-                    kind: u32_at(&data, base + 4)?,
-                    flags: u32_at(&data, base + 8)?,
-                    addr: u32_at(&data, base + 12)?,
-                    offset: u32_at(&data, base + 16)?,
-                    size: u32_at(&data, base + 20)?,
-                    link: u32_at(&data, base + 24)?,
-                    info: u32_at(&data, base + 28)?,
-                    addralign: u32_at(&data, base + 32)?,
-                    entsize: u32_at(&data, base + 36)?,
-                },
-            ));
-        }
-        let shstr_off = raw
-            .get(header.shstrndx as usize)
-            .map(|(_, s)| s.offset as usize);
-        let mut sections = Vec::with_capacity(raw.len());
-        for (name_off, mut section) in raw {
-            if let Some(base) = shstr_off {
-                section.name = cstr(&data, base + name_off as usize)?;
-            }
-            sections.push(section);
-        }
+        let parsed = reader_v::parse(&data).map_err(|e| Elf::refusal(&[], e))?;
+        let sections = parsed
+            .sections
+            .iter()
+            .zip(parsed.names.iter())
+            .enumerate()
+            .map(|(index, (h, &(start, end)))| Section {
+                index,
+                name: text(&data, start, end),
+                kind: h.kind,
+                flags: h.flags,
+                addr: h.addr,
+                offset: h.offset,
+                size: h.size,
+                link: h.link,
+                info: h.info,
+                addralign: h.addralign,
+                entsize: h.entsize,
+            })
+            .collect();
         Ok(Elf {
             data,
-            header,
+            raw: parsed.sections,
+            header: parsed.header,
             sections,
-            segments,
+            segments: parsed.segments,
         })
     }
 
@@ -264,81 +188,85 @@ impl Elf {
         self.sections.iter().find(|s| s.name == name)
     }
 
-    /// The file bytes of a section (empty for `SHT_NOBITS`).
+    /// The file bytes of a section (empty for `SHT_NOBITS`); the extent is
+    /// `reader_v::section_range` (verified).
     pub fn section_data(&self, section: &Section) -> Result<&[u8], Error> {
-        if section.is_nobits() {
-            return Ok(&[]);
-        }
-        let start = section.offset as usize;
-        let end = start + section.size as usize;
-        self.data
-            .get(start..end)
+        let header = SecHdr {
+            name: 0,
+            kind: section.kind,
+            flags: section.flags,
+            addr: section.addr,
+            offset: section.offset,
+            size: section.size,
+            link: section.link,
+            info: section.info,
+            addralign: section.addralign,
+            entsize: section.entsize,
+        };
+        reader_v::section_range(self.data.len(), &header)
+            .and_then(|(start, end)| self.data.get(start..end))
             .ok_or_else(|| Error(format!("section `{}` lies outside the file", section.name)))
     }
 
-    /// The section that contains a virtual address.
+    /// The section that contains a virtual address
+    /// (`reader_v::section_at`, verified: the first allocated, non-empty
+    /// section holding it).
     pub fn section_at(&self, addr: u32) -> Option<&Section> {
-        self.sections
-            .iter()
-            .find(|s| s.is_alloc() && s.size > 0 && s.contains(addr))
+        reader_v::section_at(&self.raw, addr).and_then(|i| self.sections.get(i))
     }
 
     /// Bytes at a virtual address, taken from the file image of the
-    /// containing allocated section. `.bss` reads as zeros.
+    /// containing allocated section. `.bss` reads as zeros
+    /// (`reader_v::read_at`, verified).
     pub fn read_at(&self, addr: u32, len: usize) -> Result<Vec<u8>, Error> {
-        let section = self
-            .section_at(addr)
-            .ok_or_else(|| Error(format!("address {addr:#010x} is in no allocated section")))?;
-        let end = addr as u64 + len as u64;
-        if end > section.addr as u64 + section.size as u64 {
-            return err(format!(
-                "range {addr:#010x}+{len:#x} crosses the end of section `{}`",
-                section.name
-            ));
-        }
-        if section.is_nobits() {
-            return Ok(vec![0; len]);
-        }
-        let start = section.offset as usize + (addr - section.addr) as usize;
-        self.data
-            .get(start..start + len)
-            .map(<[u8]>::to_vec)
-            .ok_or_else(|| Error(format!("address {addr:#010x} lies outside the file")))
+        reader_v::read_at(&self.data, &self.raw, addr, len).map_err(|e| {
+            Error(match e {
+                AtErr::NoSection => format!("address {addr:#010x} is in no allocated section"),
+                AtErr::Crosses(i) => format!(
+                    "range {addr:#010x}+{len:#x} crosses the end of section `{}`",
+                    self.sections.get(i).map(|s| s.name.as_str()).unwrap_or("")
+                ),
+                AtErr::Outside => format!("address {addr:#010x} lies outside the file"),
+            })
+        })
     }
 
-    /// The symbols of every `SHT_SYMTAB` section, in table order.
-    pub fn symbols(&self) -> Result<Vec<Symbol>, Error> {
-        let mut out = Vec::new();
-        for table in self.sections.iter().filter(|s| s.kind == SHT_SYMTAB) {
-            let strtab = self
-                .sections
-                .get(table.link as usize)
-                .ok_or_else(|| Error("symbol table links to a missing string table".into()))?;
-            let strings = self.section_data(strtab)?;
-            let entries = self.section_data(table)?;
-            let entsize = if table.entsize == 0 { 16 } else { table.entsize as usize };
-            for entry in entries.chunks_exact(entsize) {
-                let name_off = u32_at(entry, 0)? as usize;
-                let info = entry.get(12).copied().unwrap_or(0);
-                let kind = match info & 0xf {
-                    0 => SymbolKind::NoType,
-                    1 => SymbolKind::Object,
-                    2 => SymbolKind::Func,
-                    3 => SymbolKind::Section,
-                    4 => SymbolKind::File,
-                    other => SymbolKind::Other(other),
-                };
-                out.push(Symbol {
-                    name: cstr(strings, name_off)?,
-                    value: u32_at(entry, 4)?,
-                    size: u32_at(entry, 8)?,
-                    kind,
-                    bind: info >> 4,
-                    shndx: u16_at(entry, 14)?,
-                });
-            }
+    /// An entry as `reader_v` read it, with its name as text.
+    fn symbol(&self, s: &RawSym) -> Symbol {
+        Symbol {
+            name: text(&self.data, s.name_start, s.name_end),
+            value: s.value,
+            size: s.size,
+            kind: match s.info & 0xf {
+                0 => SymbolKind::NoType,
+                1 => SymbolKind::Object,
+                2 => SymbolKind::Func,
+                3 => SymbolKind::Section,
+                4 => SymbolKind::File,
+                other => SymbolKind::Other(other),
+            },
+            bind: s.info >> 4,
+            shndx: s.shndx,
         }
-        Ok(out)
+    }
+
+    /// The symbols of every `SHT_SYMTAB` section, in table order
+    /// (`reader_v::symbols`, verified).
+    pub fn symbols(&self) -> Result<Vec<Symbol>, Error> {
+        let raw = reader_v::symbols(&self.data, &self.raw).map_err(|e| Elf::refusal(&self.sections, e))?;
+        Ok(raw.iter().map(|s| self.symbol(s)).collect())
+    }
+
+    /// The first symbol, in table order, whose name is exactly `name`, an
+    /// object symbol when `object` (`reader_v::lookup`, verified: the
+    /// name's bytes in the string table are `name`'s, the fields are that
+    /// entry's, and `None` means no entry of any symbol table is such).
+    /// The comparison is of bytes; for a `name` without the replacement
+    /// character it finds what `symbols()` followed by a search for an
+    /// equal `name` finds.
+    pub fn symbol_named(&self, name: &str, object: bool) -> Result<Option<Symbol>, Error> {
+        let found = reader_v::lookup(&self.data, &self.raw, name.as_bytes(), object).map_err(|e| Elf::refusal(&self.sections, e))?;
+        Ok(found.map(|s| self.symbol(&s)))
     }
 
     /// The loadable image: for each `PT_LOAD` segment with file content, in
@@ -525,5 +453,216 @@ mod tests {
         assert!(Elf::parse(sample64).is_err());
         let truncated = sample()[..60].to_vec();
         assert!(Elf::parse(truncated).is_err());
+    }
+
+    /// The reader as it was before `reader_v` (2026-11-26), kept as the
+    /// reference the verified reader is compared with: what it parses,
+    /// the symbols it lists, and the text of each refusal.
+    mod reference {
+        use super::super::{Error, Symbol, SymbolKind, SHF_ALLOC, SHT_NOBITS, SHT_SYMTAB};
+
+        pub struct Sec {
+            pub name: String,
+            pub kind: u32,
+            pub flags: u32,
+            pub addr: u32,
+            pub offset: u32,
+            pub size: u32,
+            pub link: u32,
+            pub entsize: u32,
+        }
+
+        fn err<T>(msg: impl Into<String>) -> Result<T, Error> {
+            Err(Error(msg.into()))
+        }
+
+        fn u16_at(d: &[u8], off: usize) -> Result<u16, Error> {
+            match d.get(off..off + 2) {
+                Some(b) => Ok(u16::from_le_bytes([b[0], b[1]])),
+                None => err(format!("truncated ELF: no u16 at offset {off:#x}")),
+            }
+        }
+
+        fn u32_at(d: &[u8], off: usize) -> Result<u32, Error> {
+            match d.get(off..off + 4) {
+                Some(b) => Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]])),
+                None => err(format!("truncated ELF: no u32 at offset {off:#x}")),
+            }
+        }
+
+        fn cstr(d: &[u8], off: usize) -> Result<String, Error> {
+            let bytes = d.get(off..).ok_or_else(|| Error(format!("string offset {off:#x} is outside the file")))?;
+            let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+            Ok(String::from_utf8_lossy(&bytes[..end]).into_owned())
+        }
+
+        pub fn parse(data: &[u8]) -> Result<(Vec<Sec>, Vec<[u32; 8]>), Error> {
+            if data.len() < 52 || &data[0..4] != b"\x7fELF" {
+                return err("not an ELF file");
+            }
+            if data[4] != 1 {
+                return err("not a 32-bit ELF file (only ELFCLASS32 is supported)");
+            }
+            if data[5] != 1 {
+                return err("not a little-endian ELF file");
+            }
+            let (phoff, shoff) = (u32_at(data, 28)?, u32_at(data, 32)?);
+            let (phentsize, phnum, shentsize, shnum, shstrndx) = (u16_at(data, 42)?, u16_at(data, 44)?, u16_at(data, 46)?, u16_at(data, 48)?, u16_at(data, 50)?);
+            let mut segments = Vec::new();
+            for i in 0..phnum as usize {
+                let base = phoff as usize + i * phentsize as usize;
+                let mut words = [0u32; 8];
+                for (k, w) in words.iter_mut().enumerate() {
+                    *w = u32_at(data, base + 4 * k)?;
+                }
+                segments.push(words);
+            }
+            let mut raw = Vec::new();
+            for i in 0..shnum as usize {
+                let base = shoff as usize + i * shentsize as usize;
+                raw.push((
+                    u32_at(data, base)?,
+                    Sec {
+                        name: String::new(),
+                        kind: u32_at(data, base + 4)?,
+                        flags: u32_at(data, base + 8)?,
+                        addr: u32_at(data, base + 12)?,
+                        offset: u32_at(data, base + 16)?,
+                        size: u32_at(data, base + 20)?,
+                        link: u32_at(data, base + 24)?,
+                        entsize: { u32_at(data, base + 28)?; u32_at(data, base + 32)?; u32_at(data, base + 36)? },
+                    },
+                ));
+            }
+            let shstr_off = raw.get(shstrndx as usize).map(|(_, s)| s.offset as usize);
+            let mut sections = Vec::with_capacity(raw.len());
+            for (name_off, mut section) in raw {
+                if let Some(base) = shstr_off {
+                    section.name = cstr(data, base + name_off as usize)?;
+                }
+                sections.push(section);
+            }
+            Ok((sections, segments))
+        }
+
+        fn section_data<'a>(data: &'a [u8], section: &Sec) -> Result<&'a [u8], Error> {
+            if section.kind == SHT_NOBITS {
+                return Ok(&[]);
+            }
+            let start = section.offset as usize;
+            let end = start + section.size as usize;
+            data.get(start..end).ok_or_else(|| Error(format!("section `{}` lies outside the file", section.name)))
+        }
+
+        pub fn symbols(data: &[u8], sections: &[Sec]) -> Result<Vec<Symbol>, Error> {
+            let mut out = Vec::new();
+            for table in sections.iter().filter(|s| s.kind == SHT_SYMTAB) {
+                let strtab = sections.get(table.link as usize).ok_or_else(|| Error("symbol table links to a missing string table".into()))?;
+                let strings = section_data(data, strtab)?;
+                let entries = section_data(data, table)?;
+                let entsize = if table.entsize == 0 { 16 } else { table.entsize as usize };
+                for entry in entries.chunks_exact(entsize) {
+                    let name_off = u32_at(entry, 0)? as usize;
+                    let info = entry.get(12).copied().unwrap_or(0);
+                    let kind = match info & 0xf {
+                        0 => SymbolKind::NoType,
+                        1 => SymbolKind::Object,
+                        2 => SymbolKind::Func,
+                        3 => SymbolKind::Section,
+                        4 => SymbolKind::File,
+                        other => SymbolKind::Other(other),
+                    };
+                    out.push(Symbol { name: cstr(strings, name_off)?, value: u32_at(entry, 4)?, size: u32_at(entry, 8)?, kind, bind: info >> 4, shndx: u16_at(entry, 14)? });
+                }
+            }
+            Ok(out)
+        }
+
+        pub fn read_at(data: &[u8], sections: &[Sec], addr: u32, len: usize) -> Result<Vec<u8>, Error> {
+            let section = sections
+                .iter()
+                .find(|s| s.flags & SHF_ALLOC != 0 && s.size > 0 && addr >= s.addr && (addr as u64) < s.addr as u64 + s.size as u64)
+                .ok_or_else(|| Error(format!("address {addr:#010x} is in no allocated section")))?;
+            let end = addr as u64 + len as u64;
+            if end > section.addr as u64 + section.size as u64 {
+                return err(format!("range {addr:#010x}+{len:#x} crosses the end of section `{}`", section.name));
+            }
+            if section.kind == SHT_NOBITS {
+                return Ok(vec![0; len]);
+            }
+            let start = section.offset as usize + (addr - section.addr) as usize;
+            data.get(start..start + len).map(<[u8]>::to_vec).ok_or_else(|| Error(format!("address {addr:#010x} lies outside the file")))
+        }
+    }
+
+    /// Everything the reader says of `bytes`, and the reference's saying
+    /// of the same, compared: the parse or its refusal, the symbols or
+    /// their refusal, the lookups, and reads at the given addresses.
+    fn compare(bytes: &[u8], addresses: &[(u32, usize)]) {
+        let new = Elf::parse(bytes.to_vec());
+        let old = reference::parse(bytes);
+        let (elf, (sections, segments)) = match (new, old) {
+            (Ok(n), Ok(o)) => (n, o),
+            (Err(n), Err(o)) => {
+                assert_eq!(n, o);
+                return;
+            }
+            (n, o) => panic!("the reader and the reference disagree on parsing: {:?} against {:?}", n.map(|_| ()), o.map(|_| ())),
+        };
+        assert_eq!(elf.sections.len(), sections.len());
+        for (a, b) in elf.sections.iter().zip(&sections) {
+            assert_eq!((&a.name, a.kind, a.flags, a.addr, a.offset, a.size, a.link, a.entsize), (&b.name, b.kind, b.flags, b.addr, b.offset, b.size, b.link, b.entsize));
+        }
+        let words: Vec<[u32; 8]> = elf.segments.iter().map(|s| [s.kind, s.offset, s.vaddr, s.paddr, s.filesz, s.memsz, s.flags, s.align]).collect();
+        assert_eq!(words, segments);
+        let old_symbols = reference::symbols(bytes, &sections);
+        assert_eq!(elf.symbols(), old_symbols);
+        for name in ["entry", "CONFIG", "", "absent", "XONFIG", "CONFI"] {
+            for object in [false, true] {
+                let found = elf.symbol_named(name, object);
+                let expected = old_symbols.clone().map(|all| all.into_iter().find(|s| s.name == name && (!object || s.is_object())));
+                assert_eq!(found, expected, "symbol `{name}`, object {object}");
+            }
+        }
+        for &(addr, len) in addresses {
+            assert_eq!(elf.read_at(addr, len), reference::read_at(bytes, &sections, addr, len), "read of {len} at {addr:#x}");
+        }
+    }
+
+    /// The verified reader (`reader_v`) says of the sample, of each of its
+    /// truncations, and of the sample with each byte altered in three
+    /// ways, exactly what the reader before it said: the same sections,
+    /// segments, symbols, lookups and bytes, and the same words of refusal.
+    #[test]
+    fn the_verified_reader_agrees_with_the_reader_before_it() {
+        let addresses = [(0x1000, 4), (0x1002, 2), (0x1002, 3), (0x2000_0000, 8), (0x2000_0004, 5), (0x2000_0008, 16), (0x2000_0010, 9), (0x3000_0000, 1), (0, 0), (0x1000, 0)];
+        let sample = sample();
+        compare(&sample, &addresses);
+        for len in 0..sample.len() {
+            compare(&sample[..len], &addresses);
+        }
+        for at in 0..sample.len() {
+            for change in [1u8, 0x80, 0xff] {
+                let mut altered = sample.clone();
+                altered[at] ^= change;
+                compare(&altered, &addresses);
+            }
+        }
+    }
+
+    /// The lookup by name: the first entry in table order, by bytes; an
+    /// object symbol only when asked; a name that is a prefix of another
+    /// or has it as a prefix is not it.
+    #[test]
+    fn a_symbol_is_found_by_its_exact_name() {
+        let elf = Elf::parse(sample()).expect("parses");
+        let config = elf.symbol_named("CONFIG", true).expect("symbols").expect("CONFIG");
+        assert_eq!((config.value, config.size, config.shndx, config.kind), (0x2000_0000, 8, 2, SymbolKind::Object));
+        assert_eq!(elf.read_at(config.address(), config.size as usize).expect("content"), vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(elf.symbol_named("entry", false).expect("symbols").expect("entry").value, 0x1001);
+        assert_eq!(elf.symbol_named("entry", true).expect("symbols"), None, "entry is a function");
+        for other in ["CONFI", "CONFIGS", "ONFIG", "config"] {
+            assert_eq!(elf.symbol_named(other, false).expect("symbols"), None, "`{other}`");
+        }
     }
 }

@@ -158,61 +158,109 @@ pub proof fn theorem_one_panic_within_total(g: Seq<Node>, panic_usage: int, p1: 
     theorem_walk_within_usage(g, panic_usage, p2);
 }
 
+/// The followed calls of function `i` (`walk_ok` for each). One loop, ended
+/// by a flag: a function of its own since 2026-11-26, when the checker was
+/// translated to Lean (`proofs/aeneas/lean/Tools/Link.lean`; Aeneas
+/// translates neither a `return` inside a loop nor a loop nested in
+/// another).
+fn walked_check(g: &Vec<Node>, i: usize) -> (ok: bool)
+    requires i < g@.len(),
+    ensures ok ==> forall|b: int| 0 <= b < g@[i as int].walked@.len() ==> walk_ok(g@, i as int, #[trigger] g@[i as int].walked@[b] as int),
+{
+    let n = g.len();
+    let node = &g[i];
+    let m = node.walked.len();
+    let mut ok = true;
+    let mut k: usize = 0;
+    while k < m && ok
+        invariant
+            k <= m, m == node.walked@.len(), i < n, n == g@.len(), *node == g@[i as int],
+            forall|b: int| 0 <= b < k ==> walk_ok(g@, i as int, #[trigger] node.walked@[b] as int),
+        decreases m - k + (if ok { 1int } else { 0int }),
+    {
+        let c = node.walked[k];
+        if c >= n {
+            ok = false;
+        } else {
+            let callee = &g[c];
+            if !callee.bounded || node.frame as u64 + callee.own as u64 > node.own as u64 || (callee.panics && !node.panics) {
+                ok = false;
+            } else {
+                k += 1;
+            }
+        }
+    }
+    ok
+}
+
+/// The panic edges of function `i` (`cut_ok` for each).
+fn cut_check(g: &Vec<Node>, i: usize, panic_usage: u32) -> (ok: bool)
+    requires i < g@.len(),
+    ensures ok ==> forall|b: int| 0 <= b < g@[i as int].cut@.len() ==> cut_ok(g@, i as int, #[trigger] g@[i as int].cut@[b] as int, panic_usage as int),
+{
+    let n = g.len();
+    let node = &g[i];
+    let m = node.cut.len();
+    let mut ok = true;
+    let mut k: usize = 0;
+    while k < m && ok
+        invariant
+            k <= m, m == node.cut@.len(), i < n, n == g@.len(), *node == g@[i as int],
+            forall|b: int| 0 <= b < k ==> cut_ok(g@, i as int, #[trigger] node.cut@[b] as int, panic_usage as int),
+        decreases m - k + (if ok { 1int } else { 0int }),
+    {
+        let c = node.cut[k];
+        if c >= n || !node.panics {
+            ok = false;
+        } else {
+            let callee = &g[c];
+            if callee.bounded && callee.own > panic_usage {
+                ok = false;
+            } else {
+                k += 1;
+            }
+        }
+    }
+    ok
+}
+
+/// Function `i` (`node_ok`).
+fn node_check(g: &Vec<Node>, i: usize, panic_usage: u32) -> (ok: bool)
+    requires i < g@.len(),
+    ensures ok ==> node_ok(g@, i as int, panic_usage as int),
+{
+    let node = &g[i];
+    if !node.bounded {
+        true
+    } else if node.frame > node.own {
+        false
+    } else if !walked_check(g, i) {
+        false
+    } else {
+        cut_check(g, i, panic_usage)
+    }
+}
+
 /// Checks the certificate: `true` only when it holds.
 pub fn check(g: &Vec<Node>, panic_usage: u32) -> (r: bool)
     ensures r ==> certified(g@, panic_usage as int),
 {
     let n = g.len();
+    let mut ok = true;
     let mut i: usize = 0;
-    while i < n
+    while i < n && ok
         invariant
             i <= n, n == g@.len(),
             forall|a: int| 0 <= a < i ==> #[trigger] node_ok(g@, a, panic_usage as int),
-        decreases n - i,
+        decreases n - i + (if ok { 1int } else { 0int }),
     {
-        let node = &g[i];
-        if node.bounded {
-            if node.frame > node.own {
-                return false;
-            }
-            let mut k: usize = 0;
-            while k < node.walked.len()
-                invariant
-                    k <= node.walked@.len(), i < n, n == g@.len(), *node == g@[i as int],
-                    forall|b: int| 0 <= b < k ==> walk_ok(g@, i as int, #[trigger] node.walked@[b] as int),
-                decreases node.walked@.len() - k,
-            {
-                let c = node.walked[k];
-                if c >= n {
-                    return false;
-                }
-                let callee = &g[c];
-                if !callee.bounded || node.frame as u64 + callee.own as u64 > node.own as u64 || (callee.panics && !node.panics) {
-                    return false;
-                }
-                k += 1;
-            }
-            let mut k: usize = 0;
-            while k < node.cut.len()
-                invariant
-                    k <= node.cut@.len(), i < n, n == g@.len(), *node == g@[i as int],
-                    forall|b: int| 0 <= b < k ==> cut_ok(g@, i as int, #[trigger] node.cut@[b] as int, panic_usage as int),
-                decreases node.cut@.len() - k,
-            {
-                let c = node.cut[k];
-                if c >= n || !node.panics {
-                    return false;
-                }
-                let callee = &g[c];
-                if callee.bounded && callee.own > panic_usage {
-                    return false;
-                }
-                k += 1;
-            }
+        if node_check(g, i, panic_usage) {
+            i += 1;
+        } else {
+            ok = false;
         }
-        i += 1;
     }
-    true
+    ok
 }
 
 } // verus!

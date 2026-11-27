@@ -27,11 +27,15 @@ Elsewhere since 2026-11-26: A1 after the dispatch, the unwind, a dispatch
 vector and a supervisor call (`Sched/ArchHwA1.lean`,
 `Sched/ArchHwA1Svc.lean`); the vector lines `boot_vectors` sets, the
 start's frame and the floating-point access (`Sched/ArchHwBoot.lean`).
-What is not in Lean (Verus only): A1 over an interrupt entry, and the
-lines still so at `boot_core`'s return. That an
+Also since 2026-11-26: A1 over an interrupt entry
+(`Sched/ArchHwA1Irq.lean`), the lines at `boot_core`'s return
+(`Sched/ArchHwBootRet.lean`), and the supervisor call's stack check
+(`Sched/ArchHwSvcCheck.lean`). That an
 implementation of `KernelArch` satisfies `HSpec` is the trait's contract,
 as in Verus; for the Target's implementation it rests on the register
-drivers (`Hw/Model.lean`) and the trusted leaves. -/
+drivers (`Hw/Model.lean`; `Hw/Lines.lean` reads the lines' enable bits
+and priorities off the register file and shows the drivers step them as
+the model's step says) and the trusted leaves. -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

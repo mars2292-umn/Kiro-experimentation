@@ -39,8 +39,10 @@ statement of the form "if the function returns":
 
 In `Sched/ContainMore.lean` since 2026-11-26: that the System_Ceiling
 does not rise and that the Budget accounts of the other Partitions' Tasks
-are left. Proven in Verus only: that their timer slots are left. The timing state
-under a response is in `Sched/SpFrame.lean` and `Sched/MaskFrame.lean`. -/
+are left. In `Sched/ContainSlots.lean` since the same day: that their
+timer slots and timing fields are left, but for the Budget slot of the Task
+resumed (with the slots apart, `Sched/SlotsApart.lean`). The timing state
+under a response is also in `Sched/SpFrame.lean` and `Sched/MaskFrame.lean`. -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

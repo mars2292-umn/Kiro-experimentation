@@ -147,7 +147,7 @@ def rta.fixpoint
     else rta.fixpoint_loop base base terms jitter deadline
 
 /-- [rsk_analyzer::terms::TaskIn]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 79:0-96:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 80:0-97:1
     Visibility: public -/
 structure terms.TaskIn where
   priority : Std.U8
@@ -159,7 +159,7 @@ structure terms.TaskIn where
   endpoint_cost : Std.U64
 
 /-- [rsk_analyzer::terms::Site]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 101:0-110:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 102:0-111:1
     Visibility: public -/
 structure terms.Site where
   task : Std.Usize
@@ -168,7 +168,7 @@ structure terms.Site where
   endpoint : Bool
 
 /-- [rsk_analyzer::terms::Params]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 114:0-140:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 115:0-141:1
     Visibility: public -/
 structure terms.Params where
   release : Std.U64
@@ -195,7 +195,7 @@ structure terms.Params where
   hk_period : Std.U64
 
 /-- [rsk_analyzer::terms::Derived]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 144:0-159:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 145:0-160:1
     Visibility: public -/
 structure terms.Derived where
   sites : Std.U64
@@ -207,7 +207,7 @@ structure terms.Derived where
   j : Std.U64
 
 /-- [rsk_analyzer::terms::add]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 365:0-371:1 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 366:0-372:1 -/
 def terms.add (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
   let i ← core.num.U64.MAX - b
   if a > i
@@ -216,7 +216,7 @@ def terms.add (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
        ok (some i1)
 
 /-- [rsk_analyzer::terms::mul]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 374:0-384:1 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 375:0-385:1 -/
 def terms.mul (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
   let i ← lift (UScalar.cast .U128 a)
   let i1 ← lift (UScalar.cast .U128 b)
@@ -228,14 +228,14 @@ def terms.mul (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
        ok (some i3)
 
 /-- [rsk_analyzer::terms::SiteStats]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 388:0-391:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 389:0-392:1
     Visibility: public -/
 structure terms.SiteStats where
   count : Std.U64
   longest : Std.U64
 
 /-- [rsk_analyzer::terms::site_stats]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 401:4-419:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 402:4-420:5
     Visibility: public -/
 @[rust_loop_body]
 def terms.site_stats_loop.body
@@ -266,7 +266,7 @@ def terms.site_stats_loop.body
   else ok (done (count, longest))
 
 /-- [rsk_analyzer::terms::site_stats]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 401:4-419:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 402:4-420:5
     Visibility: public -/
 @[rust_loop]
 def terms.site_stats_loop
@@ -280,7 +280,7 @@ def terms.site_stats_loop
     (count, longest, k)
 
 /-- [rsk_analyzer::terms::site_stats]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 393:0-421:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 394:0-422:1
     Visibility: public -/
 def terms.site_stats
   (sites : alloc.vec.Vec terms.Site) (t : Std.Usize) :
@@ -290,7 +290,7 @@ def terms.site_stats
   ok { count, longest }
 
 /-- [rsk_analyzer::terms::overrun_extra_of]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 425:0-442:1 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 426:0-443:1 -/
 def terms.overrun_extra_of
   (t : terms.TaskIn) (p : terms.Params) (counted : Std.U64) :
   Result (Option Std.U64)
@@ -309,7 +309,7 @@ def terms.overrun_extra_of
   else ok (some 0#u64)
 
 /-- [rsk_analyzer::terms::overhead]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 446:0-500:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 447:0-501:1
     Visibility: public -/
 def terms.overhead
   (t : terms.TaskIn) (p : terms.Params) (sites : Std.U64) (any_fpu : Bool) :
@@ -833,7 +833,7 @@ def terms.overhead
                                           | some _ => ok o17
 
 /-- [rsk_analyzer::terms::interference_bound]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 548:0-561:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 549:0-562:1
     Visibility: public -/
 def terms.interference_bound
   (t : terms.TaskIn) (p : terms.Params) (longest_cs : Std.U64) (o : Std.U64) :
@@ -856,14 +856,14 @@ def terms.interference_bound
   else terms.add t.budget o
 
 /-- [rsk_analyzer::terms::Blocking]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 565:0-568:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 566:0-569:1
     Visibility: public -/
 structure terms.Blocking where
   b : Std.U64
   site : Option Std.Usize
 
 /-- [rsk_analyzer::terms::blocking]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 587:4-632:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 588:4-633:1
     Visibility: public -/
 @[rust_loop_body]
 def terms.blocking_loop.body
@@ -934,7 +934,7 @@ def terms.blocking_loop.body
   else ok (done (some { b, site }))
 
 /-- [rsk_analyzer::terms::blocking]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 587:4-632:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 588:4-633:1
     Visibility: public -/
 @[rust_loop]
 def terms.blocking_loop
@@ -949,7 +949,7 @@ def terms.blocking_loop
     (b, site, k)
 
 /-- [rsk_analyzer::terms::blocking]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 570:0-632:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 571:0-633:1
     Visibility: public -/
 def terms.blocking
   (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
@@ -968,7 +968,7 @@ def terms.blocking
   terms.blocking_loop tasks sites p.detect p.enforce ti b none 0#usize
 
 /-- [rsk_analyzer::terms::derive_all]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 645:4-682:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 646:4-683:1
     Visibility: public -/
 @[rust_loop_body]
 def terms.derive_all_loop.body
@@ -1013,7 +1013,7 @@ def terms.derive_all_loop.body
   else ok (done (some out))
 
 /-- [rsk_analyzer::terms::derive_all]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 645:4-682:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 646:4-683:1
     Visibility: public -/
 @[rust_loop]
 def terms.derive_all_loop
@@ -1028,7 +1028,7 @@ def terms.derive_all_loop
     (out, i)
 
 /-- [rsk_analyzer::terms::derive_all]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 636:0-682:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 637:0-683:1
     Visibility: public -/
 @[reducible]
 def terms.derive_all
@@ -1040,7 +1040,7 @@ def terms.derive_all
     0#usize
 
 /-- [rsk_analyzer::terms::Interferer]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 779:0-786:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 861:0-868:1
     Visibility: public -/
 structure terms.Interferer where
   priority : Std.U8
@@ -1051,27 +1051,27 @@ structure terms.Interferer where
   events : Std.U64
 
 /-- [rsk_analyzer::terms::TERM_JOBS]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 789:0-789:28
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 871:0-871:28
     Visibility: public -/
 @[global_simps, irreducible] def terms.TERM_JOBS : Std.U8 := 0#u8
 
 /-- [rsk_analyzer::terms::TERM_INTAKE]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 791:0-791:30
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 873:0-873:30
     Visibility: public -/
 @[global_simps, irreducible] def terms.TERM_INTAKE : Std.U8 := 1#u8
 
 /-- [rsk_analyzer::terms::TERM_EVENTS]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 793:0-793:30
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 875:0-875:30
     Visibility: public -/
 @[global_simps, irreducible] def terms.TERM_EVENTS : Std.U8 := 2#u8
 
 /-- [rsk_analyzer::terms::TERM_HOUSEKEEPING]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 795:0-795:36
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 877:0-877:36
     Visibility: public -/
 @[global_simps, irreducible] def terms.TERM_HOUSEKEEPING : Std.U8 := 3#u8
 
 /-- [rsk_analyzer::terms::TermOf]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 800:0-804:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 882:0-886:1
     Visibility: public -/
 structure terms.TermOf where
   task : Std.Usize
@@ -1079,7 +1079,7 @@ structure terms.TermOf where
   term : rta.Term
 
 /-- [rsk_analyzer::terms::terms_for]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 884:4-909:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 966:4-991:5
     Visibility: public -/
 @[rust_loop_body]
 def terms.terms_for_loop.body
@@ -1146,7 +1146,7 @@ def terms.terms_for_loop.body
   else ok (done out)
 
 /-- [rsk_analyzer::terms::terms_for]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 884:4-909:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 966:4-991:5
     Visibility: public -/
 @[rust_loop]
 def terms.terms_for_loop
@@ -1159,7 +1159,7 @@ def terms.terms_for_loop
     (out, ti, j)
 
 /-- [rsk_analyzer::terms::terms_for]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 872:0-913:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 954:0-995:1
     Visibility: public -/
 def terms.terms_for
   (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize) (hk : rta.Term) :
@@ -1176,7 +1176,7 @@ def terms.terms_for
     terms.TermOf)
 
 /-- [rsk_analyzer::terms::Verdict]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 924:0-929:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1006:0-1011:1
     Visibility: public -/
 structure terms.Verdict where
   w : Std.U64
@@ -1185,7 +1185,7 @@ structure terms.Verdict where
   overflow : Bool
 
 /-- [rsk_analyzer::terms::response_of]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 966:4-976:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1048:4-1058:5
     Visibility: public -/
 @[rust_loop_body]
 def terms.response_of_loop.body
@@ -1206,7 +1206,7 @@ def terms.response_of_loop.body
   else ok (done plain_terms)
 
 /-- [rsk_analyzer::terms::response_of]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 966:4-976:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1048:4-1058:5
     Visibility: public -/
 @[rust_loop]
 def terms.response_of_loop
@@ -1220,7 +1220,7 @@ def terms.response_of_loop
     (plain_terms, k)
 
 /-- [rsk_analyzer::terms::response_of]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 946:0-1005:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1028:0-1087:1
     Visibility: public -/
 def terms.response_of
   (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize) (c : Std.U64)
@@ -1284,14 +1284,14 @@ def terms.response_of
            }, own_terms)
 
 /-- [rsk_analyzer::terms::Window]
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1009:0-1012:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1091:0-1094:1
     Visibility: public -/
 structure terms.Window where
   period : Std.U64
   deadline : Std.U64
 
 /-- [rsk_analyzer::terms::lower_event_count]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1061:0-1066:1 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1143:0-1148:1 -/
 def terms.lower_event_count
   (t : terms.TaskIn) (quiet : Bool) : Result Std.U64 := do
   let base ←
@@ -1305,7 +1305,7 @@ def terms.lower_event_count
   else base + 1#u64
 
 /-- [rsk_analyzer::terms::analyse_pass]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1083:4-1111:5 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1165:4-1193:5 -/
 @[rust_loop_body]
 def terms.analyse_pass_loop0.body
   (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
@@ -1351,7 +1351,7 @@ def terms.analyse_pass_loop0.body
   else ok (done (p, its))
 
 /-- [rsk_analyzer::terms::analyse_pass]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1083:4-1111:5 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1165:4-1193:5 -/
 @[rust_loop]
 def terms.analyse_pass_loop0
   (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
@@ -1366,7 +1366,7 @@ def terms.analyse_pass_loop0
     (its, j)
 
 /-- [rsk_analyzer::terms::analyse_pass]: loop body 1:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1121:4-1143:5 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1203:4-1225:5 -/
 @[rust_loop_body]
 def terms.analyse_pass_loop1.body
   (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
@@ -1403,7 +1403,7 @@ def terms.analyse_pass_loop1.body
   else ok (done (verdicts, all_terms))
 
 /-- [rsk_analyzer::terms::analyse_pass]: loop 1:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1121:4-1143:5 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1203:4-1225:5 -/
 @[rust_loop]
 def terms.analyse_pass_loop1
   (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
@@ -1421,7 +1421,7 @@ def terms.analyse_pass_loop1
     (verdicts, all_terms, i)
 
 /-- [rsk_analyzer::terms::analyse_pass]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1071:0-1145:1 -/
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1153:0-1227:1 -/
 def terms.analyse_pass
   (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
   (p : terms.Params) (any_fpu : Bool) (windows : alloc.vec.Vec terms.Window)
@@ -1437,7 +1437,7 @@ def terms.analyse_pass
     terms.Verdict) (alloc.vec.Vec.new (alloc.vec.Vec terms.TermOf)) 0#usize
 
 /-- [rsk_analyzer::terms::analyse_all]: loop body 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1183:4-1189:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1265:4-1271:5
     Visibility: public -/
 @[rust_loop_body]
 def terms.analyse_all_loop0.body
@@ -1452,7 +1452,7 @@ def terms.analyse_all_loop0.body
   else ok (done quiet)
 
 /-- [rsk_analyzer::terms::analyse_all]: loop 0:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1183:4-1189:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1265:4-1271:5
     Visibility: public -/
 @[rust_loop]
 def terms.analyse_all_loop0
@@ -1464,7 +1464,7 @@ def terms.analyse_all_loop0
     (quiet, j)
 
 /-- [rsk_analyzer::terms::analyse_all]: loop body 2:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1206:8-1216:9
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1288:8-1298:9
     Visibility: public -/
 @[rust_loop_body]
 def terms.analyse_all_loop1_loop0.body
@@ -1490,7 +1490,7 @@ def terms.analyse_all_loop1_loop0.body
   else ok (done (next, same))
 
 /-- [rsk_analyzer::terms::analyse_all]: loop 2:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1206:8-1216:9
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1288:8-1298:9
     Visibility: public -/
 @[rust_loop]
 def terms.analyse_all_loop1_loop0
@@ -1505,7 +1505,7 @@ def terms.analyse_all_loop1_loop0
     (next, same, k)
 
 /-- [rsk_analyzer::terms::analyse_all]: loop body 3:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1224:8-1233:9
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1306:8-1315:9
     Visibility: public -/
 @[rust_loop_body]
 def terms.analyse_all_loop1_loop1.body
@@ -1533,7 +1533,7 @@ def terms.analyse_all_loop1_loop1.body
   else ok (done ok1)
 
 /-- [rsk_analyzer::terms::analyse_all]: loop 3:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1224:8-1233:9
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1306:8-1315:9
     Visibility: public -/
 @[rust_loop]
 def terms.analyse_all_loop1_loop1
@@ -1546,7 +1546,7 @@ def terms.analyse_all_loop1_loop1
     (ok1, m)
 
 /-- [rsk_analyzer::terms::analyse_all]: loop body 1:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1192:4-1241:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1274:4-1323:5
     Visibility: public -/
 @[rust_loop_body]
 def terms.analyse_all_loop1.body
@@ -1578,7 +1578,7 @@ def terms.analyse_all_loop1.body
   else ok (done (quiet, verdicts, all_terms))
 
 /-- [rsk_analyzer::terms::analyse_all]: loop 1:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1192:4-1241:5
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1274:4-1323:5
     Visibility: public -/
 @[rust_loop]
 def terms.analyse_all_loop1
@@ -1597,7 +1597,7 @@ def terms.analyse_all_loop1
     (quiet, verdicts, all_terms, pass)
 
 /-- [rsk_analyzer::terms::analyse_all]:
-    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1164:0-1243:1
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1246:0-1325:1
     Visibility: public -/
 def terms.analyse_all
   (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
@@ -1618,5 +1618,173 @@ def terms.analyse_all
       terms.analyse_all_loop1 tasks sites p any_fpu windows d n quiet verdicts
         all_terms 0#usize
     ok (some (d, verdicts1, all_terms1, quiet1))
+
+/-- [rsk_analyzer::terms::first_late_window]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1431:4-1441:1 -/
+@[rust_loop_body]
+def terms.first_late_window_loop.body
+  (windows : alloc.vec.Vec terms.Window) (j : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i := alloc.vec.Vec.len windows
+  if j < i
+  then
+    let w ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Window)
+        windows j
+    if w.deadline > w.period
+    then ok (done (some j))
+    else let j1 ← j + 1#usize
+         ok (cont j1)
+  else ok (done none)
+
+/-- [rsk_analyzer::terms::first_late_window]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1431:4-1441:1 -/
+@[rust_loop]
+def terms.first_late_window_loop
+  (windows : alloc.vec.Vec terms.Window) (j : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun j1 => terms.first_late_window_loop.body windows j1)
+    j
+
+/-- [rsk_analyzer::terms::first_late_window]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1425:0-1441:1 -/
+@[reducible]
+def terms.first_late_window
+  (windows : alloc.vec.Vec terms.Window) : Result (Option Std.Usize) := do
+  terms.first_late_window_loop windows 0#usize
+
+/-- [rsk_analyzer::terms::first_unfit_task]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1411:4-1421:1 -/
+@[rust_loop_body]
+def terms.first_unfit_task_loop.body
+  (tasks : alloc.vec.Vec terms.TaskIn) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i1 := alloc.vec.Vec.len tasks
+  if i < i1
+  then
+    let ti ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+        tasks i
+    if ti.budget = 0#u64
+    then ok (done (some i))
+    else
+      if ti.priority = 0#u8
+      then ok (done (some i))
+      else let i2 ← i + 1#usize
+           ok (cont i2)
+  else ok (done none)
+
+/-- [rsk_analyzer::terms::first_unfit_task]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1411:4-1421:1 -/
+@[rust_loop]
+def terms.first_unfit_task_loop
+  (tasks : alloc.vec.Vec terms.TaskIn) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun i1 => terms.first_unfit_task_loop.body tasks i1)
+    i
+
+/-- [rsk_analyzer::terms::first_unfit_task]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1405:0-1421:1 -/
+@[reducible]
+def terms.first_unfit_task
+  (tasks : alloc.vec.Vec terms.TaskIn) : Result (Option Std.Usize) := do
+  terms.first_unfit_task_loop tasks 0#usize
+
+/-- [rsk_analyzer::terms::first_stray_site]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1391:4-1401:1 -/
+@[rust_loop_body]
+def terms.first_stray_site_loop.body
+  (sites : alloc.vec.Vec terms.Site) (n : Std.Usize) (k : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i := alloc.vec.Vec.len sites
+  if k < i
+  then
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Site)
+        sites k
+    if s.task >= n
+    then ok (done (some k))
+    else let k1 ← k + 1#usize
+         ok (cont k1)
+  else ok (done none)
+
+/-- [rsk_analyzer::terms::first_stray_site]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1391:4-1401:1 -/
+@[rust_loop]
+def terms.first_stray_site_loop
+  (sites : alloc.vec.Vec terms.Site) (n : Std.Usize) (k : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun k1 => terms.first_stray_site_loop.body sites n k1)
+    k
+
+/-- [rsk_analyzer::terms::first_stray_site]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1385:0-1401:1 -/
+@[reducible]
+def terms.first_stray_site
+  (sites : alloc.vec.Vec terms.Site) (n : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  terms.first_stray_site_loop sites n 0#usize
+
+/-- [rsk_analyzer::terms::check_inputs]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1352:0-1379:1
+    Visibility: public -/
+def terms.check_inputs
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (windows : alloc.vec.Vec terms.Window) :
+  Result (Option (Std.U8 × Std.Usize))
+  := do
+  let i := alloc.vec.Vec.len tasks
+  let o ← terms.first_stray_site sites i
+  match o with
+  | none =>
+    let i1 := alloc.vec.Vec.len windows
+    let i2 := alloc.vec.Vec.len tasks
+    if i1 != i2
+    then ok (some (2#u8, 0#usize))
+    else
+      let o1 ← terms.first_unfit_task tasks
+      match o1 with
+      | none =>
+        let o2 ← terms.first_late_window windows
+        match o2 with
+        | none => ok none
+        | some j => ok (some (4#u8, j))
+      | some i3 => ok (some (3#u8, i3))
+  | some k => ok (some (1#u8, k))
+
+/-- [rsk_analyzer::terms::endpoint_sites]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1453:0-1457:1
+    Visibility: public -/
+def terms.endpoint_sites
+  (task : Std.Usize) (p : terms.Params) :
+  Result (terms.Site × terms.Site)
+  := do
+  ok ({ task, ceiling := core.num.U8.MAX, wcet := p.send, endpoint := true },
+    { task, ceiling := core.num.U8.MAX, wcet := p.recv, endpoint := true })
+
+/-- [rsk_analyzer::terms::endpoint_cost_add]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 1482:0-1493:1
+    Visibility: public -/
+def terms.endpoint_cost_add
+  (acc : Std.U64) (ops : Std.U64) (p : terms.Params) :
+  Result (Option Std.U64)
+  := do
+  let op ← if p.send >= p.recv
+             then ok p.send
+             else ok p.recv
+  let o ← terms.mul ops op
+  match o with
+  | none => ok none
+  | some c => terms.add acc c
 
 end rsk_analyzer

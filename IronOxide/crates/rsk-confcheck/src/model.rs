@@ -4,6 +4,13 @@
 
 use serde_json::Value;
 
+use vstd::prelude::*;
+
+// The structures stand inside `verus!` since 2026-11-26: `tables_v` builds
+// the `CONFIG` tables from a `Model` and is verified against these fields.
+// Nothing of them changed.
+verus! {
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Region {
     pub base: u64,
@@ -120,6 +127,8 @@ pub struct PpiChannel {
     pub task: PpiRegister,
     pub fork: Option<PpiRegister>,
 }
+
+} // verus!
 
 fn ppi_register(v: &Value, name: &str, at: &str) -> Result<PpiRegister, String> {
     let r = field(v, name, at)?;

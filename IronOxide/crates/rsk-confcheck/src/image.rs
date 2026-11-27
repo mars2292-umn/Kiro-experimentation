@@ -6,45 +6,22 @@
 //! Kernel's own choice (R12.3). Restated here, not imported: the Config_Checker
 //! shares no code with the Generator or the Kernel (R26.1).
 
-/// Kind codes (`rsk_logic::logic::KIND_*`).
-pub const KIND_PERIODIC: u8 = 0;
-pub const KIND_SPORADIC: u8 = 1;
-/// MIT policy codes (`MIT_*`).
-pub const MIT_DEFER: u8 = 0;
-pub const MIT_DISCARD: u8 = 1;
-/// Response codes (`RESP_*`).
-pub const RESP_END_JOB: u8 = 0;
-pub const RESP_RESTART_PARTITION: u8 = 1;
-pub const RESP_STOP_PARTITION: u8 = 2;
-pub const RESP_SAFE_STATE: u8 = 3;
-pub const RESP_RECORD_ONLY: u8 = 4;
-pub const RESP_RECORD_AND_CONTINUE: u8 = 5;
+/// The kind, MIT policy and response codes (`rsk_logic::logic::KIND_*`,
+/// `MIT_*`, `RESP_*`), stated in `tables_v`, the verified table builder.
+pub use crate::tables_v::{KIND_PERIODIC, KIND_SPORADIC, MIT_DEFER, MIT_DISCARD, RESP_END_JOB, RESP_RECORD_AND_CONTINUE, RESP_RECORD_ONLY, RESP_RESTART_PARTITION, RESP_SAFE_STATE, RESP_STOP_PARTITION};
 /// No release slot (`NO_SLOT`).
 pub const NO_SLOT: u8 = 0xFF;
 
-/// The response code of a declared response name.
+/// The response code of a declared response name (`tables_v::response_code`,
+/// verified against `tables_v::response_of`).
 pub fn response_code(name: &str) -> Option<u8> {
-    Some(match name {
-        "END_JOB" => RESP_END_JOB,
-        "RESTART_PARTITION" => RESP_RESTART_PARTITION,
-        "STOP_PARTITION" => RESP_STOP_PARTITION,
-        "SAFE_STATE" => RESP_SAFE_STATE,
-        "RECORD_ONLY" => RESP_RECORD_ONLY,
-        "RECORD_AND_CONTINUE" => RESP_RECORD_AND_CONTINUE,
-        _ => return None,
-    })
+    crate::tables_v::response_code(name)
 }
 
-/// The level code of a declared level (`A` = 0 ... `E` = 4).
+/// The level code of a declared level (`A` = 0 ... `E` = 4;
+/// `tables_v::level_code`, verified against `tables_v::level_of`).
 pub fn level_code(name: &str) -> Option<u8> {
-    Some(match name {
-        "A" => 0,
-        "B" => 1,
-        "C" => 2,
-        "D" => 3,
-        "E" => 4,
-        _ => return None,
-    })
+    crate::tables_v::level_code(name)
 }
 
 /// An image as found in the binary.
@@ -54,17 +31,20 @@ pub struct Image {
     pub stored_checksum: u32,
 }
 
-/// Locates and reads an image symbol and its checksum symbol.
+/// Locates and reads an image symbol and its checksum symbol. Each is
+/// found by `rsk_elf::Elf::symbol_named` (the verified lookup, since
+/// 2026-11-26: the first object symbol whose name bytes in the string
+/// table are exactly the name; until then a search of the symbol list for
+/// an equal name, which for these names finds the same entry).
 pub fn extract_named(elf_bytes: &[u8], image_symbol: &str, checksum_symbol: &str) -> Result<Image, String> {
     let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
-    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
-    let image = symbols
-        .iter()
-        .find(|s| s.name == image_symbol && s.is_object())
+    let image = elf
+        .symbol_named(image_symbol, true)
+        .map_err(|e| format!("binary: {e}"))?
         .ok_or_else(|| format!("binary: no {image_symbol} symbol (is this a Flight_Build?)"))?;
-    let checksum = symbols
-        .iter()
-        .find(|s| s.name == checksum_symbol && s.is_object())
+    let checksum = elf
+        .symbol_named(checksum_symbol, true)
+        .map_err(|e| format!("binary: {e}"))?
         .ok_or_else(|| format!("binary: no {checksum_symbol} symbol"))?;
     let bytes = elf.read_at(image.address(), image.size as usize).map_err(|e| format!("binary: {image_symbol}: {e}"))?;
     let c = elf.read_at(checksum.address(), 4).map_err(|e| format!("binary: {checksum_symbol}: {e}"))?;
@@ -76,8 +56,7 @@ pub fn extract_named(elf_bytes: &[u8], image_symbol: &str, checksum_symbol: &str
 /// zeros; `None` when the binary has no such symbol.
 pub fn version_symbol(elf_bytes: &[u8], name: &str) -> Result<Option<String>, String> {
     let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
-    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
-    let Some(sym) = symbols.iter().find(|s| s.name == name && s.is_object()) else { return Ok(None) };
+    let Some(sym) = elf.symbol_named(name, true).map_err(|e| format!("binary: {e}"))? else { return Ok(None) };
     let bytes = elf.read_at(sym.address(), sym.size as usize).map_err(|e| format!("binary: {name}: {e}"))?;
     let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
     String::from_utf8(bytes[..end].to_vec()).map(Some).map_err(|_| format!("binary: {name} is not text"))
@@ -93,8 +72,7 @@ pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
 /// no such symbol.
 pub fn ppi_symbol(elf_bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
     let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
-    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
-    let Some(sym) = symbols.iter().find(|s| s.name == "RSK_PPI" && s.is_object()) else { return Ok(None) };
+    let Some(sym) = elf.symbol_named("RSK_PPI", true).map_err(|e| format!("binary: {e}"))? else { return Ok(None) };
     elf.read_at(sym.address(), sym.size as usize).map(Some).map_err(|e| format!("binary: RSK_PPI: {e}"))
 }
 

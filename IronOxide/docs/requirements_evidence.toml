@@ -140,7 +140,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "raise_core"
 tool = "verus"
 says = "The function keeps the Kernel's invariant and the Jobs in progress, leaves the priority mask, the interrupt mask and the loaded view as they were, and returns true exactly when `raise_accepts` holds of the state before it. When it returns true, the state left is, for some instant, what `spec_intake_of` says of the state before: the Release_Source event of the Task the signal is bound to, attributed to the Partition that declares the signal, with the Job that was executing as the one a threshold response is for."
-reviewed = "265131fe7f807e33"
+reviewed = "3db455253573942d"
 
 
 [[row.statement]]
@@ -224,7 +224,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "fault_core"
 tool = "verus"
 says = "Among its postconditions since 2026-11-22: there is a state that is the fault's outcome on the state the entry found, the fault being the Kernel's exactly when the stub's flag is set, the kind is a HardFault or no Job executes, and the state returned keeps that state's Jobs in progress, levels and safe-state flag; and the entry does not feed the watchdog."
-reviewed = "84a0b73730674ea0"
+reviewed = "44965d31a4a2a49d"
 
 [[row.other]]
 kind = "tested-rig"
@@ -428,7 +428,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_check_core"
 tool = "verus"
 says = "At a supervisor call the Kernel either changes nothing and serves the call, in which case, if the call came from a Job, the frame on the process stack lies inside the stack region of the executing Job's Partition; or it treats the stack pointer as a stack violation: the Partition's fault response is applied, the loaded view is unchanged and the pending stacking fault is discarded. So the Kernel reads a Job's frame only inside that Job's Partition's stack region."
-reviewed = "04ebd601ba70ca8e"
+reviewed = "07d80e4a08d774d0"
 
 
 # ---------------------------------------------------------------- R17
@@ -484,7 +484,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_request_core"
 tool = "verus"
 says = "The Kernel's invariant is preserved and the Job stack does not grow. The request is accepted exactly when `dma_accepts` holds of the state it was called in. If accepted, the Kernel's state is as before and the model's list of programmed transfers has one more entry: this channel's pointer register, the buffer, this channel's count register, the length. If refused, that list is unchanged. The record of register writes made for Partitions is unchanged either way, as are the interrupt mask level, the MPU view and the global interrupt mask."
-reviewed = "3d4f5baf55177675"
+reviewed = "374389ab85532c25"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -499,7 +499,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_write_core"
 tool = "verus"
 says = "The Kernel's invariant is preserved. If the write is performed: the channel exists and belongs to the Partition of the Job on top; the offset is a word inside the 4 KiB window; the register addressed is `dma_reg_unmediated`; the model's record of register writes has exactly one more entry, that register and that value; and the Kernel's state is as before. If it is refused, the record is unchanged. Either way the record of programmed transfers is unchanged: this service never programs a transfer."
-reviewed = "46ae4991810131cd"
+reviewed = "61059435d914800a"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -863,7 +863,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_core"
 tool = "verus"
 says = "Whatever service a supervisor call asks for, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; lock and unlock end so unconditionally."
-reviewed = "f663ed527e537ac3"
+reviewed = "d1f44354625de5a8"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/sched.rs"
@@ -1092,7 +1092,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dispatch_job_core"
 tool = "verus"
 says = "Among its guarantees when a Job is dispatched: the hardware model's floating-point access flag equals the declared FPU flag of the dispatched Task; the Partition's memory view is loaded; the priority mask matches the Kernel's state; the entry invariant holds."
-reviewed = "642fd5d1291d5947"
+reviewed = "07ffc3c192ed80c7"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -1127,7 +1127,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "epilogue_core"
 tool = "verus"
 says = "Among its postconditions: when the unwind stops (no further level to unwind, no safe state) and a Job is in progress, the hardware model's floating-point access flag equals the declared floating-point use of the Task on top of the Kernel's Job stack, the Job being resumed. The others concern the view, the priority mask, the level records and the invariant of the entry code."
-reviewed = "edeea0bcd37c2903"
+reviewed = "eb9a09b99cb54d3d"
 
 
 # ---------------------------------------------------------------- R12
@@ -1354,14 +1354,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged. If the send is accepted, the message's first word is appended to the channel's label sequence, and (2026-11-21) under the layout premise the whole message is appended to the channel's messages (`send_message_ok`, see R39). If it is not accepted, nothing is written into the Endpoint storage and every channel's queue is as it was. If the buffer was full and a Job is executing, the newest entry of the event log is the buffer-full event against that Job's Task and that Task's Partition. The executing Job's charge point is not moved. The peer-state flag of the role (2026-11-21): a send that reports it found it set, clears that one flag and changes no channel, no stored word and nothing of the Kernel; a send with any result but that report and a refusal found the flag clear; and the flags are unchanged unless reported. Since 2026-11-22 it also states what an accepted send does to the Kernel's state (`send_release`): when the arriving message is the receiving role's Task's Release_Source, exactly that Task's Release_Source event, attributed to the sending role's Partition; otherwise nothing."
-reviewed = "6b8ad3185f330141"
+reviewed = "6e4b72f6f4e506fc"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The invariants are preserved; a receive that is not refused leaves the Kernel's state exactly as it was; if it succeeds, it takes the oldest label of the channel's sequence and delivers that word first, and (2026-11-21) changes no word outside the receiver's buffer and, under the layout premise, delivers every word of the oldest message and leaves the other messages in order (`recv_message_ok`, see R39); the charge point is not moved. The peer-state flag of the role is treated as in the send: reported only when set, cleared by the report, and a receive that goes ahead found it clear."
-reviewed = "0cb24072ba032a34"
+reviewed = "63871ed9b09a12a4"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/endpoint.rs"
@@ -1684,7 +1684,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "For the peer-state error: a send that returns the report found the role's flag set, clears that flag alone and changes no channel, no stored word and nothing of the Kernel; a send that returns anything but the report and a refusal found the flag clear; unless the report is returned the flags are unchanged. For the copy: see R39 and R40."
-reviewed = "6b8ad3185f330141"
+reviewed = "6e4b72f6f4e506fc"
 
 
 [[row.statement]]
@@ -1692,7 +1692,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The same three clauses for a receive: the report only when the role's flag was set, with that flag cleared and nothing else changed; no message delivered to a role whose flag is set; the flags unchanged unless reported."
-reviewed = "0cb24072ba032a34"
+reviewed = "63871ed9b09a12a4"
 
 
 [[row.statement]]

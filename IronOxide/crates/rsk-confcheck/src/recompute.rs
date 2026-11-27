@@ -366,44 +366,26 @@ pub fn check_stack_bounds(m: &Model, bounds: &serde_json::Value, out: &mut Outco
 /// interval, every window slot (an unused one is `(0, 5)`, not read-only)
 /// and each Partition's stack size, from the model's MPU values.
 pub fn expected_layout(m: &Model) -> Result<LayoutImg, String> {
-    let interval = |r: &Region, what: &str| -> Result<image::IntervalImg, String> {
-        Ok(image::IntervalImg { base: u32::try_from(r.base).map_err(|_| format!("{what}: base 0x{:x} beyond 32 bits", r.base))?, size_log2: r.size_log2, srd: r.srd })
-    };
-    let count = |n: usize, max: usize, what: &str| -> Result<u8, String> {
-        if n > max { Err(format!("{what}: {n} windows, the table has {max} slots")) } else { Ok(n as u8) }
-    };
-    let base = |w: &crate::model::Window, what: &str| u32::try_from(w.region.base).map_err(|_| format!("{what}: a window base beyond 32 bits"));
-    let mut kernel_windows = Vec::new();
-    for k in 0..image::MAX_KERNEL_WINDOWS {
-        kernel_windows.push(match m.kernel_windows.get(k) {
-            Some(w) => (base(w, "the Kernel")?, w.region.size_log2),
-            None => (0, 5),
-        });
-    }
-    let mut partitions = Vec::new();
-    for part in &m.partitions {
-        let mut windows = Vec::new();
-        for w in 0..image::MAX_WINDOWS {
-            windows.push(match part.windows.get(w) {
-                Some(win) => (base(win, &part.id)?, win.region.size_log2, win.read_only),
-                None => (0, 5, false),
-            });
+    // The layout is `tables_v::build_layout`'s (verified, 2026-11-26);
+    // this function words its refusals.
+    use crate::tables_v::LayoutErr;
+    let beyond = |what: &str, base: u64| format!("{what}: base 0x{base:x} beyond 32 bits");
+    let slots = |what: &str, n: usize, max: usize| format!("{what}: {n} windows, the table has {max} slots");
+    crate::tables_v::build_layout(m).map_err(|e| match e {
+        LayoutErr::KernelWindowBase => "the Kernel: a window base beyond 32 bits".to_string(),
+        LayoutErr::WindowBase(p) => format!("{}: a window base beyond 32 bits", m.partitions[p].id),
+        LayoutErr::PartitionBase(p, which) => {
+            let part = &m.partitions[p];
+            beyond(&part.id, if which == 0 { part.code.base } else { part.ram.base })
         }
-        partitions.push(image::PartitionLayoutImg {
-            code: interval(&part.code, &part.id)?,
-            ram: interval(&part.ram, &part.id)?,
-            stack_size: u32::try_from(part.stack).map_err(|_| format!("{}: stack size beyond 32 bits", part.id))?,
-            window_count: count(part.windows.len(), image::MAX_WINDOWS, &part.id)?,
-            windows,
-        });
-    }
-    Ok(LayoutImg {
-        kernel_flash: interval(&m.kernel_flash, "kernel_flash")?,
-        shared_code: interval(&m.shared_code, "shared_code")?,
-        kernel_ram: interval(&m.kernel_ram, "kernel_ram")?,
-        kernel_window_count: count(m.kernel_windows.len(), image::MAX_KERNEL_WINDOWS, "the Kernel")?,
-        kernel_windows,
-        partitions,
+        LayoutErr::Stack(p) => format!("{}: stack size beyond 32 bits", m.partitions[p].id),
+        LayoutErr::Windows(p) => slots(&m.partitions[p].id, m.partitions[p].windows.len(), image::MAX_WINDOWS),
+        LayoutErr::KernelBase(which) => match which {
+            0 => beyond("kernel_flash", m.kernel_flash.base),
+            1 => beyond("shared_code", m.shared_code.base),
+            _ => beyond("kernel_ram", m.kernel_ram.base),
+        },
+        LayoutErr::KernelWindows => slots("the Kernel", m.kernel_windows.len(), image::MAX_KERNEL_WINDOWS),
     })
 }
 
@@ -454,51 +436,37 @@ pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outc
 /// accessors' Priorities, the slot count from the Task count. `Err` names
 /// the first value that has no place in the Kernel's table.
 pub fn expected_tables(m: &Model) -> Result<Tables, String> {
-    fn narrow<T: TryFrom<u64>>(v: u64, what: &str) -> Result<T, String> {
-        T::try_from(v).map_err(|_| format!("{what} = {v} does not fit the table's field"))
-    }
-    let partition_of = |id: &str, what: &str| m.partition_index(id).and_then(|p| u8::try_from(p).ok()).ok_or_else(|| format!("{what}: no Partition `{id}`"));
-    let mut tasks = Vec::new();
-    let mut access = Vec::new();
-    let (mut slot_release, mut slot_deadline, mut slot_budget) = (Vec::new(), Vec::new(), Vec::new());
-    for task in &m.tasks {
-        tasks.push(image::TaskCfg {
-            priority: narrow(task.priority, "priority")?,
-            partition: partition_of(&task.partition, &task.id)?,
-            kind: if task.sporadic { image::KIND_SPORADIC } else { image::KIND_PERIODIC },
-            offset: task.offset_ticks,
-            period: task.period_ticks,
-            deadline: task.deadline_ticks,
-            budget: narrow(task.budget_cycles, "budget")?,
-            mit_policy: match task.mit_policy.as_deref() {
-                Some("discard") => image::MIT_DISCARD,
-                _ => image::MIT_DEFER,
-            },
-            fpu: task.fpu,
-        });
-        access.push(m.resources.iter().map(|res| res.accessors.contains(&task.id)).collect());
-        slot_release.push(narrow(task.slot_release, "slot_release")?);
-        slot_deadline.push(narrow(task.slot_deadline, "slot_deadline")?);
-        slot_budget.push(narrow(task.slot_budget, "slot_budget")?);
-    }
-    let mut resources = Vec::new();
-    for res in &m.resources {
-        let ceiling = res.accessors.iter().filter_map(|a| m.task_index(a)).map(|i| m.tasks[i].priority).max().unwrap_or(0);
-        resources.push(image::ResourceCfg { ceiling: narrow(ceiling, "ceiling")?, partition: partition_of(&res.partition, &res.id)? });
-    }
-    let mut partitions = Vec::new();
-    for part in &m.partitions {
-        let response = |name: &str| image::response_code(name).ok_or_else(|| format!("Partition `{}`: no response `{name}`", part.id));
-        partitions.push(image::PartitionCfg {
-            level: image::level_code(&part.level).ok_or_else(|| format!("Partition `{}`: no level `{}`", part.id, part.level))?,
-            fault_response: response(&part.fault)?,
-            overrun_response: response(&part.overrun)?,
-            deadline_response: response(&part.deadline_miss)?,
-            mit_threshold: narrow(part.mit_threshold, "mit_threshold")?,
-        });
-    }
-    let slot_count = narrow(3 * m.tasks.len() as u64 + 2, "slot_count")?;
-    Ok(Tables { tasks, resources, access, partitions, operating_duration: m.operating_duration_ticks, slot_release, slot_deadline, slot_budget, slot_count })
+    // The tables are `tables_v::build_tables`'s (verified, 2026-11-26:
+    // field by field the model's values, no value truncated); this
+    // function words its refusals.
+    use crate::tables_v::{BuildErr, Field};
+    crate::tables_v::build_tables(m).map_err(|e| match e {
+        BuildErr::Narrow(field, v) => {
+            let what = match field {
+                Field::Priority => "priority",
+                Field::Budget => "budget",
+                Field::SlotRelease => "slot_release",
+                Field::SlotDeadline => "slot_deadline",
+                Field::SlotBudget => "slot_budget",
+                Field::Ceiling => "ceiling",
+                Field::MitThreshold => "mit_threshold",
+                Field::SlotCount => "slot_count",
+            };
+            format!("{what} = {v} does not fit the table's field")
+        }
+        BuildErr::TaskPartition(i) => format!("{}: no Partition `{}`", m.tasks[i].id, m.tasks[i].partition),
+        BuildErr::ResourcePartition(i) => format!("{}: no Partition `{}`", m.resources[i].id, m.resources[i].partition),
+        BuildErr::Level(p) => format!("Partition `{}`: no level `{}`", m.partitions[p].id, m.partitions[p].level),
+        BuildErr::Response(p, which) => {
+            let part = &m.partitions[p];
+            let name = match which {
+                0 => &part.fault,
+                1 => &part.overrun,
+                _ => &part.deadline_miss,
+            };
+            format!("Partition `{}`: no response `{name}`", part.id)
+        }
+    })
 }
 
 /// The tables extracted from the binary against the declared values
@@ -1007,5 +975,276 @@ mod tests {
             check_model(&model, &mut out);
             assert!(out.discrepancies.iter().any(|d| d.item.contains(item)), "{item}: {:?}", out.discrepancies);
         }
+    }
+
+    /// The table builder as it was before `tables_v` (2026-11-26), kept as
+    /// the reference the verified builder is compared with.
+    fn reference_tables(m: &Model) -> Result<Tables, String> {
+        fn narrow<T: TryFrom<u64>>(v: u64, what: &str) -> Result<T, String> {
+            T::try_from(v).map_err(|_| format!("{what} = {v} does not fit the table's field"))
+        }
+        let partition_of = |id: &str, what: &str| m.partition_index(id).and_then(|p| u8::try_from(p).ok()).ok_or_else(|| format!("{what}: no Partition `{id}`"));
+        let mut tasks = Vec::new();
+        let mut access = Vec::new();
+        let (mut slot_release, mut slot_deadline, mut slot_budget) = (Vec::new(), Vec::new(), Vec::new());
+        for task in &m.tasks {
+            tasks.push(image::TaskCfg {
+                priority: narrow(task.priority, "priority")?,
+                partition: partition_of(&task.partition, &task.id)?,
+                kind: if task.sporadic { image::KIND_SPORADIC } else { image::KIND_PERIODIC },
+                offset: task.offset_ticks,
+                period: task.period_ticks,
+                deadline: task.deadline_ticks,
+                budget: narrow(task.budget_cycles, "budget")?,
+                mit_policy: match task.mit_policy.as_deref() {
+                    Some("discard") => image::MIT_DISCARD,
+                    _ => image::MIT_DEFER,
+                },
+                fpu: task.fpu,
+            });
+            access.push(m.resources.iter().map(|res| res.accessors.contains(&task.id)).collect());
+            slot_release.push(narrow(task.slot_release, "slot_release")?);
+            slot_deadline.push(narrow(task.slot_deadline, "slot_deadline")?);
+            slot_budget.push(narrow(task.slot_budget, "slot_budget")?);
+        }
+        let mut resources = Vec::new();
+        for res in &m.resources {
+            let ceiling = res.accessors.iter().filter_map(|a| m.task_index(a)).map(|i| m.tasks[i].priority).max().unwrap_or(0);
+            resources.push(image::ResourceCfg { ceiling: narrow(ceiling, "ceiling")?, partition: partition_of(&res.partition, &res.id)? });
+        }
+        let mut partitions = Vec::new();
+        for part in &m.partitions {
+            let response = |name: &str| image::response_code(name).ok_or_else(|| format!("Partition `{}`: no response `{name}`", part.id));
+            partitions.push(image::PartitionCfg {
+                level: image::level_code(&part.level).ok_or_else(|| format!("Partition `{}`: no level `{}`", part.id, part.level))?,
+                fault_response: response(&part.fault)?,
+                overrun_response: response(&part.overrun)?,
+                deadline_response: response(&part.deadline_miss)?,
+                mit_threshold: narrow(part.mit_threshold, "mit_threshold")?,
+            });
+        }
+        let slot_count = narrow(3 * m.tasks.len() as u64 + 2, "slot_count")?;
+        Ok(Tables { tasks, resources, access, partitions, operating_duration: m.operating_duration_ticks, slot_release, slot_deadline, slot_budget, slot_count })
+    }
+
+    /// R26.4: the verified table builder (`tables_v::build_tables`) gives,
+    /// for every committed Task_Model and for each of them with one value
+    /// changed to one that has no place in its table (or names nothing),
+    /// exactly what the builder before it gave: the same tables, or the
+    /// same words of refusal.
+    #[test]
+    fn the_verified_table_builder_agrees_with_the_builder_before_it() {
+        let texts = [
+            include_str!("../../../apps/p1-demo/gen/task_model.json"),
+            include_str!("../../../apps/heart-sim/gen/task_model.json"),
+            include_str!("../../../apps/hil-stimulus/gen/task_model.json"),
+            include_str!("../../../apps/pacemaker/gen/task_model.json"),
+            include_str!("../../../apps/ppi-probe/gen/task_model.json"),
+            include_str!("../fixtures/pm33_4_ppi_task_model.json"),
+            include_str!("../fixtures/pm33_6_timer3_task_model.json"),
+        ];
+        let changes: Vec<(&str, fn(&mut Model))> = vec![
+            ("nothing", |_| {}),
+            ("priority", |m| m.tasks[0].priority = 256),
+            ("priority of the last Task", |m| m.tasks.last_mut().unwrap().priority = 9),
+            ("budget", |m| m.tasks[0].budget_cycles = 1 << 32),
+            ("slot_release", |m| m.tasks[0].slot_release = 256),
+            ("slot_deadline", |m| m.tasks.last_mut().unwrap().slot_deadline = 1000),
+            ("slot_budget", |m| m.tasks[0].slot_budget = u64::MAX),
+            ("a Task's Partition", |m| m.tasks[0].partition = "absent".to_string()),
+            ("kind", |m| m.tasks[0].sporadic = !m.tasks[0].sporadic),
+            ("policy discard", |m| m.tasks[0].mit_policy = Some("discard".to_string())),
+            ("policy defer", |m| m.tasks[0].mit_policy = Some("defer".to_string())),
+            ("policy other", |m| m.tasks[0].mit_policy = Some("discards".to_string())),
+            ("fpu", |m| m.tasks[0].fpu = !m.tasks[0].fpu),
+            ("a second Task of one id", |m| {
+                let t = m.tasks[0].clone();
+                m.tasks.push(t);
+            }),
+            ("a Task id no Resource lists", |m| m.tasks[0].id = "renamed".to_string()),
+            ("ninety Tasks", |m| {
+                while m.tasks.len() < 90 {
+                    let t = m.tasks[0].clone();
+                    m.tasks.push(t);
+                }
+            }),
+            ("a Resource's Partition", |m| {
+                if let Some(r) = m.resources.first_mut() {
+                    r.partition = "absent".to_string();
+                }
+            }),
+            ("an accessor that names no Task", |m| {
+                if let Some(r) = m.resources.first_mut() {
+                    r.accessors.push("nobody".to_string());
+                }
+            }),
+            ("no accessor", |m| {
+                if let Some(r) = m.resources.first_mut() {
+                    r.accessors.clear();
+                }
+            }),
+            ("every Task an accessor", |m| {
+                let ids: Vec<String> = m.tasks.iter().map(|t| t.id.clone()).collect();
+                if let Some(r) = m.resources.last_mut() {
+                    r.accessors = ids;
+                }
+            }),
+            ("a Ceiling beyond the field", |m| {
+                if let Some(a) = m.resources.first().and_then(|r| r.accessors.first().cloned()) {
+                    let t = m.task_index(&a).unwrap();
+                    m.tasks[t].priority = 70_000;
+                    m.tasks[0].priority = m.tasks[0].priority.min(255);
+                }
+            }),
+            ("level", |m| m.partitions[0].level = "F".to_string()),
+            ("level E", |m| m.partitions[0].level = "E".to_string()),
+            ("fault", |m| m.partitions[0].fault = "END".to_string()),
+            ("fault SAFE_STATE", |m| m.partitions[0].fault = "SAFE_STATE".to_string()),
+            ("overrun", |m| m.partitions[0].overrun = "".to_string()),
+            ("overrun STOP_PARTITION", |m| m.partitions[0].overrun = "STOP_PARTITION".to_string()),
+            ("deadline_miss", |m| m.partitions.last_mut().unwrap().deadline_miss = "end_job".to_string()),
+            ("deadline_miss END_JOB", |m| m.partitions[0].deadline_miss = "END_JOB".to_string()),
+            ("mit_threshold", |m| m.partitions[0].mit_threshold = 1 << 32),
+            ("a second Partition of one id", |m| {
+                let p = m.partitions[0].clone();
+                m.partitions.insert(0, p);
+            }),
+            ("operating duration", |m| m.operating_duration_ticks = u64::MAX),
+        ];
+        let mut refusals = 0;
+        for text in texts {
+            let model = Model::parse(&serde_json::from_str(text).unwrap()).unwrap();
+            for (what, change) in &changes {
+                let mut m = model.clone();
+                change(&mut m);
+                let (new, old) = (expected_tables(&m), reference_tables(&m));
+                assert_eq!(new, old, "{what}");
+                refusals += usize::from(new.is_err());
+            }
+        }
+        assert!(refusals >= 7 * 10, "the changes refuse too few models to compare the refusals: {refusals}");
+    }
+
+    /// The layout builder as it was before `tables_v` (2026-11-26).
+    fn reference_layout(m: &Model) -> Result<LayoutImg, String> {
+        let interval = |r: &Region, what: &str| -> Result<image::IntervalImg, String> {
+            Ok(image::IntervalImg { base: u32::try_from(r.base).map_err(|_| format!("{what}: base 0x{:x} beyond 32 bits", r.base))?, size_log2: r.size_log2, srd: r.srd })
+        };
+        let count = |n: usize, max: usize, what: &str| -> Result<u8, String> {
+            if n > max { Err(format!("{what}: {n} windows, the table has {max} slots")) } else { Ok(n as u8) }
+        };
+        let base = |w: &crate::model::Window, what: &str| u32::try_from(w.region.base).map_err(|_| format!("{what}: a window base beyond 32 bits"));
+        let mut kernel_windows = Vec::new();
+        for k in 0..image::MAX_KERNEL_WINDOWS {
+            kernel_windows.push(match m.kernel_windows.get(k) {
+                Some(w) => (base(w, "the Kernel")?, w.region.size_log2),
+                None => (0, 5),
+            });
+        }
+        let mut partitions = Vec::new();
+        for part in &m.partitions {
+            let mut windows = Vec::new();
+            for w in 0..image::MAX_WINDOWS {
+                windows.push(match part.windows.get(w) {
+                    Some(win) => (base(win, &part.id)?, win.region.size_log2, win.read_only),
+                    None => (0, 5, false),
+                });
+            }
+            partitions.push(image::PartitionLayoutImg {
+                code: interval(&part.code, &part.id)?,
+                ram: interval(&part.ram, &part.id)?,
+                stack_size: u32::try_from(part.stack).map_err(|_| format!("{}: stack size beyond 32 bits", part.id))?,
+                window_count: count(part.windows.len(), image::MAX_WINDOWS, &part.id)?,
+                windows,
+            });
+        }
+        Ok(LayoutImg {
+            kernel_flash: interval(&m.kernel_flash, "kernel_flash")?,
+            shared_code: interval(&m.shared_code, "shared_code")?,
+            kernel_ram: interval(&m.kernel_ram, "kernel_ram")?,
+            kernel_window_count: count(m.kernel_windows.len(), image::MAX_KERNEL_WINDOWS, "the Kernel")?,
+            kernel_windows,
+            partitions,
+        })
+    }
+
+    /// R16.7, R26.4: the verified layout builder (`tables_v::build_layout`)
+    /// gives, for every committed Task_Model and for each of them with one
+    /// value changed, exactly what the builder before it gave: the same
+    /// layout, or the same words of refusal.
+    #[test]
+    fn the_verified_layout_builder_agrees_with_the_builder_before_it() {
+        let texts = [
+            include_str!("../../../apps/p1-demo/gen/task_model.json"),
+            include_str!("../../../apps/heart-sim/gen/task_model.json"),
+            include_str!("../../../apps/hil-stimulus/gen/task_model.json"),
+            include_str!("../../../apps/pacemaker/gen/task_model.json"),
+            include_str!("../../../apps/ppi-probe/gen/task_model.json"),
+            include_str!("../fixtures/pm33_4_ppi_task_model.json"),
+            include_str!("../fixtures/pm33_6_timer3_task_model.json"),
+        ];
+        let window = |base: u64| crate::model::Window { region: Region { base, size_log2: 12, srd: 0 }, peripherals: Vec::new(), read_only: true };
+        let changes: Vec<(&str, Box<dyn Fn(&mut Model)>)> = vec![
+            ("nothing", Box::new(|_| {})),
+            ("kernel_flash base", Box::new(|m| m.kernel_flash.base = 1 << 32)),
+            ("shared_code base", Box::new(|m| m.shared_code.base = u64::MAX)),
+            ("kernel_ram base", Box::new(|m| m.kernel_ram.base = 1 << 40)),
+            ("kernel_ram size and sub-regions", Box::new(|m| {
+                m.kernel_ram.size_log2 = 31;
+                m.kernel_ram.srd = 0xa5;
+            })),
+            ("a Kernel window's base", Box::new(|m| {
+                if let Some(w) = m.kernel_windows.first_mut() {
+                    w.region.base = 1 << 32;
+                }
+            })),
+            ("no Kernel window", Box::new(|m| m.kernel_windows.clear())),
+            ("a Kernel window more", Box::new(move |m| m.kernel_windows.push(window(0x4000_0000)))),
+            ("nine Kernel windows", Box::new(move |m| {
+                while m.kernel_windows.len() < 9 {
+                    m.kernel_windows.push(window(0x4000_1000));
+                }
+            })),
+            ("a ninth Kernel window beyond 32 bits", Box::new(move |m| {
+                while m.kernel_windows.len() < 8 {
+                    m.kernel_windows.push(window(0x4000_1000));
+                }
+                m.kernel_windows.push(window(1 << 33));
+            })),
+            ("code base", Box::new(|m| m.partitions[0].code.base = 1 << 32)),
+            ("ram base", Box::new(|m| m.partitions.last_mut().unwrap().ram.base = 1 << 32)),
+            ("stack", Box::new(|m| m.partitions[0].stack = 1 << 32)),
+            ("a window's base", Box::new(move |m| m.partitions[0].windows.insert(0, window(1 << 32)))),
+            ("a window more", Box::new(move |m| m.partitions[0].windows.push(window(0x4000_2000)))),
+            ("a window not read-only", Box::new(move |m| {
+                let mut w = window(0x4000_3000);
+                w.read_only = false;
+                m.partitions[0].windows.insert(0, w);
+            })),
+            ("six windows", Box::new(move |m| {
+                while m.partitions[0].windows.len() < 6 {
+                    m.partitions[0].windows.push(window(0x4000_4000));
+                }
+            })),
+            ("a sixth window beyond 32 bits", Box::new(move |m| {
+                while m.partitions[0].windows.len() < 5 {
+                    m.partitions[0].windows.push(window(0x4000_4000));
+                }
+                m.partitions[0].windows.push(window(1 << 34));
+            })),
+            ("no Partition", Box::new(|m| m.partitions.clear())),
+        ];
+        let mut refusals = 0;
+        for text in texts {
+            let model = Model::parse(&serde_json::from_str(text).unwrap()).unwrap();
+            for (what, change) in &changes {
+                let mut m = model.clone();
+                change(&mut m);
+                let (new, old) = (expected_layout(&m), reference_layout(&m));
+                assert_eq!(new, old, "{what}");
+                refusals += usize::from(new.is_err());
+            }
+        }
+        assert!(refusals >= 7 * 9, "the changes refuse too few models to compare the refusals: {refusals}");
     }
 }

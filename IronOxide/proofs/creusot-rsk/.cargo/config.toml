@@ -1,0 +1,12 @@
+# The proof workspace resolves registry crates from the same vendored
+# directory as the Flight_Build workspace (../../vendor), so its lock file
+# names the vendored versions; the parent ../../.cargo/config.toml adds the
+# replacement of the pinned Creusot git source and the offline setting.
+# To regenerate Cargo.lock: move the parent config aside (it replaces the git
+# source, which cargo cannot do before a lock file exists), run
+# `cargo generate-lockfile --offline` here, and restore it.
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "../../vendor"

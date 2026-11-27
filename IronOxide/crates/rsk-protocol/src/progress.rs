@@ -834,6 +834,71 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
     any
 }
 
+/// Whether every enabled operation of the configuration `c` leads to a
+/// configuration of the list (one configuration's part of `certify`).
+fn successors_listed(s: &System, list: &Vec<Config>, c: &Config) -> (r: bool)
+    requires
+        wf_sys(*s),
+        wf_cfg(s.roles as int, cfg(*c)),
+    ensures
+        r ==> forall|b: int| 0 <= b < s.trans@.len() && enabled(s.roles as int, cfg(*c), #[trigger] s.trans@[b])
+            ==> in_list(cfgs(*list), succ(s.roles as int, cfg(*c), s.trans@[b])),
+{
+    let mut j = 0;
+    while j < s.trans.len()
+        invariant
+            j <= s.trans.len(),
+            wf_sys(*s),
+            wf_cfg(s.roles as int, cfg(*c)),
+            forall|b: int| 0 <= b < j && enabled(s.roles as int, cfg(*c), #[trigger] s.trans@[b])
+                ==> in_list(cfgs(*list), succ(s.roles as int, cfg(*c), s.trans@[b])),
+        decreases s.trans.len() - j,
+    {
+        if is_enabled(s, c, j) {
+            let next = successor(s, c, j);
+            if !contains(list, &next) {
+                return false;
+            }
+        }
+        j += 1;
+    }
+    true
+}
+
+/// Whether every configuration of the list is well formed, within the
+/// capacity and not deadlocked, with every enabled operation leading to a
+/// configuration of the list (the list's part of `certify`).
+fn configs_closed(s: &System, list: &Vec<Config>) -> (r: bool)
+    requires
+        wf_sys(*s),
+    ensures
+        r ==> forall|a: int| 0 <= a < cfgs(*list).len() ==> wf_cfg(s.roles as int, #[trigger] cfgs(*list)[a]) && within_capacity(*s, cfgs(*list)[a]) && !deadlocked(*s, cfgs(*list)[a]),
+        r ==> forall|a: int, j: int| 0 <= a < cfgs(*list).len() && 0 <= j < s.trans@.len() && enabled(s.roles as int, #[trigger] cfgs(*list)[a], #[trigger] s.trans@[j])
+                ==> in_list(cfgs(*list), succ(s.roles as int, cfgs(*list)[a], s.trans@[j])),
+{
+    let mut i = 0;
+    while i < list.len()
+        invariant
+            i <= list.len(),
+            wf_sys(*s),
+            forall|a: int| 0 <= a < i ==> wf_cfg(s.roles as int, #[trigger] cfgs(*list)[a]) && within_capacity(*s, cfgs(*list)[a]) && !deadlocked(*s, cfgs(*list)[a]),
+            forall|a: int, j: int| 0 <= a < i && 0 <= j < s.trans@.len() && enabled(s.roles as int, #[trigger] cfgs(*list)[a], #[trigger] s.trans@[j])
+                ==> in_list(cfgs(*list), succ(s.roles as int, cfgs(*list)[a], s.trans@[j])),
+        decreases list.len() - i,
+    {
+        let c = &list[i];
+        assert(cfgs(*list)[i as int] == cfg(*c));
+        if !wf_config(s, c) || !capacity_ok(s, c) || has_deadlock(s, c) {
+            return false;
+        }
+        if !successors_listed(s, list, c) {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 /// Checks the explorer's list against `certificate`: `true` only when the
 /// list proves R41.3 and R41.1 for every run of the Endpoint
 /// (`theorem_r41_3`).
@@ -846,50 +911,16 @@ pub fn certify(s: &System, list: &Vec<Config>) -> (r: bool)
 {
     let init = initial_config(s.roles);
     if !contains(list, &init) {
-        return false;
-    }
-    let mut i = 0;
-    while i < list.len()
-        invariant
-            i <= list.len(),
-            wf_sys(*s),
-            in_list(cfgs(*list), initial(s.roles as int)),
-            forall|a: int| 0 <= a < i ==> wf_cfg(s.roles as int, #[trigger] cfgs(*list)[a]) && within_capacity(*s, cfgs(*list)[a]) && !deadlocked(*s, cfgs(*list)[a]),
-            forall|a: int, j: int| 0 <= a < i && 0 <= j < s.trans@.len() && enabled(s.roles as int, #[trigger] cfgs(*list)[a], #[trigger] s.trans@[j])
-                ==> in_list(cfgs(*list), succ(s.roles as int, cfgs(*list)[a], s.trans@[j])),
-        decreases list.len() - i,
-    {
-        let c = &list[i];
-        assert(cfgs(*list)[i as int] == cfg(*c));
-        if !wf_config(s, c) || !capacity_ok(s, c) || has_deadlock(s, c) {
-            return false;
-        }
-        let mut j = 0;
-        while j < s.trans.len()
-            invariant
-                j <= s.trans.len(),
-                i < list.len(),
-                wf_sys(*s),
-                wf_cfg(s.roles as int, cfg(*c)),
-                cfgs(*list)[i as int] == cfg(*c),
-                forall|b: int| 0 <= b < j && enabled(s.roles as int, cfg(*c), #[trigger] s.trans@[b])
-                    ==> in_list(cfgs(*list), succ(s.roles as int, cfg(*c), s.trans@[b])),
-            decreases s.trans.len() - j,
-        {
-            if is_enabled(s, c, j) {
-                let next = successor(s, c, j);
-                if !contains(list, &next) {
-                    return false;
-                }
+        false
+    } else {
+        let r = configs_closed(s, list);
+        proof {
+            if r {
+                theorem_r41_3(*s, cfgs(*list));
             }
-            j += 1;
         }
-        i += 1;
+        r
     }
-    proof {
-        theorem_r41_3(*s, cfgs(*list));
-    }
-    true
 }
 
 // ------------------------------------------- the verified exploration --

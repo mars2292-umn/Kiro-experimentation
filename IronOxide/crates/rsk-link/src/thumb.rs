@@ -110,91 +110,152 @@ pub fn decode(code: &[u8], base: u32, address: u32, literal: &dyn Fn(u32) -> Opt
     Some(Insn { address, len: 4, effect })
 }
 
+/// What the halfwords of an instruction decide by themselves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decoded {
+    /// The effect.
+    Is(Effect),
+    /// A pc-relative load to `reg` of the word at the address: the effect
+    /// is `Constant` with the word when the image has it, `Other` when not.
+    Literal(u8, u32),
+}
+
+fn resolve(d: Decoded, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
+    match d {
+        Decoded::Is(e) => e,
+        Decoded::Literal(rt, addr) => match literal(addr) {
+            Some(v) => Effect::Constant(rt, v),
+            None => Effect::Other,
+        },
+    }
+}
+
 fn decode16(hw: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
+    resolve(decode16_static(hw, pc), literal)
+}
+
+fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
+    resolve(decode32_static(hw1, hw2, pc), literal)
+}
+
+/// The 16-bit instruction `hw` at `pc`, from the halfword alone: the effect,
+/// or the address of the literal a pc-relative load reads. No closure
+/// here: this is the function translated to Lean
+/// (`proofs/aeneas/lean/Tools/Link.lean`, 2026-11-26).
+pub fn decode16_static(hw: u16, pc: u32) -> Decoded {
     let h = hw as u32;
     // push {rlist, lr}: 1011 010M rrrrrrrr
     if h & 0xFE00 == 0xB400 {
-        let regs = (h & 0xFF).count_ones() + ((h >> 8) & 1);
-        return Effect::SpDown(4 * regs);
+        let regs = ones16(h & 0xFF) + ((h >> 8) & 1);
+        return Decoded::Is(Effect::SpDown(4 * regs));
     }
     // pop {rlist, pc}: 1011 110P rrrrrrrr
     if h & 0xFE00 == 0xBC00 {
         if (h >> 8) & 1 == 1 {
-            return Effect::Return;
+            return Decoded::Is(Effect::Return);
         }
-        return Effect::SpUp(4 * (h & 0xFF).count_ones());
+        return Decoded::Is(Effect::SpUp(4 * ones16(h & 0xFF)));
     }
     // add sp, #imm7*4 / sub sp, #imm7*4: 1011 0000 S iii iiii
     if h & 0xFF80 == 0xB000 {
-        return Effect::SpUp((h & 0x7F) * 4);
+        return Decoded::Is(Effect::SpUp((h & 0x7F) * 4));
     }
     if h & 0xFF80 == 0xB080 {
-        return Effect::SpDown((h & 0x7F) * 4);
+        return Decoded::Is(Effect::SpDown((h & 0x7F) * 4));
     }
     // bx Rm: 0100 0111 0 Rm 000; blx Rm: 0100 0111 1 Rm 000
     if h & 0xFF87 == 0x4700 {
         let rm = ((h >> 3) & 0xF) as u8;
-        return if rm == 14 { Effect::Return } else { Effect::IndirectBranch(rm) };
+        return Decoded::Is(if rm == 14 { Effect::Return } else { Effect::IndirectBranch(rm) });
     }
     if h & 0xFF87 == 0x4780 {
-        return Effect::IndirectCall(((h >> 3) & 0xF) as u8);
+        return Decoded::Is(Effect::IndirectCall(((h >> 3) & 0xF) as u8));
     }
     // mov sp, Rm: 0100 0110 1 Rm 101 (MOV register T1 with Rd = 13)
     if h & 0xFF87 == 0x4685 {
-        return Effect::SpDynamic;
+        return Decoded::Is(Effect::SpDynamic);
     }
     // add sp, Rm: 0100 0100 1 Rm 101 (ADD SP plus register T2)
     if h & 0xFF87 == 0x4485 {
-        return Effect::SpDynamic;
+        return Decoded::Is(Effect::SpDynamic);
     }
     // ldr Rt, [pc, #imm8*4]: 0100 1ttt iiiiiiii
     if h & 0xF800 == 0x4800 {
         let rt = ((h >> 8) & 7) as u8;
         let addr = ((pc + 4) & !3) + (h & 0xFF) * 4;
-        return match literal(addr) {
-            Some(v) => Effect::Constant(rt, v),
-            None => Effect::Other,
-        };
+        return Decoded::Literal(rt, addr);
     }
     // b<cond> imm8: 1101 cccc iiiiiiii (cond 1110 = udf, 1111 = svc)
     if h & 0xF000 == 0xD000 {
         let cond = (h >> 8) & 0xF;
         if cond == 0xF {
-            return Effect::Svc((h & 0xFF) as u8);
+            return Decoded::Is(Effect::Svc((h & 0xFF) as u8));
         }
         if cond == 0xE {
-            return Effect::Other;
+            return Decoded::Is(Effect::Other);
         }
         let imm = sign_extend((h & 0xFF) << 1, 9);
-        return Effect::Branch((pc as i32 + 4 + imm) as u32);
+        return Decoded::Is(Effect::Branch((pc as i32 + 4 + imm) as u32));
     }
     // b imm11: 11100 iiiiiiiiiii
     if h & 0xF800 == 0xE000 {
         let imm = sign_extend((h & 0x7FF) << 1, 12);
-        return Effect::Branch((pc as i32 + 4 + imm) as u32);
+        return Decoded::Is(Effect::Branch((pc as i32 + 4 + imm) as u32));
     }
     // cpsie / cpsid: 1011 0110 011 im 0 a i f
     if h & 0xFFEC == 0xB660 {
-        return Effect::Cps;
+        return Decoded::Is(Effect::Cps);
     }
     // cbz/cbnz: 1011 op0 i 1 imm5 Rn
     if h & 0xF500 == 0xB100 {
         let i = (h >> 9) & 1;
         let imm5 = (h >> 3) & 0x1F;
         let imm = (i << 6) | (imm5 << 1);
-        return Effect::CompareBranch(pc + 4 + imm);
+        return Decoded::Is(Effect::CompareBranch(pc + 4 + imm));
     }
     if h == 0xBF00 {
-        return Effect::Nop;
+        return Decoded::Is(Effect::Nop);
     }
-    Effect::Other
+    Decoded::Is(Effect::Other)
 }
 
-fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
+/// The number of the low 16 bits of `v` that are set: `count_ones` for a
+/// register list, which is a halfword or less. Written out since
+/// 2026-11-26: the Lean translation has no model of `count_ones` (it would
+/// be an axiom of `proofs/aeneas/lean/Tools/Link.lean`).
+fn ones16(v: u32) -> u32 {
+    (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1) + ((v >> 4) & 1) + ((v >> 5) & 1) + ((v >> 6) & 1) + ((v >> 7) & 1) + ((v >> 8) & 1) + ((v >> 9) & 1) + ((v >> 10) & 1) + ((v >> 11) & 1) + ((v >> 12) & 1) + ((v >> 13) & 1) + ((v >> 14) & 1) + ((v >> 15) & 1)
+}
+
+/// `p && q` with both sides computed first. The decoders' conditions have
+/// no effect and cannot fail, so the result is the short-circuit one;
+/// written as calls since 2026-11-26 because Charon's reconstruction of
+/// the control flow of `decode32_static` did not end with the short-circuit
+/// operators in its chain of early returns.
+fn both(p: bool, q: bool) -> bool {
+    if p {
+        q
+    } else {
+        false
+    }
+}
+
+/// `p || q` with both sides computed first (see `both`).
+fn either(p: bool, q: bool) -> bool {
+    if p {
+        true
+    } else {
+        q
+    }
+}
+
+/// The 32-bit instruction `hw1 hw2` at `pc`, from the halfwords alone (as
+/// `decode16_static`).
+pub fn decode32_static(hw1: u16, hw2: u16, pc: u32) -> Decoded {
     let (a, b) = (hw1 as u32, hw2 as u32);
     // dsb #option: F3BF 8F4x (erratum 838869's workaround before exception returns).
-    if a == 0xF3BF && b & 0xFFF0 == 0x8F40 {
-        return Effect::Dsb;
+    if both(a == 0xF3BF, b & 0xFFF0 == 0x8F40) {
+        return Decoded::Is(Effect::Dsb);
     }
     // ldr.w Rt, [Rn, #imm12] (T3: F8Dn), ldr Rt, [Rn, #-imm8] / post-indexed /
     // pre-indexed (T4: F85n), ldr Rt, [pc, #imm12] (T2: F85F/F8DF), and
@@ -202,71 +263,84 @@ fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -
     // with Rt = SP: a load to the stack pointer, the instruction class of
     // erratum 752770 (interrupted loads to SP), which no Kernel code may
     // contain (R11.6; the compiler never emits one).
-    if (a & 0xFFF0 == 0xF8D0 || a & 0xFFF0 == 0xF850) && (b >> 12) == 13 {
-        return Effect::SpDynamic;
+    if both(either(a & 0xFFF0 == 0xF8D0, a & 0xFFF0 == 0xF850), (b >> 12) == 13) {
+        return Decoded::Is(Effect::SpDynamic);
     }
     // msr <spec>, Rn: F380 | Rn ; hw2 1000 mask 0000 SYSm. mrs Rd, <spec>: F3EF ; hw2 1000 Rd SYSm.
-    if a & 0xFFF0 == 0xF380 && b & 0xF000 == 0x8000 {
-        return Effect::Msr((b & 0xFF) as u8);
+    if both(a & 0xFFF0 == 0xF380, b & 0xF000 == 0x8000) {
+        return Decoded::Is(Effect::Msr((b & 0xFF) as u8));
     }
-    if a == 0xF3EF && b & 0xF000 == 0x8000 {
-        return Effect::Mrs((b & 0xFF) as u8);
+    if both(a == 0xF3EF, b & 0xF000 == 0x8000) {
+        return Decoded::Is(Effect::Mrs((b & 0xFF) as u8));
     }
     // push.w / stmdb sp!, {regs}: E92D xxxx ; pop.w / ldmia sp!: E8BD xxxx
     if a == 0xE92D {
-        return Effect::SpDown(4 * b.count_ones());
+        return Decoded::Is(Effect::SpDown(4 * ones16(b)));
     }
     if a == 0xE8BD {
         if (b >> 15) & 1 == 1 {
-            return Effect::Return;
+            return Decoded::Is(Effect::Return);
         }
-        return Effect::SpUp(4 * b.count_ones());
+        return Decoded::Is(Effect::SpUp(4 * ones16(b)));
     }
-    // vpush: ED2D (VSTMDB sp!), vpop: ECBD (VLDMIA sp!); imm8 = words.
-    if a == 0xED2D {
-        return Effect::SpDown(4 * (b & 0xFF));
+    // vpush: ED2D (VSTMDB sp!), vpop: ECBD (VLDMIA sp!); imm8 = words. Bit 6
+    // of the first halfword is the D bit, part of the first register's
+    // number (an odd single-precision register, or D16 and above): ED6D
+    // and ECFD are the same two instructions. Until 2026-11-26 only the
+    // forms with D clear were read here, and the others fell to the
+    // floating-point moves below, which leave SP.
+    if a & 0xFFBF == 0xED2D {
+        return Decoded::Is(Effect::SpDown(4 * (b & 0xFF)));
     }
-    if a == 0xECBD {
-        return Effect::SpUp(4 * (b & 0xFF));
+    if a & 0xFFBF == 0xECBD {
+        return Decoded::Is(Effect::SpUp(4 * (b & 0xFF)));
     }
     // str Rt, [sp, #-imm8]! (T4, P=1 U=0 W=1): F84D xxxx with bits 10..8 = 1 0 1
-    if a == 0xF84D && (b >> 8) & 7 == 0b101 {
-        return Effect::SpDown(b & 0xFF);
+    if both(a == 0xF84D, (b >> 8) & 7 == 0b101) {
+        return Decoded::Is(Effect::SpDown(b & 0xFF));
     }
     // strd Rt, Rt2, [sp, #-imm8*4]! : E96D (P=1 U=0 W=1)
     if a == 0xE96D {
-        return Effect::SpDown(4 * (b & 0xFF));
+        return Decoded::Is(Effect::SpDown(4 * (b & 0xFF)));
     }
     // ldr Rt, [sp], #imm8 with Rt = pc: F85D Fxxx (post-indexed): return
-    if a == 0xF85D && (b >> 12) == 0xF {
-        return Effect::Return;
+    if both(a == 0xF85D, (b >> 12) == 0xF) {
+        return Decoded::Is(Effect::Return);
     }
+    // The data-processing forms with an immediate (first halfword 11110...)
+    // have bit 15 of the second halfword clear; with it set the same first
+    // halfwords are branches (`bl`, `b.w`, `b<cond>.w`) and the system
+    // forms. Until 2026-11-26 the four cases below did not test the bit, so
+    // that a `bl` or `b.w` over a distance whose high bits made its first
+    // halfword one of theirs (323,584 bytes or more) was read as a
+    // constant load or a stack-pointer change and its edge lost.
+    let dp = (b >> 15) & 1 == 0;
     // sub.w sp, sp, #const (T3): F1AD/F1BD 0iii 1101 iiiiiiii ; subw (T4): F2AD
-    if (a == 0xF1AD || a == 0xF1BD || a == 0xF2AD) && (b >> 8) & 0xF == 0xD {
+    if both(dp, both(either(either(a == 0xF1AD, a == 0xF1BD), a == 0xF2AD), (b >> 8) & 0xF == 0xD)) {
         let i = (a >> 10) & 1;
         let imm3 = (b >> 12) & 7;
         let imm8 = b & 0xFF;
         let imm12 = (i << 11) | (imm3 << 8) | imm8;
-        return Effect::SpDown(if a == 0xF2AD { imm12 } else { thumb_expand_imm(imm12) });
+        return Decoded::Is(Effect::SpDown(if a == 0xF2AD { imm12 } else { thumb_expand_imm(imm12) }));
     }
     // add.w sp, sp, #const (T3): F10D/F11D ; addw: F20D
-    if (a == 0xF10D || a == 0xF11D || a == 0xF20D) && (b >> 8) & 0xF == 0xD {
+    if both(dp, both(either(either(a == 0xF10D, a == 0xF11D), a == 0xF20D), (b >> 8) & 0xF == 0xD)) {
         let i = (a >> 10) & 1;
         let imm3 = (b >> 12) & 7;
         let imm8 = b & 0xFF;
         let imm12 = (i << 11) | (imm3 << 8) | imm8;
-        return Effect::SpUp(if a == 0xF20D { imm12 } else { thumb_expand_imm(imm12) });
+        return Decoded::Is(Effect::SpUp(if a == 0xF20D { imm12 } else { thumb_expand_imm(imm12) }));
     }
     // sub/add sp, sp, Rm (register forms with Rd = sp): EBAD/EBBD, EB0D/EB1D with Rd field 1101
-    if (a == 0xEBAD || a == 0xEBBD || a == 0xEB0D || a == 0xEB1D) && (b >> 8) & 0xF == 0xD {
-        return Effect::SpDynamic;
+    if both(either(either(either(a == 0xEBAD, a == 0xEBBD), a == 0xEB0D), a == 0xEB1D), (b >> 8) & 0xF == 0xD) {
+        return Decoded::Is(Effect::SpDynamic);
     }
     // mov.w sp, #const / movw sp: F04F 0Dxx, F24x 0Dxx (Rd = 13)
-    if (a & 0xFBEF == 0xF04F || a & 0xFBF0 == 0xF240) && (b >> 8) & 0xF == 0xD {
-        return Effect::SpDynamic;
+    if both(dp, both(either(a & 0xFBEF == 0xF04F, a & 0xFBF0 == 0xF240), (b >> 8) & 0xF == 0xD)) {
+        return Decoded::Is(Effect::SpDynamic);
     }
     // movw Rd, #imm16: F240 | i<<10 | imm4 ; hw2: imm3 Rd imm8. movt: F2C0.
-    if a & 0xFBF0 == 0xF240 || a & 0xFBF0 == 0xF2C0 {
+    if both(dp, either(a & 0xFBF0 == 0xF240, a & 0xFBF0 == 0xF2C0)) {
         let imm4 = a & 0xF;
         let i = (a >> 10) & 1;
         let imm3 = (b >> 12) & 7;
@@ -274,50 +348,47 @@ fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -
         let imm8 = b & 0xFF;
         let imm16 = (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8;
         let top = a & 0xFBF0 == 0xF2C0;
-        return Effect::Constant(rd, if top { imm16 << 16 } else { imm16 });
+        return Decoded::Is(Effect::Constant(rd, if top { imm16 << 16 } else { imm16 }));
     }
     // ldr.w Rt, [pc, #±imm12]: F8DF (U=1) / F85F (U=0)
-    if a == 0xF8DF || a == 0xF85F {
+    if either(a == 0xF8DF, a == 0xF85F) {
         let rt = ((b >> 12) & 0xF) as u8;
         let base = (pc + 4) & !3;
         let addr = if a == 0xF8DF { base + (b & 0xFFF) } else { base.wrapping_sub(b & 0xFFF) };
-        return match literal(addr) {
-            Some(v) => Effect::Constant(rt, v),
-            None => Effect::Other,
-        };
+        return Decoded::Literal(rt, addr);
     }
     // VFP (coprocessor 10 or 11): 111x 11xx .... | .... 101x .... ....
-    if a & 0xEC00 == 0xEC00 && (b >> 8) & 0xE == 0xA {
+    if both(a & 0xEC00 == 0xEC00, (b >> 8) & 0xE == 0xA) {
         if a & 0xFE00 == 0xEC00 {
             // VLDM/VSTM, VLDR/VSTR, 64-bit core transfers (VPUSH/VPOP matched above).
-            return Effect::Fp(FpClass::Move);
+            return Decoded::Is(Effect::Fp(FpClass::Move));
         }
-        if a & 0xFFE0 == 0xEE00 && b & 0x10 == 0x10 {
+        if both(a & 0xFFE0 == 0xEE00, b & 0x10 == 0x10) {
             // VMOV between a core register and a single-precision register.
-            return Effect::Fp(FpClass::Move);
+            return Decoded::Is(Effect::Fp(FpClass::Move));
         }
-        if a == 0xEEE1 && b & 0x0F10 == 0x0A10 {
-            return Effect::Fp(FpClass::FpscrWrite);
+        if both(a == 0xEEE1, b & 0x0F10 == 0x0A10) {
+            return Decoded::Is(Effect::Fp(FpClass::FpscrWrite));
         }
-        if a == 0xEEF1 && b & 0x0F10 == 0x0A10 {
-            return Effect::Fp(FpClass::FpscrRead);
+        if both(a == 0xEEF1, b & 0x0F10 == 0x0A10) {
+            return Decoded::Is(Effect::Fp(FpClass::FpscrRead));
         }
-        if a & 0xFFB0 == 0xEEB0 && b & 0x00F0 == 0 {
+        if both(a & 0xFFB0 == 0xEEB0, b & 0x00F0 == 0) {
             // VMOV immediate.
-            return Effect::Fp(FpClass::Move);
+            return Decoded::Is(Effect::Fp(FpClass::Move));
         }
-        if a & 0xFFBF == 0xEEB0 && b & 0x00D0 == 0x0040 {
+        if both(a & 0xFFBF == 0xEEB0, b & 0x00D0 == 0x0040) {
             // VMOV register.
-            return Effect::Fp(FpClass::Move);
+            return Decoded::Is(Effect::Fp(FpClass::Move));
         }
-        return Effect::Fp(FpClass::Arith);
+        return Decoded::Is(Effect::Fp(FpClass::Arith));
     }
     // tbb/tbh: E8D0 F00x / E8D0 F01x
-    if a & 0xFFF0 == 0xE8D0 && (b & 0xFFE0) == 0xF000 {
-        return Effect::SwitchTable;
+    if both(a & 0xFFF0 == 0xE8D0, (b & 0xFFE0) == 0xF000) {
+        return Decoded::Is(Effect::SwitchTable);
     }
     // bl and b.w (T4): 11110 S imm10 | 11 J1 1 J2 imm11 (bl) ; 10 J1 1 J2 (b.w)
-    if a & 0xF800 == 0xF000 && (b & 0xD000 == 0xD000 || b & 0xD000 == 0x9000) {
+    if both(a & 0xF800 == 0xF000, either(b & 0xD000 == 0xD000, b & 0xD000 == 0x9000)) {
         let s = (a >> 10) & 1;
         let j1 = (b >> 13) & 1;
         let j2 = (b >> 11) & 1;
@@ -328,14 +399,14 @@ fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -
         let raw = (s << 24) | (i1 << 23) | (i2 << 22) | (imm10 << 12) | (imm11 << 1);
         let imm = sign_extend(raw, 25);
         let target = (pc as i32 + 4 + imm) as u32;
-        return if b & 0x4000 == 0x4000 { Effect::Call(target) } else { Effect::Branch(target) };
+        return Decoded::Is(if b & 0x4000 == 0x4000 { Effect::Call(target) } else { Effect::Branch(target) });
     }
     // b<cond>.w (T3): 11110 S cond imm6 | 10 J1 0 J2 imm11
-    if a & 0xF800 == 0xF000 && b & 0xD000 == 0x8000 {
+    if both(a & 0xF800 == 0xF000, b & 0xD000 == 0x8000) {
         let s = (a >> 10) & 1;
         let cond = (a >> 6) & 0xF;
         if cond & 0xE == 0xE {
-            return Effect::Other; // the always/never encodings here are other instructions
+            return Decoded::Is(Effect::Other); // the always/never encodings here are other instructions
         }
         let j1 = (b >> 13) & 1;
         let j2 = (b >> 11) & 1;
@@ -343,9 +414,9 @@ fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -
         let imm11 = b & 0x7FF;
         let raw = (s << 20) | (j2 << 19) | (j1 << 18) | (imm6 << 12) | (imm11 << 1);
         let imm = sign_extend(raw, 21);
-        return Effect::Branch((pc as i32 + 4 + imm) as u32);
+        return Decoded::Is(Effect::Branch((pc as i32 + 4 + imm) as u32));
     }
-    Effect::Other
+    Decoded::Is(Effect::Other)
 }
 
 /// Decodes a whole function body.
@@ -377,6 +448,32 @@ mod tests {
         decode(bytes, 0x1000, 0x1000, &none).unwrap().effect
     }
 
+    /// 2026-11-26: every `bl` and `b.w` is read as a call or a branch to
+    /// its target, whatever its distance: every first halfword 11110...,
+    /// with a sample of the second halfwords of both forms.
+    #[test]
+    fn no_other_case_takes_a_bl_or_a_wide_branch() {
+        for a in 0xF000u32..=0xF7FF {
+            let mut low = 0u32;
+            while low < 0x1000 {
+                for form in [0xD000u32, 0x9000] {
+                    for j in [0u32, 0x0800, 0x2000, 0x2800] {
+                        let b = form | j | (low & 0x7FF);
+                        let bytes = [a as u8, (a >> 8) as u8, b as u8, (b >> 8) as u8];
+                        let s = (a >> 10) & 1;
+                        let i1 = (!(((b >> 13) & 1) ^ s)) & 1;
+                        let i2 = (!(((b >> 11) & 1) ^ s)) & 1;
+                        let raw = (s << 24) | (i1 << 23) | (i2 << 22) | ((a & 0x3FF) << 12) | ((b & 0x7FF) << 1);
+                        let target = (0x1000i32 + 4 + sign_extend(raw, 25)) as u32;
+                        let want = if form == 0xD000 { Effect::Call(target) } else { Effect::Branch(target) };
+                        assert_eq!(one(&bytes), want, "{a:#06x} {b:#06x}");
+                    }
+                }
+                low += 37;
+            }
+        }
+    }
+
     #[test]
     fn sixteen_bit_stack_and_control_forms() {
         assert_eq!(one(&[0xF0, 0xB5]), Effect::SpDown(20)); // push {r4-r7, lr}
@@ -405,6 +502,9 @@ mod tests {
         assert_eq!(one(&[0xBD, 0xE8, 0xF0, 0x8F]), Effect::Return); // pop.w {r4-r7, pc}
         assert_eq!(one(&[0x2D, 0xED, 0x10, 0x8A]), Effect::SpDown(64)); // vpush {s16-s31}
         assert_eq!(one(&[0xBD, 0xEC, 0x10, 0x8A]), Effect::SpUp(64)); // vpop {s16-s31}
+        // The D bit set: the first register is odd-numbered (2026-11-26).
+        assert_eq!(one(&[0x6D, 0xED, 0x02, 0x8A]), Effect::SpDown(8)); // vpush {s17-s18}
+        assert_eq!(one(&[0xFD, 0xEC, 0x02, 0x8A]), Effect::SpUp(8)); // vpop {s17-s18}
         assert_eq!(one(&[0xAD, 0xF1, 0x18, 0x0D]), Effect::SpDown(24)); // sub.w sp, sp, #24
         assert_eq!(one(&[0xAD, 0xF2, 0x34, 0x1D]), Effect::SpDown(0x134)); // subw sp, sp, #308
         assert_eq!(one(&[0x0D, 0xF1, 0x18, 0x0D]), Effect::SpUp(24)); // add.w sp, sp, #24
@@ -442,6 +542,13 @@ mod tests {
         assert_eq!(one(&[0xB4, 0xEE, 0x41, 0x0A]), Effect::Fp(FpClass::Arith)); // vcmp.f32 s0, s2
         assert_eq!(one(&[0xE1, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::FpscrWrite)); // vmsr fpscr, r0
         assert_eq!(one(&[0xF1, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::FpscrRead)); // vmrs r0, fpscr
+    }
+
+    #[test]
+    fn the_written_out_bit_count_is_count_ones_on_every_halfword() {
+        for v in 0u32..=0xFFFF {
+            assert_eq!(ones16(v), v.count_ones(), "{v:#x}");
+        }
     }
 
     #[test]

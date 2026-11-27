@@ -11,7 +11,9 @@ publish.workspace = true
 # the ELF reader shared with the Build_System; it never depends on rsk-model,
 # rsk-gen, rsk-logic, or rsk-kernel (the Kernel's table encodings it decodes
 # are restated here from the Kernel's documentation, which is the point).
-# The recomputation core is verified (`derive_v`, Verification_Plan 5.19):
+# The recomputation core is verified (`derive_v`, Verification_Plan 5.19;
+# `image_v`; and since 2026-11-26 `tables_v`, the builders of the expected
+# `CONFIG` tables and `LAYOUT` image):
 # `cargo verus verify -p rsk-confcheck` in the verification job. The Verus
 # library is the proof tool's, not Generator or Kernel code.
 [package.metadata.verus]

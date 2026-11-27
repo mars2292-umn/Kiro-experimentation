@@ -32,8 +32,8 @@
 #![forbid(unsafe_code)]
 
 use super::entry::*;
-use crate::logic::log::EV_ENDPOINT_FULL;
-use super::plan::{ArchState, MAX_ROLE_SLOTS};
+use crate::logic::log::{EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION};
+use super::plan::{ArchState, EndpointCfg, MAX_CHANNELS, MAX_ENDPOINTS, MAX_ROLES, MAX_ROLE_SLOTS};
 use super::HwModel;
 use crate::arch::bound::KernelOps;
 use vstd::prelude::*;
@@ -221,11 +221,105 @@ pub open spec fn recv_served<K: KernelOps, T: Tables>(k0: &K, k1: &K, tables: &T
     &&& code != ENDPOINT_PEER ==> s1.peer_changed == s0.peer_changed
 }
 
+/// Endpoint `e` re-initialized (`endpoint_reinit_one`; R41.2, R42.4, task
+/// 21.6): its channels are empty, its delivery latches clear, each of its
+/// roles is marked to be told of the change, and no other Endpoint's
+/// channel, latch or mark has changed.
+pub open spec fn endpoint_restarted(s0: ArchState, s1: ArchState, e: int) -> bool {
+    &&& forall|i: int| e * (MAX_ROLES * MAX_ROLES) as int <= i < (e + 1) * (MAX_ROLES * MAX_ROLES) as int ==> #[trigger] s1.fifos[i] == crate::logic::endpoint::Fifo::empty_spec()
+    &&& forall|i: int| e * (MAX_ROLES * MAX_ROLES) as int <= i < (e + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] s1.delivered[i])
+    &&& forall|i: int| e * MAX_ROLES as int <= i < (e + 1) * MAX_ROLES as int ==> #[trigger] s1.peer_changed[i]
+    &&& forall|i: int| 0 <= i < MAX_CHANNELS && !(e * (MAX_ROLES * MAX_ROLES) as int <= i < (e + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] s1.fifos[i] == s0.fifos[i]
+    &&& forall|i: int| 0 <= i < MAX_CHANNELS && !(e * (MAX_ROLES * MAX_ROLES) as int <= i < (e + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] s1.delivered[i] == s0.delivered[i]
+    &&& forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e * MAX_ROLES as int <= i < (e + 1) * MAX_ROLES as int) ==> #[trigger] s1.peer_changed[i] == s0.peer_changed[i]
+}
+
+/// A report word is a well-formed report of a Protocol violation (R41.2)
+/// by the executing Job: form 2, no bit above the role, an Endpoint of the
+/// table, and a role of it bound to the executing Job's Task.
+pub open spec fn violation_report_ok<K: KernelOps, T: Tables>(k0: &K, tables: &T, arg: u32) -> bool {
+    let e = report_endpoint(arg);
+    let role = report_role(arg);
+    let cfg = spec_endpoint_of(tables, e);
+    &&& report_form(arg) == 2
+    &&& arg >> 20 == 0
+    &&& e < spec_endpoint_count_of(tables) && e < MAX_ENDPOINTS
+    &&& role < MAX_ROLES && role < cfg.roles as int
+    &&& cfg.tasks[role] as int == crate::arch::bound::top_task(k0)
+}
+
+/// A report word is a well-formed report of a rejected message (R42.4) by
+/// the executing Job: form 1, no bit above the sending role, an Endpoint
+/// of the table, two different roles of it, and the reporting role bound
+/// to the executing Job's Task.
+pub open spec fn rejection_report_ok<K: KernelOps, T: Tables>(k0: &K, tables: &T, arg: u32) -> bool {
+    let e = report_endpoint(arg);
+    let role = report_role(arg);
+    let from = report_from(arg);
+    let cfg = spec_endpoint_of(tables, e);
+    &&& report_form(arg) == 1
+    &&& arg >> 24 == 0
+    &&& e < spec_endpoint_count_of(tables) && e < MAX_ENDPOINTS
+    &&& role < MAX_ROLES && from < MAX_ROLES
+    &&& role < cfg.roles as int && from < cfg.roles as int && from != role
+    &&& cfg.tasks[role] as int == crate::arch::bound::top_task(k0)
+}
+
+/// The report service as `violation_core` performed it on the report word
+/// `arg`, from the state found (`k0`, `s0`) to the state it left (`k1`,
+/// `s1`), before `apply_core` (2026-11-26).
+///
+/// - With no Job executing nothing changes.
+/// - A well-formed violation report (`violation_report_ok`): the event
+///   `EV_PROTOCOL_VIOLATION` is the log's newest entry, against the
+///   executing Job's Task and that Task's Partition, and the Endpoint is
+///   re-initialized (`endpoint_restarted`).
+/// - A well-formed rejection report (`rejection_report_ok`) the Kernel
+///   permits (`spec_rejection_permitted`: a validated upward edge and a
+///   delivery since the Endpoint's last re-initialization): the Endpoint
+///   is re-initialized (the sending Partition's fault response is
+///   `KernelOps::fault_of`'s, which has no statement here); one it does
+///   not permit is API misuse of the caller and changes nothing of the
+///   Endpoints.
+/// - Any other word is API misuse of the caller: the fault
+///   `EV_API_MISUSE` of the executing Job's Partition on the state found
+///   (`KernelOps::spec_fault_of`), and nothing of the Endpoints changes.
+pub open spec fn report_served<K: KernelOps, T: Tables>(k0: &K, k1: &K, tables: &T, s0: ArchState, s1: ArchState, arg: u32) -> bool {
+    let t = crate::arch::bound::top_task(k0);
+    let e = report_endpoint(arg);
+    let cfg = spec_endpoint_of(tables, e);
+    let permitted = spec_rejection_permitted(cfg, s0, e, report_role(arg), report_from(arg));
+    &&& k0.spec_depth() == 0 ==> *k1 == *k0 && s1 == s0
+    &&& k0.spec_depth() > 0 && violation_report_ok(k0, tables, arg) ==> k1.spec_last_event() == (EV_PROTOCOL_VIOLATION as int, t, k0.spec_part()[t])
+            && endpoint_restarted(s0, s1, e)
+    &&& k0.spec_depth() > 0 && rejection_report_ok(k0, tables, arg) && permitted ==> endpoint_restarted(s0, s1, e)
+    &&& k0.spec_depth() > 0 && rejection_report_ok(k0, tables, arg) && !permitted ==> s1 == s0 && k1.spec_fault_of(k0, EV_API_MISUSE, false)
+    &&& k0.spec_depth() > 0 && !violation_report_ok(k0, tables, arg) && !rejection_report_ok(k0, tables, arg)
+            ==> s1 == s0 && k1.spec_fault_of(k0, EV_API_MISUSE, false)
+}
+
+/// The clock service's reply (2026-11-26): the two reply words are the low
+/// and the high half of one value the time base's reading returned during
+/// the call (`KernelArch::clock_reading`). What that value is, is the
+/// time base's (DD-05, HW-12; `drivers.rs`, `Hw/Model.lean`).
+pub open spec fn now_served<A: KernelArch>(hw: &A, lo: u32, hi: u32) -> bool {
+    exists|t: u64| #[trigger] hw.clock_reading(t) && lo == t as u32 && hi == (t >> 32) as u32
+}
+
+/// The two halves the clock service replies with put together as `rsk`
+/// does (`k_now`: `(hi << 32) | lo`) are the reading.
+pub proof fn lemma_now_words(t: u64)
+    ensures ((((t >> 32) as u32) as u64) << 32) | ((t as u32) as u64) == t,
+{
+    assert(((((t >> 32) as u32) as u64) << 32) | ((t as u32) as u64) == t) by (bit_vector);
+}
+
 /// What `svc_core` leaves in word 0 of the frame for a request (`r0`,
 /// `r1`, `r2` the frame's words 0 to 2 as it found them), by service.
 ///
-/// - Lock and unlock: 1 or 0 (granted or refused; which, is the
-///   scheduler's, `rsk-logic`).
+/// - Lock and unlock: 1 exactly when the scheduler grants the request on
+///   the state found (`KernelOps::spec_lock_grants`, `spec_unlock_grants`;
+///   the Resource is the low byte of R0), else 0.
 /// - EasyDMA request: 0 exactly when the Kernel accepts it
 ///   (`dma_accepts`, R17.1, R17.2), else 1.
 /// - EasyDMA register write: 0 only for a channel of the executing Job's
@@ -234,9 +328,12 @@ pub open spec fn recv_served<K: KernelOps, T: Tables>(k0: &K, k1: &K, tables: &T
 ///   (`raise_accepts`, R10.5, R10.7), else 1.
 /// - Send and receive: the service's code, with the service's contract
 ///   from the state found to the state the service left.
-/// - The report: 0.
+/// - The report: 0, with the report service's contract from the state
+///   found to the state the service left (`report_served`).
 pub open spec fn svc_served<K: KernelOps, T: Tables>(k0: &K, tables: &T, s0: ArchState, h0: HwModel, number: u8, r0: u32, r1: u32, r2: u32, out: u32) -> bool {
     &&& number == SVC_LOCK || number == SVC_UNLOCK ==> out == 0 || out == 1
+    &&& number == SVC_LOCK ==> (out == 1 <==> k0.spec_lock_grants(r0 as u8 as int))
+    &&& number == SVC_UNLOCK ==> (out == 1 <==> k0.spec_unlock_grants(r0 as u8 as int))
     &&& number == SVC_DMA ==> out == 0 || out == 1
     &&& number == SVC_DMA && !dma_is_write(r0) ==> (out == 0 <==> dma_accepts(k0, tables, r0 as usize as int, r1 as int, r2 as int))
     &&& number == SVC_DMA && dma_is_write(r0) && out == 0 ==> dma_write_accepted(k0, tables, dma_write_channel(r0), r1)
@@ -245,6 +342,7 @@ pub open spec fn svc_served<K: KernelOps, T: Tables>(k0: &K, tables: &T, s0: Arc
     &&& number == SVC_SEND ==> exists|k1: K, s1: ArchState, h1: HwModel| #[trigger] send_served(k0, &k1, tables, s0, s1, h0, h1, r0, r1, out)
     &&& number == SVC_RECV ==> exists|k1: K, s1: ArchState, h1: HwModel| #[trigger] recv_served(k0, &k1, tables, s0, s1, h0, h1, r0, r1, out)
     &&& number == SVC_VIOLATION ==> out == 0
+    &&& number == SVC_VIOLATION ==> exists|k1: K, s1: ArchState| #[trigger] report_served(k0, &k1, tables, s0, s1, r0)
 }
 
 /// An accepted register write (R17.3): the channel is one of the executing

@@ -16,8 +16,8 @@ Kernel's functions as extracted:
   Overrun report (only `Budget::reset`, for the Tasks of a Partition being
   ended, writes an account under a response).
 
-Not here (Verus only): that the timer slots of the other Partitions'
-Tasks are left. -/
+Not here: that the timer slots and the timing fields of the other
+Partitions' Tasks are left (`Sched/ContainSlots.lean`). -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

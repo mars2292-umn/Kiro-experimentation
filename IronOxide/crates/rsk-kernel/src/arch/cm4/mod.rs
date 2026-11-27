@@ -70,6 +70,7 @@ pub mod svc_abi;
 pub mod unsafe_module;
 
 use core::marker::PhantomData;
+use vstd::prelude::*;
 
 pub use entry::{
     Action, Binding, Cm4Hw, DispatchPlan, HwModel, KernelArch, ReturnPlan, Tables, CONTROL_JOB, EXC_RETURN_HANDLER_MSP,
@@ -79,6 +80,12 @@ pub use plan::{compare_target, plan_frame, top_active, ArchState, EndpointCfg, L
 pub use unsafe_module::KernelCell;
 
 use crate::arch::{KernelOps, System, SystemTables};
+#[cfg(verus_keep_ghost)]
+use entry::{
+    a1_step, arch_inv, arch_matches, basepri_matches, boot_vector_ok, booted, epi_rel, fault_entry, intake_entry,
+    intake_stack_violation, irq_others, irq_rel, kentry_rel, mask_untouched, no_others, pends_only, records_same,
+    slots_step, spec_binding_of, spec_irq_count_of, spec_psp_in_stack, tables_wf, view_matches,
+};
 use crate::logic::log::{EV_BUSFAULT, EV_HARDFAULT, EV_MEMMANAGE, EV_PANIC, EV_USAGEFAULT};
 use unsafe_module::hw;
 
@@ -266,10 +273,60 @@ impl<S: SystemTables> Tables for SysTables<S> {
     }
 }
 
-// The shells below are the only Kernel_Arch code outside `verus!` besides
-// the Kernel_Unsafe_Module: each fetches the Kernel, the hardware, the
-// tables, and the Kernel_Arch state, calls its verified core
-// (`core.rs`), and enters the system safe state when the core says so.
+// The shells (2026-11-26). Each entry point of Kernel_Arch is two
+// functions. The outer one (`boot`, `start`, `reset`, `irq_entry`,
+// `svc_frame_check`, `svc`, `epilogue`, `fault`) is the only Kernel_Arch
+// code outside `verus!` besides the Kernel_Unsafe_Module and the tables'
+// adapter: it fetches the Kernel, the hardware, the tables, and the
+// Kernel_Arch state from the statics and hands them, with the stub's
+// arguments, to the inner one. The inner one (`*_shell`) is verified: it
+// calls its core once with those arguments, enters the system safe state
+// when the core says so, and returns the core's plan, so that what the
+// core ensures is what the shell ensures of every call that returns. The
+// instrumentation of the HIL builds (features `trace-ram`, `trace-pins`,
+// `coverage`, `hw-dt`, `boot-mutation`) stands inside the inner functions
+// under its `cfg`; the proof is of the build without those features.
+
+verus! {
+
+/// What a shell needs of the system crate besides the tables (`System`,
+/// adapted by `SysEnv`): the system safe state and the PPI channels'
+/// boot write. Trusted of an implementation: that the two safe-state
+/// functions do not return (`System::safe_state` has the type `!`).
+pub trait ShellEnv {
+    /// The system safe state (R14.4), through the boot-check build's
+    /// watchdog hold: never returned from.
+    fn enter_safe_state(&self)
+        ensures false;
+    /// The system safe state as the reset path enters it after a failed
+    /// boot (`System::safe_state` itself): never returned from.
+    fn enter_boot_safe_state(&self)
+        ensures false;
+    /// docs/pacemaker PM33.3, PM33.4: writes the declared PPI channels when
+    /// the checksum over the tables and the channel table is the recorded
+    /// one; `false` when it is not (nothing written).
+    fn ppi_boot(&self, config_checksum: u32) -> bool;
+}
+
+} // verus!
+
+/// The `System` of the generated system crate as the shells' `ShellEnv`.
+struct SysEnv<S: System>(PhantomData<S>);
+
+impl<S: System> ShellEnv for SysEnv<S> {
+    #[inline(always)]
+    fn enter_safe_state(&self) {
+        safe_state::<S>()
+    }
+    #[inline(always)]
+    fn enter_boot_safe_state(&self) {
+        S::safe_state()
+    }
+    #[inline(always)]
+    fn ppi_boot(&self, config_checksum: u32) -> bool {
+        unsafe_module::hw::ppi_boot(S::PPI, config_checksum, S::PPI_CHECKSUM)
+    }
+}
 
 /// Boot (R12.4): `false` when a boot check fails (R12.1, R12.2); the caller
 /// enters the safe state.
@@ -332,13 +389,51 @@ pub fn boot<S: System>() -> bool {
     unsafe_module::dt::early();
     #[cfg(feature = "boot-mutation")]
     boot_mutation::<S>(k);
-    let mut ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    boot_shell(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), &SysEnv::<S>(PhantomData))
+}
+
+/// The reset path's Kernel part (R12.4): boot, and instant 0 only after a
+/// boot that passed every check; a failed boot ends in the system safe
+/// state (R12.2). `reset_shell` is the verified order.
+pub fn reset<S: System>() {
+    let k = S::kernel().get();
+    let mut hw = Cm4Hw::new();
+    #[cfg(feature = "hw-dt")]
+    unsafe_module::dt::early();
+    #[cfg(feature = "boot-mutation")]
+    boot_mutation::<S>(k);
+    reset_shell(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `boot` after the statics are fetched: `boot_core`, then the PPI
+/// channels' write, whose refusal is a failed boot check like the core's
+/// own. What `boot_core` ensures of a boot that passed holds of this one;
+/// a boot that failed left the Kernel in its safe state or untouched.
+/// (`boot_core`'s statement that a failed boot enabled no interrupt and
+/// started no time base is the core's alone: a refusal of the PPI write
+/// comes after the core programmed the vectors.)
+#[inline(always)]
+pub fn boot_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, env: &E) -> (ok: bool)
+    ensures
+        ok ==> final(k).inv(),
+        ok ==> final(k).spec_deadline_owned(),
+        ok ==> booted(final(hw).hw()),
+        ok ==> final(state).booted,
+        ok ==> arch_inv(final(k), *final(state), 0),
+        ok ==> view_matches(*final(state), final(hw)),
+        ok ==> tables_wf(tables, final(k).task_count_spec()),
+        ok ==> forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) ==> #[trigger] boot_vector_ok(final(k), tables, final(hw).hw(), v),
+        !ok ==> final(k).spec_safe() || *final(k) == *old(k),
+{
+    let mut ok = entry::boot_core(k, hw, tables, state);
     // docs/pacemaker PM33.3, PM33.4: the declared PPI channels, written once
     // here, after the boot checks (which read the enable register as zero)
     // and before any Task is released, and only if the configuration
     // checksum over the tables and the channel table in memory is the
     // recorded one. Without channels nothing is read or written.
-    if ok && !unsafe_module::hw::ppi_boot(S::PPI, k.config_checksum(), S::PPI_CHECKSUM) {
+    if ok && !env.ppi_boot(k.config_checksum()) {
         hw.apply(Action::Trace(entry::TR_BOOTFAIL, entry::BOOT_FAIL_CHECKSUM));
         k.boot_failed(entry::BOOT_FAIL_CHECKSUM);
         ok = false;
@@ -346,6 +441,36 @@ pub fn boot<S: System>() -> bool {
     mirror_events(k);
     ok
 }
+
+/// **The order of the boot (R12.2, R12.4, A11; 2026-11-26).** The reset
+/// path's Kernel part: `boot_shell` (in `boot_core`: the tables validated,
+/// then the Kernel initialized, then the checks), and `start_shell` only
+/// when the boot passed; a boot that failed ends in the system safe state
+/// and instant 0 is not reached. `start_core` requires what only a boot
+/// that passed establishes (the invariant, the vector tables' agreement,
+/// the entry cores' invariant), so a path to it around the boot, or past a
+/// failed one, does not verify. The function returns only with the system
+/// started and outside the safe state, in the state every entry core
+/// requires.
+#[inline(always)]
+pub fn reset_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, env: &E)
+    ensures
+        final(k).inv(),
+        tables_wf(tables, final(k).task_count_spec()),
+        arch_inv(final(k), *final(state), 0),
+        view_matches(*final(state), final(hw)),
+        final(k).spec_dispatch_guard(),
+        final(k).spec_deadline_owned(),
+        basepri_matches(final(k), final(hw)),
+        !final(hw).hw().primask,
+{
+    if !boot_shell(k, hw, tables, state, env) {
+        env.enter_boot_safe_state();
+    }
+    start_shell(k, hw, tables, state, env);
+}
+
+} // verus!
 
 /// Feature `trace-ram`: the events the HIL_Rig's trace freeze treats as
 /// expected (`unsafe_module::events_expect`): kinds in `kinds` (bit k =
@@ -358,6 +483,8 @@ pub fn trace_expect(kinds: u32, task: u8, forbidden_partitions: u32) {
     let _ = (kinds, task, forbidden_partitions);
 }
 
+verus! {
+
 /// Feature `trace-ram`: copies the events the Kernel logic pushed during
 /// this entry (the ones numbered from the mirror's seen sequence number
 /// to the log's) into the event mirror, which freezes the trace ring at
@@ -365,34 +492,41 @@ pub fn trace_expect(kinds: u32, task: u8, forbidden_partitions: u32) {
 #[inline(always)]
 fn mirror_events<K: KernelOps>(k: &K) {
     #[cfg(feature = "trace-ram")]
-    {
-        let seq = k.log_seq();
-        let new = seq.wrapping_sub(unsafe_module::events_seen_seq()) as usize;
-        if new == 0 {
-            return;
-        }
-        let len = k.log_len();
-        // More new events than the log holds: the oldest are lost to the
-        // mirror too (R14.7 counts them). The loop is bounded by the log's
-        // capacity (PR-16).
-        let new = if new > len { len } else { new };
-        let mut i = len - new;
-        let mut copied = 0;
-        while i < len && copied < unsafe_module::EVENTS_PER_ENTRY {
-            unsafe_module::events_push(
-                seq.wrapping_sub((len - i) as u32),
-                k.log_kind(i),
-                k.log_task(i),
-                k.log_partition(i),
-                k.log_instant(i),
-                k.log_detail(i),
-            );
-            i += 1;
-            copied += 1;
-        }
-    }
+    mirror_events_ram(k);
     #[cfg(not(feature = "trace-ram"))]
     let _ = k;
+}
+
+} // verus!
+
+/// `mirror_events` in the HIL build (feature `trace-ram`).
+#[cfg(feature = "trace-ram")]
+#[inline(always)]
+fn mirror_events_ram<K: KernelOps>(k: &K) {
+    let seq = k.log_seq();
+    let new = seq.wrapping_sub(unsafe_module::events_seen_seq()) as usize;
+    if new == 0 {
+        return;
+    }
+    let len = k.log_len();
+    // More new events than the log holds: the oldest are lost to the
+    // mirror too (R14.7 counts them). The loop is bounded by the log's
+    // capacity (PR-16).
+    let new = if new > len { len } else { new };
+    let mut i = len - new;
+    let mut copied = 0;
+    while i < len && copied < unsafe_module::EVENTS_PER_ENTRY {
+        unsafe_module::events_push(
+            seq.wrapping_sub((len - i) as u32),
+            k.log_kind(i),
+            k.log_task(i),
+            k.log_partition(i),
+            k.log_instant(i),
+            k.log_detail(i),
+        );
+        i += 1;
+        copied += 1;
+    }
 }
 
 /// Feature `trace-ram`, task 19.3: the kinds of the events the Kernel
@@ -461,8 +595,28 @@ const SPAN_ENFORCE: u32 = 1 << 13;
 
 /// Instant 0: enables Releases (PR-34) and the compare of the first event.
 pub fn start<S: System>() {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
+    start_shell(S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(), &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `start` after the statics are fetched: `start_core`, and the safe state
+/// when it says so. Returns only outside the safe state, with what
+/// `start_core` ensures.
+#[inline(always)]
+pub fn start_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, env: &E)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(), final(k).task_count_spec() == old(k).task_count_spec(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        final(k).spec_dispatch_guard(),
+        basepri_matches(final(k), final(hw)) && !final(hw).hw().primask,
+        arch_inv(final(k), *final(state), 0),
+        records_same(*final(state), *old(state)),
+        final(hw).hw().view == old(hw).hw().view,
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
+{
     // The records are a run's own: cleared at instant 0, which the reboot
     // the board takes when the probe detaches (a failed boot check into
     // the safe state) never reaches, so the records of the run survive it.
@@ -491,12 +645,14 @@ pub fn start<S: System>() {
     // instant 0.
     #[cfg(feature = "hw-dt")]
     unsafe_module::dt::late();
-    let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    let safe = entry::start_core(k, hw, tables, state);
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
 }
+
+} // verus!
 
 /// The Rust half of the dispatch stub, with PRIMASK held.
 pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) -> DispatchPlan {
@@ -506,35 +662,64 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     if let Some(plan) = unsafe_module::dt::irq(ipsr, control) {
         return plan;
     }
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
+    irq_entry_shell(
+        S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(),
+        ipsr, psp, control, exc_return, &SysEnv::<S>(PhantomData),
+    )
+}
+
+verus! {
+
+/// `irq_entry` after the statics are fetched: `irq_entry_core` with the
+/// stub's four arguments, the safe state when the core says so, and the
+/// core's plan. What the core ensures of an entry that does not end in the
+/// safe state holds of every call that returns.
+#[inline(always)]
+pub fn irq_entry_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    ipsr: u32, psp: u32, control: u32, exc_return: u32, env: &E,
+) -> (plan: DispatchPlan)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
+        view_matches(*final(state), final(hw)),
+        arch_inv(final(k), *final(state), plan.hop as int),
+        irq_rel(final(k), *old(state), *final(state), exc_return, plan),
+        plan.psp != 0 ==> plan.control == CONTROL_JOB && plan.exc_return == EXC_RETURN_THREAD_PSP
+            && plan.psp % 8 == 0 && plan.hop == 0
+            && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw)),
+        plan.psp != 0 ==> final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
+        old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        match spec_binding_of(tables, (ipsr & 0x1FF) as int) {
+            Binding::Intake { task, partition } => intake_entry(old(k), final(k), task as int, partition as int,
+                intake_stack_violation(tables, *old(state), psp, exc_return)),
+            _ => true,
+        },
+        !(spec_binding_of(tables, (ipsr & 0x1FF) as int) is Kernel) ==> final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), irq_others(tables, *old(state), (ipsr & 0x1FF) as int, exc_return)),
+{
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
     // The time-base vector is served here (`Binding::Kernel`), so the
     // release-timing record of R9.10 is taken around this call.
     #[cfg(feature = "trace-ram")]
-    let (entry_now, entry_cycles, due_before) = {
-        let mut due = [u64::MAX; unsafe_module::STATS_TASKS];
-        let mut t = 0;
-        while t < k.task_count() && t < unsafe_module::STATS_TASKS {
-            due[t] = k.release_info(t as u8).1;
-            t += 1;
-        }
-        (hw::timebase_now(), hw::dwt_cyccnt(), due)
-    };
+    let (entry_now, entry_cycles, due_before) = (hw::timebase_now(), hw::dwt_cyccnt(), releases_due(k));
     #[cfg(feature = "trace-ram")]
     let (seq_before, top_before) = (k.log_seq(), k.top());
     #[cfg(feature = "trace-ram")]
     let mut span_what = 0u32;
-    let (plan, safe) = entry::irq_entry_core(
-        k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
-    );
+    let (plan, safe) = entry::irq_entry_core(k, hw, tables, state, ipsr, psp, control, exc_return);
     #[cfg(feature = "trace-ram")]
     {
         // R19.3: the cycles of this intake handler run, attributed to the
         // source's Task (the record the storm test reads).
-        let binding = S::binding((ipsr & 0x1FF) as u16);
+        let binding = tables.binding((ipsr & 0x1FF) as u16);
         if let crate::arch::Binding::Intake { task, .. } = binding {
             unsafe_module::stats_intake(task, hw::dwt_cyccnt().wrapping_sub(entry_cycles));
             // Δ_stamp: from the edge the probe latched to this entry's timestamp.
@@ -559,32 +744,52 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
         }
     }
     #[cfg(feature = "trace-ram")]
-    {
-        // R9.10: every periodic Release this tick made effective (its due
-        // instant moved; the Release may already be consumed by a dispatch
-        // pended in the same tick), with the lag from its nominal instant
-        // (now - due at entry, in cycles) plus the handler's own cycles.
-        let handler_cycles = hw::dwt_cyccnt().wrapping_sub(entry_cycles);
-        let mut t = 0;
-        while t < k.task_count() && t < unsafe_module::STATS_TASKS {
-            let (periodic, due, offset, period) = k.release_info(t as u8);
-            if due != due_before[t] {
-                if periodic {
-                    let lag = (entry_now.saturating_sub(due) as u32).saturating_mul(hw::CYCLES_PER_TICK).saturating_add(handler_cycles);
-                    unsafe_module::stats_release(t as u8, due, offset, period, lag);
-                }
-            }
-            t += 1;
-        }
-    }
+    releases_record(k, entry_now, entry_cycles, &due_before);
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0, span_what);
+    span_close(k, tables, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0, span_what);
     pins_running(k.top());
     plan
+}
+
+} // verus!
+
+/// Feature `trace-ram`, R9.10: the due instant of every Task's current
+/// Release at an entry of the dispatch stub (`irq_entry_shell`).
+#[cfg(feature = "trace-ram")]
+#[inline(always)]
+fn releases_due<K: KernelOps>(k: &K) -> [u64; unsafe_module::STATS_TASKS] {
+    let mut due = [u64::MAX; unsafe_module::STATS_TASKS];
+    let mut t = 0;
+    while t < k.task_count() && t < unsafe_module::STATS_TASKS {
+        due[t] = k.release_info(t as u8).1;
+        t += 1;
+    }
+    due
+}
+
+/// Feature `trace-ram`, R9.10: every periodic Release this tick made
+/// effective (its due instant moved; the Release may already be consumed
+/// by a dispatch pended in the same tick), with the lag from its nominal
+/// instant (now - due at entry, in cycles) plus the handler's own cycles.
+#[cfg(feature = "trace-ram")]
+#[inline(always)]
+fn releases_record<K: KernelOps>(k: &K, entry_now: u64, entry_cycles: u32, due_before: &[u64; unsafe_module::STATS_TASKS]) {
+    let handler_cycles = hw::dwt_cyccnt().wrapping_sub(entry_cycles);
+    let mut t = 0;
+    while t < k.task_count() && t < unsafe_module::STATS_TASKS {
+        let (periodic, due, offset, period) = k.release_info(t as u8);
+        if due != due_before[t] {
+            if periodic {
+                let lag = (entry_now.saturating_sub(due) as u32).saturating_mul(hw::CYCLES_PER_TICK).saturating_add(handler_cycles);
+                unsafe_module::stats_release(t as u8, due, offset, period, lag);
+            }
+        }
+        t += 1;
+    }
 }
 
 /// The masked-span record's close (11.13): the span stays open when the
@@ -595,10 +800,10 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
 /// stub under PRIMASK). A pending dispatch vector BASEPRI masks, or
 /// nothing pending, closes it: the Job resumes and an intake is taken.
 #[cfg(feature = "trace-ram")]
-fn span_close<S: System>(k: &S::K, kind: u8, chained: bool, what: u32) {
+fn span_close<K: KernelOps, T: Tables>(k: &K, tables: &T, kind: u8, chained: bool, what: u32) {
     let v = hw::vectpending();
     let pending = v != 0
-        && match S::binding(v) {
+        && match tables.binding(v) {
             crate::arch::Binding::Dispatch(t) => {
                 let b = k.basepri_now();
                 b == 0 || encode_level(k.job_info(t).priority) < b
@@ -611,6 +816,8 @@ fn span_close<S: System>(k: &S::K, kind: u8, chained: bool, what: u32) {
         | ((v as u32 & 0x1FF) << 16);
     unsafe_module::span_leave(kind, chained || pending, chained, what);
 }
+
+verus! {
 
 /// Trace pins (feature `trace-pins`): a Kernel handler begins.
 #[inline(always)]
@@ -628,6 +835,8 @@ fn pins_running(task: Option<u8>) {
     let _ = task;
 }
 
+} // verus!
+
 /// Enters the system safe state (R14.4). In a boot-check build under the
 /// watchdog case the report is withheld while the watchdog runs
 /// (`hw::watchdog_case_hold`).
@@ -643,11 +852,40 @@ fn safe_state<S: System>() -> ! {
 /// included. The decision is `entry::svc_check_core`'s: `None` when the SVC
 /// is to be served, otherwise the plan after the stack violation's response.
 pub fn svc_frame_check<S: System>(psp: u32, exc_return: u32) -> Option<ReturnPlan> {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
+    svc_check_shell(S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(), psp, exc_return, &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `svc_frame_check` after the statics are fetched: `svc_check_core` with
+/// the stub's two arguments. `None`: the SVC is to be served and nothing
+/// has changed (the frame, when on the process stack of an executing Job,
+/// lies in its Partition's stack region). Otherwise the plan after the
+/// stack violation's response, the safe state excepted.
+#[inline(always)]
+pub fn svc_check_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, psp: u32, exc_return: u32, env: &E,
+) -> (r: Option<ReturnPlan>)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        r is None ==> *final(k) == *old(k) && *final(state) == *old(state) && final(hw).hw() == old(hw).hw(),
+        r is None && exc_return & 4 != 0 && old(state).current_partition != 0xFF
+            ==> spec_psp_in_stack(tables, old(state).current_partition as int, psp as int),
+        r is Some ==> kentry_rel(final(k), *old(state), *final(state), r.unwrap() as int)
+            && final(hw).hw().view == old(hw).hw().view
+            && final(hw).stacking_discarded()
+            && basepri_matches(final(k), final(hw)),
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
+{
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
-    let (hop, safe) = entry::svc_check_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), psp, exc_return)?;
+    let (hop, safe) = match entry::svc_check_core(k, hw, tables, state, psp, exc_return) {
+        Some(r) => r,
+        None => return None,
+    };
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
@@ -655,13 +893,15 @@ pub fn svc_frame_check<S: System>(psp: u32, exc_return: u32) -> Option<ReturnPla
     let span_what = entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
+    span_close(k, tables, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
     pins_running(k.top());
     Some(hop)
 }
+
+} // verus!
 
 /// The stacked PC of a faulting context for the fault record (R14.3), or 0
 /// when it cannot be read safely (`entry::fault_frame_readable`: the
@@ -676,14 +916,43 @@ fn fault_pc<S: System>(cfsr: u32, frame: u32, exc_return: u32) -> u32 {
 /// The Rust half of the SVC handler: `frame` points at the caller's
 /// exception frame (R0-R3 at offsets 0 to 12, PC at 24).
 pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
     let number = unsafe_module::svc_number(frame[6]);
     // The HIL differential tests' probe SVCs (task 3.3).
     #[cfg(feature = "hw-dt")]
     if let Some(plan) = unsafe_module::dt::svc(number, frame) {
         return plan;
     }
+    svc_shell(S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number, &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `svc` after the statics are fetched and the number is read from the
+/// instruction: `svc_core` on the caller's frame with that number, the
+/// safe state when the core says so, and the core's plan. What the core
+/// ensures of a call that does not end in the safe state holds of every
+/// call that returns: the reply in the frame among it (`svc_served`).
+#[inline(always)]
+pub fn svc_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8, env: &E,
+) -> (hop: ReturnPlan)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
+        number == SVC_LOCK || number == SVC_UNLOCK ==> basepri_matches(final(k), final(hw)),
+        basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
+        kentry_rel(final(k), *old(state), *final(state), hop as int),
+        final(hw).hw().view == old(hw).hw().view,
+        mask_untouched(old(hw).hw(), final(hw).hw()),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
+        svc_abi::svc_served(old(k), tables, *old(state), old(hw).hw(), number, old(frame)[0], old(frame)[1], old(frame)[2], final(frame)[0]),
+        number == SVC_NOW ==> svc_abi::now_served(final(hw), final(frame)[0], final(frame)[1]),
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
+{
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
@@ -709,13 +978,12 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     // or unlock (the Resource is the call's argument, before the result
     // replaces it).
     #[cfg(feature = "trace-ram")]
-    let section = if number == entry::SVC_LOCK || number == entry::SVC_UNLOCK { k.top().map(|t| (t, frame[0] as u8, consumed_now(k, t))) } else { None };
+    let section = if number == entry::SVC_LOCK || number == entry::SVC_UNLOCK { k.top().map(|t| (t, frame[0] as u8, consumed_now(k, t, state.last_switch))) } else { None };
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     #[cfg(feature = "trace-ram")]
     let mut span_what = unsafe_module::ENTRY_PANIC as u32;
-    let (hop, safe) =
-        entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
+    let (hop, safe) = entry::svc_core(k, hw, tables, state, frame, number);
     #[cfg(feature = "trace-ram")]
     {
         let kind = match number {
@@ -754,7 +1022,7 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
             if number == entry::SVC_LOCK {
                 // From the lock's return: the lock's own work is not the
                 // Critical_Section's.
-                unsafe_module::stats_cs_open(t, r, consumed_now(k, t));
+                unsafe_module::stats_cs_open(t, r, consumed_now(k, t, state.last_switch));
             } else {
                 unsafe_module::stats_cs_close(t, r, at_entry);
             }
@@ -762,67 +1030,133 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     }
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, if stale { unsafe_module::ENTRY_PANIC } else { unsafe_module::ENTRY_JOB_END }, hop != 0, span_what);
+    span_close(k, tables, if stale { unsafe_module::ENTRY_PANIC } else { unsafe_module::ENTRY_JOB_END }, hop != 0, span_what);
     pins_running(k.top());
     hop
 }
 
+} // verus!
+
 /// The execution charged to the Job of `t` so far: the Budget account
 /// plus the DWT cycles since the last charge point (task 19.1).
 #[cfg(feature = "trace-ram")]
-fn consumed_now<K: crate::arch::bound::KernelOps>(k: &K, t: u8) -> u32 {
-    k.budget_used(t).wrapping_add(hw::dwt_cyccnt().wrapping_sub(unsafe_module::arch_state().last_switch))
+fn consumed_now<K: crate::arch::bound::KernelOps>(k: &K, t: u8, last_switch: u32) -> u32 {
+    k.budget_used(t).wrapping_add(hw::dwt_cyccnt().wrapping_sub(last_switch))
 }
 
 /// The Rust half of the unwind of one level, named by its exception
 /// number `n`: (PSP, CONTROL, EXC_RETURN, next), where `next` names one
 /// more level to unwind when the resumed Job was killed, else 0.
 pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
+    epilogue_shell(S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n, &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `epilogue` after the statics are fetched: `epilogue_core` for the level
+/// the stub names, the safe state when the core says so, and the core's
+/// result. What the core ensures of an unwind that does not end in the
+/// safe state holds of every call that returns.
+#[inline(always)]
+pub fn epilogue_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32, env: &E,
+) -> (r: (u32, u32, u32, ReturnPlan))
+    requires
+        old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
+        (n & 0x1FF) != 0, arch_inv(old(k), *old(state), (n & 0x1FF) as int),
+        view_matches(*old(state), old(hw)),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
+        view_matches(*final(state), final(hw)),
+        basepri_matches(final(k), final(hw)),
+        arch_inv(final(k), *final(state), r.3 as int),
+        epi_rel(final(k), *old(state), *final(state), r),
+        r.3 == 0 ==> crate::arch::bound::top_task(final(k))
+                == old(state).levels[old(state).chain_levels@.last()].previous_task as int
+            && final(state).pending_unwind == 0
+            && arch_matches(final(k), *final(state)),
+        r.3 == 0 && final(k).spec_depth() > 0
+            ==> final(hw).hw().fpu_access == final(k).spec_fpu()[crate::arch::bound::top_task(final(k))]
+            && final(hw).hw().view == Some(final(k).spec_part()[crate::arch::bound::top_task(final(k))]),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
+{
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
-    let (r, safe) = entry::epilogue_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n);
+    let (r, safe) = entry::epilogue_core(k, hw, tables, state, n);
     #[cfg(feature = "trace-ram")]
     let span_what = entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0, span_what);
+    span_close(k, tables, unsafe_module::ENTRY_EPILOGUE, r.3 != 0, span_what);
     pins_running(k.top());
     r
 }
 
+} // verus!
+
 /// Fault handlers (R14.3).
 pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
-    let k = S::kernel().get();
-    let mut hw = Cm4Hw::new();
+    fault_shell(S::kernel().get(), &mut Cm4Hw::new(), &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel, &SysEnv::<S>(PhantomData))
+}
+
+verus! {
+
+/// `fault` after the statics are fetched: `fault_core` with the stub's
+/// arguments, the safe state when the core says so, and the core's plan.
+/// A call that returns was the fault of an executing Job, attributed to
+/// its Partition: a fault the stub reports as the Kernel's, a HardFault,
+/// and a fault with no Job executing end in the safe state (R14.4).
+#[inline(always)]
+pub fn fault_shell<K: KernelOps, A: KernelArch, T: Tables, E: ShellEnv>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, kind: u8, in_kernel: bool, env: &E,
+) -> (hop: ReturnPlan)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        slots_step(old(k), final(k)), old(k).spec_deadline_owned() ==> final(k).spec_deadline_owned(),
+        final(k).inv(),
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), false),
+        final(k).spec_dispatch_guard(),
+        basepri_matches(final(k), final(hw)),
+        kentry_rel(final(k), *old(state), *final(state), hop as int),
+        !in_kernel && kind != EV_HARDFAULT && old(k).spec_depth() != 0,
+        final(hw).hw().view == old(hw).hw().view,
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        fault_entry(old(k), final(k), kind, in_kernel),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
+        pends_only(final(k), tables, old(hw).hw(), final(hw).hw(), no_others()),
+{
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
-    let (hop, safe) =
-        entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
+    let (hop, safe) = entry::fault_core(k, hw, tables, state, kind, in_kernel);
     #[cfg(feature = "trace-ram")]
     let span_what = entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        safe_state::<S>();
+        env.enter_safe_state();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
+    span_close(k, tables, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
     pins_running(k.top());
     hop
 }
+
+} // verus!
 
 /// The first MemManage fault since boot (`ArchState::first_fault_*`): CFSR
 /// with bit 31 set as the record mark, and the faulting address (MMFAR when

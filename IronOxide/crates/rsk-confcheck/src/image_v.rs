@@ -23,9 +23,9 @@
 //! discrepancy unless `image_is` holds of them and the image extracted
 //! from the binary. So a run without a discrepancy means the binary's
 //! image is, byte for byte, the encoding of the tables computed from the
-//! Task_Model. What stays ordinary Rust: reading the Task_Model, building
-//! the expected tables from it, finding the image in the ELF file, and the
-//! per-field report for the reader.
+//! Task_Model. What stays ordinary Rust: reading the Task_Model's JSON and
+//! the per-field report (the expected tables are `tables_v`'s and the image
+//! is found by `rsk_elf::reader_v`, both verified since 2026-11-26).
 
 use vstd::prelude::*;
 

@@ -34,6 +34,7 @@ pub mod image;
 pub mod image_v;
 pub mod model;
 pub mod recompute;
+pub mod tables_v;
 
 /// One discrepancy (R26.3).
 #[derive(Debug, Clone, PartialEq, Eq)]

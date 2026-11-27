@@ -275,3 +275,116 @@ construct = "#[verifier::external_body]"
 item = "address"
 why = "The address of the buffer's bytes is `as_ptr() as usize as u32`, a pointer-to-integer cast Verus does not take. No specification: the address is a fact of where the buffer lies, not of its value, and the proofs of `lend` and `reclaim` use none (the address requested is whatever this function returned at that call)."
 evidence = "Safe Rust, one line; the Kani harnesses of `dma_kani` run it and check that `reclaim` accepts a buffer's own transfer only."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = ""
+why = "LockHeld: a ghost value with no run-time form and no body (the evidence of one lock call's answer). Opaque so that no verified code can construct one: only `k_lock`'s trusted specification hands one out, and `k_unlock`'s takes it. It adds no fact about any program value."
+evidence = "Reading: the type is constructed nowhere in the crate (`Tracked::assume_new` occurs once, in `k_lock`); mutant rsk-lock-unlocks-before-the-closure shows that the proof of `Shared::lock` depends on it."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "lock_refused"
+why = "`panic!` has no model in Verus. Specification: the call does not return (a Flight_Build aborts on panic into the Partition's fault response, PR-19, R14.1)."
+evidence = "Reading: the body is the one `panic!`; the response-configuration fault-injection runs on the rig (a refused lock ends the Job)."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExResourceCell: `rsk_kernel::arch::cm4::unsafe_module::ResourceCell<T>` is declared in the Kernel_Unsafe_Module, outside `verus!` (its body is an `UnsafeCell`). Declared opaque (`external_body`): no specification function reads its content, since the content is not a function of a reference to the cell."
+evidence = "The four lines of `ResourceCell` in crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs (UJ-050 to UJ-054), read against this specification; the demo configurations' runs under QEMU and on the rig exercise each access; the App_Prover's contracts of `Shared::lock` and `PerTask::with` say the same of the closure."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = ""
+why = "ExResourceCell is opaque: see the entry of its `external_type_specification`."
+evidence = "The four lines of `ResourceCell` in crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs (UJ-050 to UJ-054), read against this specification; the demo configurations' runs under QEMU and on the rig exercise each access; the App_Prover's contracts of `Shared::lock` and `PerTask::with` say the same of the closure."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExWords: `rsk_kernel::arch::cm4::unsafe_module::hw::Words<W>` is declared in the Kernel_Unsafe_Module, outside `verus!`. Declared opaque (`external_body`): the Kernel writes the buffer through a raw pointer, so what it holds is not what Rust assignments gave it."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = ""
+why = "ExWords is opaque: see the entry of its `external_type_specification`."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "cell_with_held"
+why = "`ResourceCell::with` dereferences an `UnsafeCell` pointer (UJ-051), which Verus cannot model without a permission the API does not carry. Specification: requires the evidence of a granted lock (`LockHeld`) and the closure's precondition for every value; the closure was run once on some value and its result is returned. Nothing is said of which value."
+evidence = "The four lines of `ResourceCell` in crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs (UJ-050 to UJ-054), read against this specification; the demo configurations' runs under QEMU and on the rig exercise each access; the App_Prover's contracts of `Shared::lock` and `PerTask::with` say the same of the closure."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "cell_with_own"
+why = "`ResourceCell::with_unprivileged` dereferences an `UnsafeCell` pointer (UJ-053). Specification: requires the closure's precondition for every value; the closure was run once on some value and its result is returned."
+evidence = "The four lines of `ResourceCell` in crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs (UJ-050 to UJ-054), read against this specification; the demo configurations' runs under QEMU and on the rig exercise each access; the App_Prover's contracts of `Shared::lock` and `PerTask::with` say the same of the closure."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "cell_peek_own"
+why = "`ResourceCell::peek_unprivileged` reads through an `UnsafeCell` pointer (UJ-054). No specification: any value of the type."
+evidence = "The four lines of `ResourceCell` in crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs (UJ-050 to UJ-054), read against this specification; the demo configurations' runs under QEMU and on the rig exercise each access; the App_Prover's contracts of `Shared::lock` and `PerTask::with` say the same of the closure."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "to_words"
+why = "`message_to_words` writes the message through a pointer cast (UJ-058). Specification: the uninterpreted relation `words_of` between the message and the buffer returned, and that `4 * W` does not overflow `usize` (a value of `[u32; W]` exists, so its size is at most `isize::MAX`)."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "from_words"
+why = "`message_from_words` reads the message through a pointer cast (UJ-059). Specification: the uninterpreted relation `words_read` between the buffer as the proofs see it and the message returned; nothing is said of the message's value."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "zero_words"
+why = "`Words::zero` is a function of the opaque type `Words`. Specification: `4 * W` does not overflow `usize` (as for `to_words`); nothing of the value."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "words_address"
+why = "A pointer-to-integer cast, which Verus does not model for a field of an opaque type. Specification: the uninterpreted relation `words_at` between the buffer and the address returned (a relation, not a function of the buffer's value)."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "words_address_mut"
+why = "As `words_address`, for the buffer of a receive; the buffer's value after the call is left unconstrained, which stands for the Kernel's write through the address (no Rust assignment)."
+evidence = "The few lines of `Words`, `message_to_words` and `message_from_words` in crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs (UJ-058, UJ-059), read against this specification; the Kernel's side of the copy is proven (`send_message_ok`, `recv_message_ok` of the Endpoint services); the Endpoint demo and the PACEMAKER experiment's runs on the rig exchange messages through these functions."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external]"
+item = ""
+why = "Endpoint::FITS: an associated constant whose value is a compile-time `assert!` over `size_of` and `align_of` (R38.1), which Verus does not evaluate. No specification; the proofs use no fact of it."
+evidence = "The compile-fail fixture of xtask/fixtures/api-misuse for an oversized payload; the Generator's own assertion on the declared payload bytes."
+
+[[assumption]]
+file = "crates/rsk/src/lib.rs"
+construct = "#[verifier::external_body]"
+item = "fits_checked"
+why = "The body names the external constant `Endpoint::FITS` so that its assertion is evaluated for the instantiation; nothing at run time. No specification."
+evidence = "As for Endpoint::FITS."
+
