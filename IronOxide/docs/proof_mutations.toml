@@ -4368,6 +4368,25 @@ replace = "      let k ← rsk_logic.logic.kernel.Kernel.ack_reinit self.kernel 
 expect = ["Sched/"]
 prover = "lean"
 
+# 2026-11-27: the order of an entry's calls (Sched/Script.lean).
+[[mutation]]
+id = "lean-code-timer-entry-applies-on-the-state-before-the-timer-event"
+kills = "`timer_core_sh` (Sched/Script.lean; run 2026-11-27, killed there): the time base's entry is `timer_event` and then `apply_core` on the state `timer_event` returned; with `apply_core` called on the state the entry found, the slots served are lost and the path is no longer `timer_event`, `apply_core` in sequence"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1\n      hw2 tables state1\n  let hop ←\n    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2 depth_before gk0\n      gs0\n  let hw4 ← KernelArchInst.apply hw3 arch.cm4.entry.Action.WatchdogFeed\n"
+replace = "    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k\n      hw2 tables state1\n  let hop ←\n    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2 depth_before gk0\n      gs0\n  let hw4 ← KernelArchInst.apply hw3 arch.cm4.entry.Action.WatchdogFeed\n"
+expect = ["Sched/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-apply-core-acknowledges-the-reinit-on-the-state-before-the-stop"
+kills = "the loop invariant of Sched/Settle.lean (`apply_core_loop1_inv`), which is before Sched/Script.lean in the build and fails first (run 2026-11-27); `apply_core_loop1_acks` (Sched/Script.lean) states the order: for each Partition `apply_core` calls `take_stop_dma` and then `take_reinit` on the state the first returned; with `take_reinit` called on the state before, the stop's acknowledgement is lost"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "    let (b1, k2) ← boundKernelOpsInst.take_reinit k1 i1\n"
+replace = "    let (b1, k2) ← boundKernelOpsInst.take_reinit k i1\n"
+expect = ["Sched/"]
+prover = "lean"
+
 # 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
 [[mutation]]
 id = "link-frame-skips-a-decrement"

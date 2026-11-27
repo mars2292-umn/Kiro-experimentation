@@ -42,7 +42,11 @@ the code's half of it, for the Kernel that is linked.
   states of an entry and did not derive), and the Kernel's state changed
   by a sequence of the functions above and by nothing else.
 
-What this does not say. (1) Which of the functions an entry calls, and in
+What this does not say (the first and the third are proven since, later
+the same day: `Sched/Script.lean` reads the order from the cores, and
+`Sched/EntryRun.lean` gives the Kernel's functions of each path
+(`coreret_ksh`) and shows the state the start leaves is a boot state of the
+run, `start_first`). (1) Which of the functions an entry calls, and in
 what order: the relation admits any sequence, the two boot records and
 `Kernel::start` included in every entry (the assumption class has one
 invariant for every method, so a method no core calls cannot be told from

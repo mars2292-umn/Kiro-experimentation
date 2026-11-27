@@ -45,9 +45,12 @@ read from the code function by function (`Sched/Timer.lean`,
 `Sched/Endpoint.lean`). Since 2026-11-27 `Sched/Trace.lean` proves the
 code's half for a whole entry: the configuration is kept, and the Kernel
 state an entry leaves is reached from the one it found by a sequence of
-the functions the run's transitions carry (`entryof_lsteps`). Which
-functions, in what order, and the model's side of each transition stay as
-they were. -/
+the functions the run's transitions carry (`entryof_lsteps`).
+`Sched/Script.lean` and `Sched/EntryRun.lean` (later the same day) prove
+which functions and in what order (`coreret_ksh`), and that a run which
+follows each of those calls follows every execution of entries from the
+start (`exec_follows`); that the run follows each call is assumed there
+(`Follows`). -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic
