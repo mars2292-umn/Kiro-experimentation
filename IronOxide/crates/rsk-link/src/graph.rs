@@ -198,17 +198,10 @@ impl CallGraph {
                     _ => since_dsb = since_dsb.map(|n| n + 1),
                 }
                 match &insn.effect {
-                    Effect::SpDown(n) => f.frame = f.frame.saturating_add(*n),
-                    Effect::SpDynamic => f.dynamic_sp = true,
-                    Effect::Call(t) => f.direct.push(*t),
-                    Effect::Branch(t) => {
-                        if *t < *address || *t >= end {
-                            f.direct.push(*t);
-                        }
-                    }
+                    // The frame, the dynamic-SP mark and the direct edges are
+                    // taken from the verified functions after the loop (2026-11-26).
                     Effect::CompareBranch(t) => {
                         if *t < *address || *t >= end {
-                            f.direct.push(*t);
                             f.nonlocal_cbz.push((insn.address, *t));
                         }
                     }
@@ -237,6 +230,9 @@ impl CallGraph {
                     _ => {}
                 }
             }
+            f.frame = crate::bound_v::frame_of(&insns);
+            f.dynamic_sp = crate::bound_v::dynamic_of(&insns);
+            f.direct = crate::bound_v::direct_of(&insns, *address, end);
             f.direct.sort_unstable();
             f.direct.dedup();
             f.materialised.sort_unstable();

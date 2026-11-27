@@ -1492,6 +1492,27 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
             verdicts.push("proofs that must fail (proofs/creusot-negative): PROVED, the obligation is vacuous".to_string());
         }
     }
+    // 2026-11-26: the Partition API's own bodies, in proofs/creusot-rsk
+    // (the functions of `rsk` whose contracts are no longer `trusted`:
+    // the gate, the EasyDMA channel and held transfer, the constructors).
+    // The step passes only when Creusot proves the member.
+    let api = ws.root.join("proofs").join("creusot-rsk");
+    if api.join("Cargo.toml").is_file() {
+        let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+        creusot_session_clear(&api);
+        let mut cmd = Cmd::cargo().arg("creusot").args(["--", "--offline"]).cwd(&api);
+        let command = format!("(cd proofs/creusot-rsk && {})", cmd.display());
+        let (run_ok, text, _) = run_once(&mut cmd);
+        let proved = run_ok && text.contains("Proved (");
+        for (prover, n) in creusot_provers_used(&api) {
+            *provers.entry(prover).or_default() += n;
+        }
+        texts.push(format!("=== {command}\n{text}"));
+        commands.push(command);
+        creusot_session_clear(&api);
+        verdicts.push(format!("the rsk API's own bodies (proofs/creusot-rsk): {}", verdict_of(&text)));
+        ok = ok && proved;
+    }
     let prover_note = provers.iter().map(|(p, n)| format!("{p} {n}")).collect::<Vec<_>>().join(", ");
     verdicts.push(format!("goals discharged per solver: {prover_note}"));
     let text = texts.join("\n");

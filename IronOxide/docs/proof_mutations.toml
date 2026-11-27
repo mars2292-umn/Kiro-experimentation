@@ -4336,3 +4336,31 @@ replace = "              let i7 ← lift (a &&& 65535#u32)\n"
 expect = ["Tools/LinkThumb"]
 prover = "lean"
 
+# 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
+[[mutation]]
+id = "link-frame-skips-a-decrement"
+kills = "bound_v::frame_of (R37.1; 2026-11-26): a function's frame is the sum of every stack-pointer decrement the decoder read in its body; with the first instruction left out a prologue's push is not counted"
+file = "crates/rsk-link/src/bound_v.rs"
+find = "    let mut f: u32 = 0;\n    let mut i: usize = 0;\n"
+replace = "    let mut f: u32 = 0;\n    let mut i: usize = if insns.len() > 0 { 1 } else { 0 };\n"
+expect = ["bound_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "link-edge-of-a-leaving-branch-dropped"
+kills = "bound_v::direct_of (R37.1; 2026-11-26): the direct edges are exactly the calls and the branches that leave the body; a tail call (a branch beyond the body's end) left out loses its callee's stack from the walk"
+file = "crates/rsk-link/src/bound_v.rs"
+find = "            Effect::Branch(t) => {\n                if *t < address || *t >= end {\n"
+replace = "            Effect::Branch(t) => {\n                if *t < address {\n"
+expect = ["bound_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "link-msp-bound-without-the-nested-fatal-usage"
+kills = "bound_v::msp_value (R37.2; 2026-11-26): the nested-handlers case counts the fatal handler's own usage after its frame; without it the path to the safe state from a fault in a handler is not covered"
+file = "crates/rsk-link/src/bound_v.rs"
+find = "    let nested = match n4.checked_add(i.fatal) {\n"
+replace = "    let nested = match n4.checked_add(0) {\n"
+expect = ["bound_v.rs"]
+package = "rsk-link"
+

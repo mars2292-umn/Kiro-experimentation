@@ -36,10 +36,7 @@ use crate::demangle::demangle;
 use crate::graph::FunctionReport;
 use crate::Violation;
 
-/// Basic exception frame (HW-06).
-pub const BASIC_FRAME: u32 = 32;
-/// Extended frame with S0-S15 and FPSCR (HW-10, eager stacking).
-pub const FP_FRAME: u32 = 104;
+pub use crate::bound_v::{MspInputs, BASIC_FRAME, FP_FRAME};
 /// The dispatch stub's level record: R3-R11 and LR (10 words).
 pub const LEVEL_RECORD: u32 = 40;
 /// The level record with S16-S31.
@@ -134,25 +131,6 @@ fn vector_handler<'a>(elf: &rsk_elf::Elf, functions: &'a [FunctionReport], numbe
     Ok(functions.iter().find(|f| f.address == addr))
 }
 
-/// What the MSP bound is computed from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MspInputs {
-    /// The worst usage over every vector-table entry, the reset included.
-    pub worst: u64,
-    /// The reset handler's usage.
-    pub reset: u64,
-    /// The worst usage over the handlers other than the reset.
-    pub worst_handler: u64,
-    /// The worse of the HardFault and NMI handlers' usages.
-    pub fatal: u64,
-    /// The number of Job levels (distinct Priorities).
-    pub levels: u64,
-    /// The bytes of one level record.
-    pub record: u64,
-    /// Whether a Task has a floating-point context.
-    pub any_fp: bool,
-}
-
 /// The MSP bound and its terms (R37.2). The largest of three cases:
 ///
 /// 1. the rule before 2026-11-26: the worst entry, one level record per
@@ -165,13 +143,11 @@ pub struct MspInputs {
 ///    handler (an extended frame when a Task has a floating-point
 ///    context) with the fatal handler's usage.
 pub fn msp_bound(i: &MspInputs) -> (u64, Vec<String>) {
-    let records = i.levels * i.record;
+    // The three cases and the bound are the verified `bound_v::msp_value`
+    // (2026-11-26); a term that does not fit 64 bits is a bound no region holds.
+    let records = i.levels.saturating_mul(i.record);
     let fatal_frame = if i.any_fp { FP_FRAME } else { BASIC_FRAME } as u64;
-    let windows = i.levels * BASIC_FRAME as u64;
-    let before = i.worst + records + BASIC_FRAME as u64;
-    let start = i.reset + BASIC_FRAME as u64 + i.fatal;
-    let nested = i.worst_handler + records + BASIC_FRAME as u64 + windows + fatal_frame + i.fatal;
-    let bound = before.max(start).max(nested);
+    let (before, start, nested, bound) = crate::bound_v::msp_value(i).unwrap_or((u64::MAX, u64::MAX, u64::MAX, u64::MAX));
     let terms = vec![
         format!("worst entry {} + {} Job levels x {} (level records) + {BASIC_FRAME} (exception frame from the idle loop) = {before}", i.worst, i.levels, i.record),
         format!("the start with a HardFault or NMI in it: {} + {BASIC_FRAME} + {} = {start}", i.reset, i.fatal),
@@ -224,15 +200,16 @@ pub fn bounds(elf: &rsk_elf::Elf, model: &ModelInputs, functions: &[FunctionRepo
     }
     let mut regions = Vec::new();
     for p in &model.partitions {
-        let mut bound = 0u64;
+        let mut jobs: Vec<(u32, u32)> = Vec::new();
         let mut terms = Vec::new();
         let mut ps: Vec<&TaskUsage> = tasks.iter().filter(|u| model.tasks.iter().any(|t| t.id == u.id && t.partition == p.id)).collect();
         ps.sort_by_key(|u| model.tasks.iter().find(|t| t.id == u.id).map_or(0, |t| t.priority));
         for u in ps {
-            let per_job = u.usage as u64 + u.frame_bytes as u64;
             terms.push(format!("{}: {} (wrapper) + {} (initial and stacked frames)", u.id, u.usage, u.frame_bytes));
-            bound += per_job;
+            jobs.push((u.usage, u.frame_bytes));
         }
+        // The sum is the verified `bound_v::jobs_bound` (2026-11-26).
+        let bound = crate::bound_v::jobs_bound(&jobs).unwrap_or(u64::MAX);
         let ok = bound <= p.stack;
         if !ok {
             violations.push(Violation { rule: "R37.2", message: format!("Partition `{}`: stack region {} bytes, worst case {bound} bytes ({})", p.id, p.stack, terms.join("; ")) });

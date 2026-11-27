@@ -388,3 +388,25 @@ item = "fits_checked"
 why = "The body names the external constant `Endpoint::FITS` so that its assertion is evaluated for the instantiation; nothing at run time. No specification."
 evidence = "As for Endpoint::FITS."
 
+[[assumption]]
+file = "crates/rsk-link/src/bound_v.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExFpClass: `rsk_link::thumb::FpClass`, the class of a floating-point instruction (four variants without fields), declared outside `verus!` because the decoder is translated to Lean from that file; it is a field of `Effect`."
+evidence = "The type is transparent to Verus (its definition is read, not assumed); the decoder's tests and its Lean proof (`Tools/LinkThumbArm.lean`) are of the functions that build its values."
+
+
+[[assumption]]
+file = "crates/rsk-link/src/bound_v.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExEffect: `rsk_link::thumb::Effect`, what the decoder read of one instruction (an enum with public fields), declared outside `verus!`; `frame_of`, `dynamic_of` and `direct_of` match on its variants. No axiom about its values."
+evidence = "The type is transparent to Verus (its definition is read, not assumed); the decoder's tests and its Lean proof (`Tools/LinkThumbArm.lean`) are of the functions that build its values."
+
+
+[[assumption]]
+file = "crates/rsk-link/src/bound_v.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExInsn: `rsk_link::thumb::Insn` (address, length, effect: public fields), one decoded instruction, read by the same three functions. No axiom about its values."
+evidence = "The type is transparent to Verus (its definition is read, not assumed); the decoder's tests and its Lean proof (`Tools/LinkThumbArm.lean`) are of the functions that build its values."
