@@ -4387,6 +4387,25 @@ replace = "    let (b1, k2) ← boundKernelOpsInst.take_reinit k i1\n"
 expect = ["Sched/"]
 prover = "lean"
 
+# 2026-11-27: the dispatch choice joined to the interrupt controller (Sched/NvicRun.lean, Sched/SelectLow.lean).
+[[mutation]]
+id = "lean-nvic-taken-without-the-selected-vector-pending"
+kills = "`execn_kreach` (Sched/NvicRun.lean; run 2026-11-27, killed there): the Task whose vector the NVIC takes is the one `Sched::select` returns only because the vector of `select`'s Task was pending when the NVIC arbitrated; without that clause of `Taken` the NVIC may take the vector of a lower eligible Task and `Nv.taken_is_select` has no premise to apply"
+file = "proofs/aeneas/lean/Sched/NvicRun.lean"
+find = "    (∀ t : U8, logic.sched.Sched.select s cfg = ok (some t) → pending (vector t.val)) ∧\n    Nv.nvicSelects pending group (Nv.dispatchExec cfg s) n\n"
+replace = "    (∀ t : U8, logic.sched.Sched.select s cfg = ok (some t) → True) ∧\n    Nv.nvicSelects pending group (Nv.dispatchExec cfg s) n\n"
+expect = ["Sched/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-select-keeps-the-later-task-among-equals"
+kills = "the loop proof of Sched/Select.lean (`select_loop_ok`), which is before Sched/SelectLow.lean in the build and fails first (run 2026-11-27: its arithmetic step no longer follows from the changed comparison; the statement it proves, the highest Priority, is still true of the mutant); `select_loop_low` (Sched/SelectLow.lean; R7.3) states the order: `Sched::select` replaces its candidate only on a strictly higher Priority, so among pending Tasks of the highest Priority it returns the lowest identifier, which is the vector the NVIC takes among equals; with `>=` it returns the highest"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          let i1 ← if tc.priority > tc1.priority\n                     then ok t\n                     else ok bt\n"
+replace = "          let i1 ← if tc.priority >= tc1.priority\n                     then ok t\n                     else ok bt\n"
+expect = ["Sched/"]
+prover = "lean"
+
 # 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
 [[mutation]]
 id = "link-frame-skips-a-decrement"

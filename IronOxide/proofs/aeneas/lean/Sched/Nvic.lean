@@ -26,8 +26,10 @@ reading. What is proven is proven of the extracted `Sched`:
   Task admitted, no pending dispatch vector is taken.
 - `select_is_srp`: the Task `Sched::select` returns is admitted and of the
   highest Priority among the pending ones. That it is the lowest Task
-  identifier among equals (R7.3) is proven of `select` in Verus only; here
-  it is a clause of `Srp` and a premise.
+  identifier among equals (R7.3) is a clause of `Srp` and a premise in this
+  file; since 2026-11-27 it is proven of the extracted `select` in
+  `Sched/SelectLow.lean` (`select_srp`), and `Sched/NvicRun.lean` has the
+  converse of `dispatch_selects_srp` for the code (`taken_is_select`).
 - `kernel_level_never_masked`, `kernel_level_taken` (Property 10's level
   part, R18.2): BASEPRI never keeps a Kernel-level exception from being
   taken; in every state of a run it is taken.

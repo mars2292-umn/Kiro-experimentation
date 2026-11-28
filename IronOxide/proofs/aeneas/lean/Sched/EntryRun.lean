@@ -53,7 +53,8 @@ model's statement about the system and are not derived from the code:
 a served slot and an intake (an arrival awaiting its entry, the bound of
 the Kernel section), a dispatch (that the Task is the one `Sched::select`
 returns: the code checks that it is eligible, the interrupt controller
-chooses it, `Sched/Nvic.lean`), a lock, an unlock, the end of a Job and an
+chooses it; `Sched/NvicRun.lean` replaces this field by the hardware
+model's statement of that choice), a lock, an unlock, the end of a Job and an
 Endpoint's record (that `Sched::select` returns no Task while a Job
 executes, the execution left, the bounds). `Sched/Timer.lean` and
 `Sched/Endpoint.lean` give the run's transition for a served slot and an
@@ -378,12 +379,10 @@ satisfies `I` and whose Kernel state is the function's result. What each
 field is given beside the call is what the code has established where it
 makes the call. `served` is told whether the slot is the first a timer
 entry serves, and then that the Kernel state is quieted. -/
-structure Follows (I : KSt NT NR NP NL NS NE → Prop) (cfg : logic.Config NT NR NP) (P : Params) :
-    Prop where
+structure FollowsRest (I : KSt NT NR NP NL NS NE → Prop) (cfg : logic.Config NT NR NP)
+    (P : Params) : Prop where
   start : ∀ (x : KSt NT NR NP NL NS NE) k', I x → x.k.started = false →
     logic.kernel.Kernel.start x.k cfg = ok k' → Fol I cfg P x k'
-  dispatch : ∀ (x : KSt NT NR NP NL NS NE) t pc k', I x → x.k.started = true →
-    logic.kernel.Kernel.dispatch x.k cfg t pc = ok k' → Fol I cfg P x k'
   settle : ∀ (x : KSt NT NR NP NL NS NE) r k', I x →
     logic.kernel.Kernel.settle x.k cfg = ok (r, k') → Fol I cfg P x k'
   ret : ∀ (x : KSt NT NR NP NL NS NE) ec k', I x → x.k.sched.depth > 0#usize →
@@ -413,6 +412,14 @@ structure Follows (I : KSt NT NR NP NL NS NE → Prop) (cfg : logic.Config NT NR
     logic.kernel.Kernel.ack_stop_dma x.k cfg p = ok k' → Fol I cfg P x k'
   ack_reinit : ∀ (x : KSt NT NR NP NL NS NE) p k', I x →
     logic.kernel.Kernel.ack_reinit x.k cfg p = ok k' → Fol I cfg P x k'
+
+/-- `FollowsRest`, and the same for a dispatch: of whichever Task the
+entry dispatches. (`Sched/NvicRun.lean` has the statement in which the
+dispatch field is asked only of the Task `Sched::select` returns.) -/
+structure Follows (I : KSt NT NR NP NL NS NE → Prop) (cfg : logic.Config NT NR NP) (P : Params) :
+    Prop extends FollowsRest I cfg P where
+  dispatch : ∀ (x : KSt NT NR NP NL NS NE) t pc k', I x → x.k.started = true →
+    logic.kernel.Kernel.dispatch x.k cfg t pc = ok k' → Fol I cfg P x k'
 
 section follows
 variable {I : KSt NT NR NP NL NS NE → Prop} {cfg : logic.Config NT NR NP} {P : Params}
@@ -470,7 +477,7 @@ theorem fol_unwind {x : KSt NT NR NP NL NS NE} {ec : U32}
     (hI : I { x with k := k', run := Function.update x.run x.top 0 }) :
     Fol I cfg P x k' := Fol.one (KStep.unwind x ec k' h) hI
 
-theorem served_fol (F : Follows I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+theorem served_fol (F : FollowsRest I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     (h : ServedChain cfg k k') :
     ∀ (x : KSt NT NR NP NL NS NE) (first : Bool), I x → x.k = k →
       (first = true → Quieted cfg k) → Fol I cfg P x k' := by
@@ -482,7 +489,7 @@ theorem served_fol (F : Follows I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL
     exact (F.served x first i k1 hI hq hdue hs).then fun y hy hyk =>
       ih y false hy hyk (fun e => by cases e)
 
-theorem kacks_fol (F : Follows I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+theorem kacks_fol (F : FollowsRest I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     (h : KAcks cfg k k') :
     ∀ (x : KSt NT NR NP NL NS NE), I x → x.k = k → Fol I cfg P x k' := by
   induction h with
@@ -502,14 +509,15 @@ theorem kacks_fol (F : Follows I cfg P) {k k' : logic.kernel.Kernel NT NR NP NL 
       · exact F.ack_reinit y p k2 hy h
     exact f2.then fun z hz hzk => ih z hz hzk
 
-theorem kapplied_fol (F : Follows I cfg P) {x : KSt NT NR NP NL NS NE}
+theorem kapplied_fol (F : FollowsRest I cfg P) {x : KSt NT NR NP NL NS NE}
     {k' : logic.kernel.Kernel NT NR NP NL NS NE} (hI : I x) (h : KApplied cfg x.k k') :
     Fol I cfg P x k' := by
   obtain ⟨r, k1, hs, ha⟩ := h
   exact (F.settle x r k1 hI hs).then fun y hy hyk => kacks_fol F ha y hy hyk
 
-/-- **The run follows one method's calls.** -/
-theorem kw_fol (F : Follows I cfg P) {l : Lbl} {x : KSt NT NR NP NL NS NE}
+/-- The run follows the calls of a method other than `dispatch`. -/
+theorem kw_fol_rest (F : FollowsRest I cfg P) {l : Lbl} (hl : l ≠ .dispatch)
+    {x : KSt NT NR NP NL NS NE}
     {k' : logic.kernel.Kernel NT NR NP NL NS NE} (first : Bool) (hI : I x)
     (hq : first = true → Quieted cfg x.k) (h : KW cfg l x.k k') : Fol I cfg P x k' := by
   cases l with
@@ -517,15 +525,7 @@ theorem kw_fol (F : Follows I cfg P) {l : Lbl} {x : KSt NT NR NP NL NS NE}
     rcases h with rfl | ⟨hs, h⟩
     · exact Fol.here hI
     · exact F.start x k' hI hs h
-  | dispatch =>
-    obtain ⟨k1, r, hd, hs⟩ := h
-    have f1 : Fol I cfg P x k1 := by
-      rcases hd with rfl | ⟨hst, t, pc, hd⟩
-      · exact Fol.here hI
-      · exact F.dispatch x t pc k1 hI hst hd
-    refine f1.then fun y hy hyk => ?_
-    subst hyk
-    exact F.settle y r k' hy hs
+  | dispatch => exact absurd rfl hl
   | ret =>
     rcases h with rfl | ⟨hd, ec, h⟩
     · exact Fol.here hI
@@ -579,6 +579,36 @@ theorem kw_fol (F : Follows I cfg P) {l : Lbl} {x : KSt NT NR NP NL NS NE}
     · exact Fol.here hI
     · exact F.record x kind t k' hI h
   | apply => exact kapplied_fol F hI h
+
+/-- **The run follows one method's calls.** -/
+theorem kw_fol (F : Follows I cfg P) {l : Lbl} {x : KSt NT NR NP NL NS NE}
+    {k' : logic.kernel.Kernel NT NR NP NL NS NE} (first : Bool) (hI : I x)
+    (hq : first = true → Quieted cfg x.k) (h : KW cfg l x.k k') : Fol I cfg P x k' := by
+  by_cases hl : l = .dispatch
+  · subst hl
+    obtain ⟨k1, r, hd, hs⟩ := h
+    have f1 : Fol I cfg P x k1 := by
+      rcases hd with rfl | ⟨hst, t, pc, hd⟩
+      · exact Fol.here hI
+      · exact F.dispatch x t pc k1 hI hst hd
+    refine f1.then fun y hy hyk => ?_
+    subst hyk
+    exact F.settle y r k' hy hs
+  · exact kw_fol_rest F.toFollowsRest hl first hI hq h
+
+/-- The run follows a path with no dispatch. -/
+theorem ksh_fol_rest (F : FollowsRest I cfg P) {ls : List Lbl}
+    {k k' : logic.kernel.Kernel NT NR NP NL NS NE} (h : KSh cfg ls k k') :
+    ∀ (x : KSt NT NR NP NL NS NE) (first : Bool), Lbl.dispatch ∉ ls → I x → x.k = k →
+      (first = true → Quieted cfg k) → Fol I cfg P x k' := by
+  induction h with
+  | nil k => intro x _ _ hI hk _; subst hk; exact Fol.here hI
+  | cons l ls k k1 k' h1 _ ih =>
+    intro x first hnd hI hk hq
+    subst hk
+    have hl : l ≠ .dispatch := fun e => hnd (by rw [e]; exact List.mem_cons_self)
+    exact (kw_fol_rest F hl first hI hq h1).then fun y hy hyk =>
+      ih y false (fun m => hnd (List.mem_cons_of_mem _ m)) hy hyk (fun e => by cases e)
 
 /-- **The run follows a path.** The first item of the path is called on
 the state the entry found, which is quieted. -/
