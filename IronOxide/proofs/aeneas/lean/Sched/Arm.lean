@@ -234,6 +234,10 @@ def decode16 (h : Nat) : Option Instr :=
   -- BX: 0100 0111 0 Rm (000)
   else if h / 128 = 0x8E ∧ h % 8 = 0 then
     if h / 8 % 16 = 15 then none else some (.bx (h / 8 % 16))
+  -- POP T1 without the PC: 1011 110 0 register_list, the list not empty.
+  -- Added on 2026-11-27 for the Link_Checker's decoder
+  -- (`Tools/LinkThumbSpec.lean`); no stub contains one.
+  else if h / 512 = 0x5E ∧ h / 256 % 2 = 0 ∧ h % 256 ≠ 0 then some (.pop (h % 256))
   else none
 
 /-- A modified immediate constant that is a plain byte: `i:imm3` is 0000

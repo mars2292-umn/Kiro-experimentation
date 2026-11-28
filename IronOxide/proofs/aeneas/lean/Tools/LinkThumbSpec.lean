@@ -462,6 +462,19 @@ theorem d16_agrees (h pc : Nat) (hh : h < 65536) (hpc : pc < 1073741824) (i : In
       refine ⟨sp_plain _ (by first | trivial | simp [KeepsSp]) _ ⟨fun _ => by simp, fun _ => by simp⟩, ?_⟩
       show (if h / 8 % 16 = 14 then _ else AEff.ibranch (h / 8 % 16) = .ibranch (h / 8 % 16))
       rw [if_neg hlr]
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- pop (T1, without the PC; 2026-11-27)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D16 h pc = .spUp (4 * ones 16 (h % 256)) := by
+      unfold D16
+      eval_ifs
+    rw [hD]
+    refine ⟨?_, trivial⟩
+    intro len s t ht
+    have := eff_pop_sp _ len s t ht
+    rw [maskRegs_wide _ (by omega)] at this
+    exact this
   exact absurd hd (by simp)
 
 /-! ## The 32-bit encodings -/

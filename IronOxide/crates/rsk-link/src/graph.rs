@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::thumb::{self, Effect, FpClass};
+use crate::thumb::{Effect, FpClass};
 
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -17,6 +17,10 @@ pub struct Function {
     /// for: of a class that can write SP, in a form it reads no change
     /// from. A function with one has no stack bound (2026-11-27).
     pub sp_unread: Vec<u32>,
+    /// Why the body has no certificate of its control flow and stack
+    /// heights (`flow_v::flow_ok` refused the walk's proposal), `None` when
+    /// it has one. A function without it has no stack bound (2026-11-27).
+    pub uncertified: Option<String>,
     /// Direct call and tail-call targets (addresses).
     pub direct: Vec<u32>,
     /// Indirect call sites (`blx Rm`).
@@ -161,12 +165,17 @@ impl CallGraph {
         let literal = |a: u32| -> Option<u32> {
             elf.read_at(a, 4).ok().map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         };
+        // The functions a call of which does not return: the panic path.
+        let noreturn: Vec<u32> = funcs.iter().filter(|f| Self::is_panic_path(&f.0)).map(|f| f.1).collect();
         let mut functions = Vec::with_capacity(funcs.len());
         let mut by_address = BTreeMap::new();
         let mut indirect_total = 0;
         for (i, (name, address, size)) in funcs.iter().enumerate() {
             let code = elf.read_at(*address, *size as usize).map_err(|e| format!("binary: `{name}`: {e}"))?;
-            let insns = thumb::decode_function(&code, *address, &literal);
+            // The body as control reaches it from its first instruction,
+            // with the verified check of the walk and of the stack heights.
+            let flow = crate::flow::body(&code, *address, &literal, &noreturn);
+            let insns = &flow.insns;
             let end = address + size;
             let mut f = Function {
                 name: name.clone(),
@@ -175,6 +184,7 @@ impl CallGraph {
                 frame: 0,
                 dynamic_sp: false,
                 sp_unread: Vec::new(),
+                uncertified: None,
                 direct: Vec::new(),
                 indirect_sites: 0,
                 indirect_branches: 0,
@@ -190,7 +200,7 @@ impl CallGraph {
             let mut partial: BTreeMap<u8, u32> = BTreeMap::new();
             // Instructions since the last `dsb`, `cps` not counted; `None` before any.
             let mut since_dsb: Option<u32> = None;
-            for insn in &insns {
+            for insn in insns {
                 match &insn.effect {
                     Effect::Dsb => since_dsb = Some(0),
                     Effect::Cps => {}
@@ -211,7 +221,6 @@ impl CallGraph {
                         }
                     }
                     Effect::Nop => f.nops.push(insn.address),
-                    Effect::SpUnread => f.sp_unread.push(insn.address),
                     Effect::IndirectCall(_) => f.indirect_sites += 1,
                     Effect::IndirectBranch(_) => f.indirect_branches += 1,
                     Effect::Constant(reg, v) if (0xE000_0000..0xE010_0000).contains(v) => {
@@ -236,9 +245,11 @@ impl CallGraph {
                     _ => {}
                 }
             }
-            f.frame = crate::bound_v::frame_of(&insns);
-            f.dynamic_sp = crate::bound_v::dynamic_of(&insns);
-            f.direct = crate::bound_v::direct_of(&insns, *address, end);
+            f.frame = crate::bound_v::frame_of(insns);
+            f.dynamic_sp = crate::bound_v::dynamic_of(insns);
+            f.sp_unread = crate::bound_v::unread_of(insns);
+            f.uncertified = if flow.certified { None } else { Some(flow.why.clone().unwrap_or_default()) };
+            f.direct = crate::bound_v::direct_of(insns, *address, end);
             f.direct.sort_unstable();
             f.direct.dedup();
             f.materialised.sort_unstable();
@@ -479,6 +490,9 @@ impl CallGraph {
             // Fail closed: before a dynamic write, so that the form is named.
             why = Some(format!("an instruction of a class that can write SP, in a form the decoder reads no stack-pointer change from, at {at:#010x} ({} such instruction(s))", f.sp_unread.len()));
         }
+        if let Some(w) = &f.uncertified {
+            why = why.or(Some(format!("no certificate of the body's control flow and stack heights: {w}")));
+        }
         match self.callees(i) {
             None => why = why.or(Some(format!("unresolved indirect call ({} site(s), no function address materialised in the body)", f.indirect_sites))),
             Some(callees) => {
@@ -521,7 +535,7 @@ mod tests {
         let mut by_address = BTreeMap::new();
         for (i, (name, address, frame, direct, indirect, materialised, dynamic)) in funcs.into_iter().enumerate() {
             by_address.insert(address, i);
-            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, sp_unread: vec![], direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
+            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, sp_unread: vec![], uncertified: None, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
         }
         CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![], table_words: vec![], embedded: vec![], section_of: vec![], fetch_probes: vec![] }
     }
@@ -552,6 +566,19 @@ mod tests {
         assert!(by("r2").unbounded.as_deref().unwrap().contains("r1"));
         assert!(by("unres").unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
         assert!(by("dyn").unbounded.as_deref().unwrap().contains("dynamic"));
+    }
+
+    /// 2026-11-27: a function whose body has no certificate of its control
+    /// flow and stack heights has no bound, and neither has its caller.
+    #[test]
+    fn a_body_without_its_certificate_leaves_no_bound() {
+        let mut g = graph(vec![("main", 0x100, 16, vec![0x200], 0, vec![], false), ("loop", 0x200, 8, vec![], 0, vec![], false), ("plain", 0x300, 8, vec![], 0, vec![], false)]);
+        g.functions[1].uncertified = Some("a loop of the body lowers SP more than it raises it: no height fits".to_string());
+        let r = g.analyse();
+        let by = |n: &str| r.iter().find(|f| f.name == n).unwrap();
+        assert!(by("loop").unbounded.as_deref().unwrap().contains("no certificate"));
+        assert!(by("main").unbounded.as_deref().unwrap().contains("calls unbounded `loop`"));
+        assert!(by("plain").unbounded.is_none());
     }
 
     /// 2026-11-27, fail closed: a function with an instruction the decoder

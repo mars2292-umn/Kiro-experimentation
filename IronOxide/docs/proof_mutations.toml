@@ -4406,6 +4406,61 @@ replace = "          let i1 ← if tc.priority >= tc1.priority\n                
 expect = ["Sched/"]
 prover = "lean"
 
+# 2026-11-27: the certificate of a body's control flow and stack heights (rsk-link/src/flow_v.rs).
+[[mutation]]
+id = "flow-passage-lands-at-any-height"
+kills = "flow_v::lands_check (R37.1; 2026-11-27): a passage must land on an instruction whose height is at least the height left plus what the instruction left adds; with any height accepted a loop that lowers SP each time round has a certificate"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "        if insns[j].address == t && d[j] >= need {\n            return true;\n        }\n        j += 1;"
+replace = "        if insns[j].address == t {\n            return true;\n        }\n        j += 1;"
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "flow-conditional-increment-credited"
+kills = "flow_v::delta_of: an increment under an `it` may not execute and is not credited; credited, a loop that lowers SP and raises it only when a condition holds has a certificate"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "        Effect::SpUp(n) => if c { 0 } else { -(*n as i64) },\n        _ => 0,\n    }\n}\n\n/// The address `t`"
+replace = "        Effect::SpUp(n) => -(*n as i64),\n        _ => 0,\n    }\n}\n\n/// The address `t`"
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "flow-no-passage-after-any-call"
+kills = "flow_v::node_check: control returns from a call to the next address, which must be an instruction of the list, unless the call is the body's last instruction or of a function that does not return; with every call taken as final the code after a call is not checked"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "            Effect::Call(_) => next == end,"
+replace = "            Effect::Call(_) => true,"
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "flow-table-entry-outside-the-body"
+kills = "flow_v::table_check: every entry of a `tbb`/`tbh` table branches to an instruction of the list in the body; an entry past the body's end is refused"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "            if t >= end {\n                return false;\n            }\n            if !lands_check(insns, d, t as u32, need, insns.len()) {\n                return false;\n            }\n"
+replace = "            if t < end && !lands_check(insns, d, t as u32, need, insns.len()) {\n                return false;\n            }\n"
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "flow-height-over-the-frame"
+kills = "flow_v::node_check: every height plus the instruction's own decrement is within the frame the bound is computed from"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "    if d[i] + dn > frame as i64 {\n        return false;\n    }\n"
+replace = ""
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
+[[mutation]]
+id = "flow-it-block-one-instruction-short"
+kills = "flow_v::it_check: an `it` with the low bit of its mask set governs four instructions, each of which must be marked; with three, the fourth's increment would be credited"
+file = "crates/rsk-link/src/flow_v.rs"
+find = "let count: usize = if h1 & 1 != 0 { 4 } else"
+replace = "let count: usize = if h1 & 1 != 0 { 3 } else"
+expect = ["flow_v.rs"]
+package = "rsk-link"
+
 # 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
 [[mutation]]
 id = "link-frame-skips-a-decrement"

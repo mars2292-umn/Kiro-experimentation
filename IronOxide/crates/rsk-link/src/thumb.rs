@@ -521,7 +521,10 @@ pub fn sp_unread(a: u32, b: u32) -> bool {
     both(both((a >> 8) & 1 == 0, (b >> 4) & 1 == 1), both(l == 1, rt == 13))
 }
 
-/// Decodes a whole function body.
+/// Decodes every halfword of a function's symbol in address order. Not the
+/// Link_Checker's body since 2026-11-27 (`flow::body`: the instructions
+/// control reaches, an inline table read as data); kept for the tests that
+/// compare the two.
 pub fn decode_function(code: &[u8], base: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Vec<Insn> {
     let mut out = Vec::new();
     let mut addr = base;

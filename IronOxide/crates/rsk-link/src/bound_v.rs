@@ -20,8 +20,13 @@
 //! - `jobs_bound`: a Partition's bound is the sum over its Tasks of the
 //!   wrapper's usage and the frames stacked for a Job.
 //!
-//! What stays outside: `decode_function` (the walk over a body's bytes and
-//! the literal reads), the symbol table and the read-only tables the
+//! - `unread_of` (2026-11-27): the addresses of the instructions the
+//!   decoder answered `SpUnread` for. A function with one has no bound.
+//!
+//! The body these are computed from is `flow::body`'s, whose walk and
+//! stack heights are checked by `flow_v::flow_ok` (2026-11-27).
+//!
+//! What stays outside: the literal reads, the symbol table and the read-only tables the
 //! indirect calls are resolved from, the walk itself (checked by `cert`),
 //! and the text of the report.
 
@@ -231,6 +236,53 @@ proof fn lemma_pushed(s: Seq<u32>, t: u32, u: u32)
             assert(s[k] == u);
         }
     }
+}
+
+/// The addresses of the instructions the decoder answered `SpUnread` for:
+/// every one of the body, and no other address (2026-11-27; until then a
+/// line of the graph's own loop).
+pub fn unread_of(insns: &Vec<Insn>) -> (v: Vec<u32>)
+    ensures
+        forall|a: u32| v@.contains(a) <==> exists|i: int| 0 <= i < insns@.len() && (#[trigger] insns@[i]).effect is SpUnread && insns@[i].address == a,
+{
+    let mut v: Vec<u32> = Vec::new();
+    let mut i: usize = 0;
+    while i < insns.len()
+        invariant
+            i <= insns.len(),
+            forall|a: u32| v@.contains(a) <==> exists|j: int| 0 <= j < i && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a,
+        decreases insns.len() - i,
+    {
+        let ghost before = v@;
+        match &insns[i].effect {
+            Effect::SpUnread => {
+                let at = insns[i].address;
+                v.push(at);
+                assert forall|a: u32| v@.contains(a) <==> exists|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a by {
+                    lemma_pushed(before, at, a);
+                    if exists|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a {
+                        let j = choose|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a;
+                        if j < i {
+                            assert(before.contains(a));
+                        }
+                    }
+                    if v@.contains(a) && !before.contains(a) {
+                        assert(insns@[i as int].effect is SpUnread && insns@[i as int].address == a);
+                    }
+                }
+            }
+            _ => {
+                assert forall|a: u32| v@.contains(a) <==> exists|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a by {
+                    if exists|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a {
+                        let j = choose|j: int| 0 <= j < i + 1 && (#[trigger] insns@[j]).effect is SpUnread && insns@[j].address == a;
+                        assert(j < i);
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    v
 }
 
 // ------------------------------------------------------------ the bounds

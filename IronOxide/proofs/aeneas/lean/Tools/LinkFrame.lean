@@ -23,9 +23,11 @@ the frame when no instruction is executed twice.
   body's (each instruction at most once, in any selection), the descent is
   at most the sum of the body's decrements, the frame.
 
-What this does not say: that a path executes no instruction twice (a loop
-whose body lowers SP is outside the frame model, and the Link_Checker has
-no check for it), and nothing about calls between functions (the frames of
+What this does not say: that a path executes no instruction twice. Since
+2026-11-27 the Link_Checker does not rely on that: it checks a height for
+every instruction of a body, and `Tools/LinkFlow.lean` bounds the descent
+of any path by the frame from those heights, loops included. And nothing
+about calls between functions (the frames of
 a call path are added by the certificate, `Tools/LinkCertProofs.lean`).
 Handwritten; no compiled code is involved beyond `SpStep`'s link above. -/
 

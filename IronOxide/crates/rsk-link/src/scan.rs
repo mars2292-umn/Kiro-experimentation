@@ -505,7 +505,7 @@ mod tests {
 
     /// A graph of hand-built functions with their realms: `(name, realm, callees' addresses)`.
     fn fixture(funcs: Vec<(&str, Realm, Vec<u32>)>) -> (CallGraph, Vec<Function>, Vec<Realm>) {
-        let functions: Vec<Function> = funcs.iter().enumerate().map(|(i, (name, _, direct))| Function { name: name.to_string(), address: 0x100 * (i as u32 + 1), size: 4, frame: 8, dynamic_sp: false, sp_unread: vec![], direct: direct.clone(), indirect_sites: 0, indirect_branches: 0, materialised: vec![], svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] }).collect();
+        let functions: Vec<Function> = funcs.iter().enumerate().map(|(i, (name, _, direct))| Function { name: name.to_string(), address: 0x100 * (i as u32 + 1), size: 4, frame: 8, dynamic_sp: false, sp_unread: vec![], uncertified: None, direct: direct.clone(), indirect_sites: 0, indirect_branches: 0, materialised: vec![], svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] }).collect();
         let realm = funcs.iter().map(|f| f.1).collect();
         (CallGraph::from_functions(functions.clone()), functions, realm)
     }
