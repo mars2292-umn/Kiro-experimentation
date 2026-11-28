@@ -20,6 +20,455 @@ set_option maxRecDepth 2048
 
 namespace rsk_link
 
+/-- [rsk_link::thumb::FpClass]
+    Source: 'crates/rsk-link/src/thumb.rs', lines 60:0-69:1
+    Visibility: public -/
+@[discriminant isize]
+inductive thumb.FpClass where
+| Move : thumb.FpClass
+| Arith : thumb.FpClass
+| FpscrWrite : thumb.FpClass
+| FpscrRead : thumb.FpClass
+
+/-- [rsk_link::thumb::Effect]
+    Source: 'crates/rsk-link/src/thumb.rs', lines 10:0-56:1
+    Visibility: public -/
+@[discriminant isize]
+inductive thumb.Effect where
+| SpDown : Std.U32 → thumb.Effect
+| SpUp : Std.U32 → thumb.Effect
+| SpDynamic : thumb.Effect
+| SpUnread : thumb.Effect
+| Call : Std.U32 → thumb.Effect
+| Branch : Std.U32 → thumb.Effect
+| IndirectCall : Std.U8 → thumb.Effect
+| IndirectBranch : Std.U8 → thumb.Effect
+| Return : thumb.Effect
+| Constant : Std.U8 → Std.U32 → thumb.Effect
+| SwitchTable : thumb.Effect
+| Svc : Std.U8 → thumb.Effect
+| Fp : thumb.FpClass → thumb.Effect
+| Msr : Std.U8 → thumb.Effect
+| Mrs : Std.U8 → thumb.Effect
+| Cps : thumb.Effect
+| CompareBranch : Std.U32 → thumb.Effect
+| Nop : thumb.Effect
+| Dsb : thumb.Effect
+| Other : thumb.Effect
+
+/-- [rsk_link::thumb::Insn]
+    Source: 'crates/rsk-link/src/thumb.rs', lines 73:0-77:1
+    Visibility: public -/
+structure thumb.Insn where
+  address : Std.U32
+  len : Std.U32
+  effect : thumb.Effect
+
+/-- [rsk_link::bound_v::frame_of]: loop body 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 77:4-90:5
+    Visibility: public -/
+@[rust_loop_body]
+def bound_v.frame_of_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (f : Std.U32) (i : Std.Usize) :
+  Result (ControlFlow (Std.U32 × Std.Usize) Std.U32)
+  := do
+  let i1 := alloc.vec.Vec.len insns
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i
+    let f1 ←
+      match i2.effect with
+      | thumb.Effect.SpDown n => ok (core.num.U32.saturating_add f n)
+      | thumb.Effect.SpUp _ => ok f
+      | thumb.Effect.SpDynamic => ok f
+      | thumb.Effect.SpUnread => ok f
+      | thumb.Effect.Call _ => ok f
+      | thumb.Effect.Branch _ => ok f
+      | thumb.Effect.IndirectCall _ => ok f
+      | thumb.Effect.IndirectBranch _ => ok f
+      | thumb.Effect.Return => ok f
+      | thumb.Effect.Constant _ _ => ok f
+      | thumb.Effect.SwitchTable => ok f
+      | thumb.Effect.Svc _ => ok f
+      | thumb.Effect.Fp _ => ok f
+      | thumb.Effect.Msr _ => ok f
+      | thumb.Effect.Mrs _ => ok f
+      | thumb.Effect.Cps => ok f
+      | thumb.Effect.CompareBranch _ => ok f
+      | thumb.Effect.Nop => ok f
+      | thumb.Effect.Dsb => ok f
+      | thumb.Effect.Other => ok f
+    let i3 ← i + 1#usize
+    ok (cont (f1, i3))
+  else ok (done f)
+
+/-- [rsk_link::bound_v::frame_of]: loop 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 77:4-90:5
+    Visibility: public -/
+@[rust_loop]
+def bound_v.frame_of_loop
+  (insns : alloc.vec.Vec thumb.Insn) (f : Std.U32) (i : Std.Usize) :
+  Result Std.U32
+  := do
+  loop
+    (fun (f1, i1) => bound_v.frame_of_loop.body insns f1 i1)
+    (f, i)
+
+/-- [rsk_link::bound_v::frame_of]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 71:0-92:1
+    Visibility: public -/
+@[reducible]
+def bound_v.frame_of (insns : alloc.vec.Vec thumb.Insn) : Result Std.U32 := do
+  bound_v.frame_of_loop insns 0#u32 0#usize
+
+/-- [rsk_link::bound_v::dynamic_of]: loop body 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 100:4-113:5
+    Visibility: public -/
+@[rust_loop_body]
+def bound_v.dynamic_of_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (d : Bool) (i : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  let i1 := alloc.vec.Vec.len insns
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i
+    let d1 ←
+      match i2.effect with
+      | thumb.Effect.SpDown _ => ok d
+      | thumb.Effect.SpUp _ => ok d
+      | thumb.Effect.SpDynamic => ok true
+      | thumb.Effect.SpUnread => ok d
+      | thumb.Effect.Call _ => ok d
+      | thumb.Effect.Branch _ => ok d
+      | thumb.Effect.IndirectCall _ => ok d
+      | thumb.Effect.IndirectBranch _ => ok d
+      | thumb.Effect.Return => ok d
+      | thumb.Effect.Constant _ _ => ok d
+      | thumb.Effect.SwitchTable => ok d
+      | thumb.Effect.Svc _ => ok d
+      | thumb.Effect.Fp _ => ok d
+      | thumb.Effect.Msr _ => ok d
+      | thumb.Effect.Mrs _ => ok d
+      | thumb.Effect.Cps => ok d
+      | thumb.Effect.CompareBranch _ => ok d
+      | thumb.Effect.Nop => ok d
+      | thumb.Effect.Dsb => ok d
+      | thumb.Effect.Other => ok d
+    let i3 ← i + 1#usize
+    ok (cont (d1, i3))
+  else ok (done d)
+
+/-- [rsk_link::bound_v::dynamic_of]: loop 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 100:4-113:5
+    Visibility: public -/
+@[rust_loop]
+def bound_v.dynamic_of_loop
+  (insns : alloc.vec.Vec thumb.Insn) (d : Bool) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (d1, i1) => bound_v.dynamic_of_loop.body insns d1 i1)
+    (d, i)
+
+/-- [rsk_link::bound_v::dynamic_of]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 95:0-115:1
+    Visibility: public -/
+@[reducible]
+def bound_v.dynamic_of (insns : alloc.vec.Vec thumb.Insn) : Result Bool := do
+  bound_v.dynamic_of_loop insns false 0#usize
+
+/-- [rsk_link::bound_v::edge_of]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 131:0-140:1
+    Visibility: public -/
+def bound_v.edge_of
+  (e : thumb.Effect) (address : Std.U32) («end» : Std.U32) :
+  Result (Option Std.U32)
+  := do
+  match e with
+  | thumb.Effect.SpDown _ => ok none
+  | thumb.Effect.SpUp _ => ok none
+  | thumb.Effect.SpDynamic => ok none
+  | thumb.Effect.SpUnread => ok none
+  | thumb.Effect.Call t => ok (some t)
+  | thumb.Effect.Branch t =>
+    if t < address
+    then ok (some t)
+    else if t >= «end»
+         then ok (some t)
+         else ok none
+  | thumb.Effect.IndirectCall _ => ok none
+  | thumb.Effect.IndirectBranch _ => ok none
+  | thumb.Effect.Return => ok none
+  | thumb.Effect.Constant _ _ => ok none
+  | thumb.Effect.SwitchTable => ok none
+  | thumb.Effect.Svc _ => ok none
+  | thumb.Effect.Fp _ => ok none
+  | thumb.Effect.Msr _ => ok none
+  | thumb.Effect.Mrs _ => ok none
+  | thumb.Effect.Cps => ok none
+  | thumb.Effect.CompareBranch t =>
+    if t < address
+    then ok (some t)
+    else if t >= «end»
+         then ok (some t)
+         else ok none
+  | thumb.Effect.Nop => ok none
+  | thumb.Effect.Dsb => ok none
+  | thumb.Effect.Other => ok none
+
+/-- [rsk_link::bound_v::direct_of]: loop body 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 150:4-184:5
+    Visibility: public -/
+@[rust_loop_body]
+def bound_v.direct_of_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (address : Std.U32) («end» : Std.U32)
+  (v : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U32) × Std.Usize) (alloc.vec.Vec
+    Std.U32))
+  := do
+  let i1 := alloc.vec.Vec.len insns
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i
+    let o ← bound_v.edge_of i2.effect address «end»
+    let v1 ← match o with
+               | none => ok v
+               | some t => alloc.vec.Vec.push v t
+    let i3 ← i + 1#usize
+    ok (cont (v1, i3))
+  else ok (done v)
+
+/-- [rsk_link::bound_v::direct_of]: loop 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 150:4-184:5
+    Visibility: public -/
+@[rust_loop]
+def bound_v.direct_of_loop
+  (insns : alloc.vec.Vec thumb.Insn) (address : Std.U32) («end» : Std.U32)
+  (v : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  loop
+    (fun (v1, i1) => bound_v.direct_of_loop.body insns address «end» v1 i1)
+    (v, i)
+
+/-- [rsk_link::bound_v::direct_of]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 144:0-186:1
+    Visibility: public -/
+@[reducible]
+def bound_v.direct_of
+  (insns : alloc.vec.Vec thumb.Insn) (address : Std.U32) («end» : Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  bound_v.direct_of_loop insns address «end» (alloc.vec.Vec.new Std.U32)
+    0#usize
+
+/-- [rsk_link::bound_v::unread_of]: loop body 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 216:4-250:5
+    Visibility: public -/
+@[rust_loop_body]
+def bound_v.unread_of_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (v : alloc.vec.Vec Std.U32)
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U32) × Std.Usize) (alloc.vec.Vec
+    Std.U32))
+  := do
+  let i1 := alloc.vec.Vec.len insns
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i
+    let v1 ←
+      match i2.effect with
+      | thumb.Effect.SpDown _ => ok v
+      | thumb.Effect.SpUp _ => ok v
+      | thumb.Effect.SpDynamic => ok v
+      | thumb.Effect.SpUnread => alloc.vec.Vec.push v i2.address
+      | thumb.Effect.Call _ => ok v
+      | thumb.Effect.Branch _ => ok v
+      | thumb.Effect.IndirectCall _ => ok v
+      | thumb.Effect.IndirectBranch _ => ok v
+      | thumb.Effect.Return => ok v
+      | thumb.Effect.Constant _ _ => ok v
+      | thumb.Effect.SwitchTable => ok v
+      | thumb.Effect.Svc _ => ok v
+      | thumb.Effect.Fp _ => ok v
+      | thumb.Effect.Msr _ => ok v
+      | thumb.Effect.Mrs _ => ok v
+      | thumb.Effect.Cps => ok v
+      | thumb.Effect.CompareBranch _ => ok v
+      | thumb.Effect.Nop => ok v
+      | thumb.Effect.Dsb => ok v
+      | thumb.Effect.Other => ok v
+    let i3 ← i + 1#usize
+    ok (cont (v1, i3))
+  else ok (done v)
+
+/-- [rsk_link::bound_v::unread_of]: loop 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 216:4-250:5
+    Visibility: public -/
+@[rust_loop]
+def bound_v.unread_of_loop
+  (insns : alloc.vec.Vec thumb.Insn) (v : alloc.vec.Vec Std.U32)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  loop
+    (fun (v1, i1) => bound_v.unread_of_loop.body insns v1 i1)
+    (v, i)
+
+/-- [rsk_link::bound_v::unread_of]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 210:0-252:1
+    Visibility: public -/
+@[reducible]
+def bound_v.unread_of
+  (insns : alloc.vec.Vec thumb.Insn) : Result (alloc.vec.Vec Std.U32) := do
+  bound_v.unread_of_loop insns (alloc.vec.Vec.new Std.U32) 0#usize
+
+/-- [rsk_link::bound_v::BASIC_FRAME]
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 257:0-257:32
+    Visibility: public -/
+@[global_simps, irreducible] def bound_v.BASIC_FRAME : Std.U32 := 32#u32
+
+/-- [rsk_link::bound_v::FP_FRAME]
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 260:0-260:30
+    Visibility: public -/
+@[global_simps, irreducible] def bound_v.FP_FRAME : Std.U32 := 104#u32
+
+/-- [rsk_link::bound_v::MspInputs]
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 264:0-279:1
+    Visibility: public -/
+structure bound_v.MspInputs where
+  worst : Std.U64
+  reset : Std.U64
+  worst_handler : Std.U64
+  fatal : Std.U64
+  levels : Std.U64
+  record : Std.U64
+  any_fp : Bool
+
+/-- [rsk_link::bound_v::msp_value]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 310:0-363:1
+    Visibility: public -/
+def bound_v.msp_value
+  (i : bound_v.MspInputs) :
+  Result (Option (Std.U64 × Std.U64 × Std.U64 × Std.U64))
+  := do
+  let basic ← lift (UScalar.cast .U64 bound_v.BASIC_FRAME)
+  let fatal_frame ←
+    if i.any_fp
+    then ok (UScalar.cast .U64 bound_v.FP_FRAME)
+    else ok (UScalar.cast .U64 bound_v.BASIC_FRAME)
+  let o ← lift (U64.checked_mul i.levels i.record)
+  match o with
+  | none => ok none
+  | some x =>
+    let o1 ← lift (U64.checked_mul i.levels basic)
+    match o1 with
+    | none => ok none
+    | some x1 =>
+      let o2 ← lift (U64.checked_add i.worst x)
+      match o2 with
+      | none => ok none
+      | some x2 =>
+        let o3 ← lift (U64.checked_add x2 basic)
+        match o3 with
+        | none => ok none
+        | some y =>
+          let o4 ← lift (U64.checked_add i.reset basic)
+          match o4 with
+          | none => ok none
+          | some x3 =>
+            let o5 ← lift (U64.checked_add x3 i.fatal)
+            match o5 with
+            | none => ok none
+            | some y1 =>
+              let o6 ← lift (U64.checked_add i.worst_handler x)
+              match o6 with
+              | none => ok none
+              | some x4 =>
+                let o7 ← lift (U64.checked_add x4 basic)
+                match o7 with
+                | none => ok none
+                | some x5 =>
+                  let o8 ← lift (U64.checked_add x5 x1)
+                  match o8 with
+                  | none => ok none
+                  | some x6 =>
+                    let o9 ← lift (U64.checked_add x6 fatal_frame)
+                    match o9 with
+                    | none => ok none
+                    | some x7 =>
+                      let o10 ← lift (U64.checked_add x7 i.fatal)
+                      match o10 with
+                      | none => ok none
+                      | some x8 =>
+                        if y >= y1
+                        then
+                          if y >= x8
+                          then ok (some (y, y1, x8, y))
+                          else
+                            if y1 >= x8
+                            then ok (some (y, y1, x8, y1))
+                            else ok (some (y, y1, x8, x8))
+                        else
+                          if y1 >= x8
+                          then ok (some (y, y1, x8, y1))
+                          else ok (some (y, y1, x8, x8))
+
+/-- [rsk_link::bound_v::jobs_bound]: loop body 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 386:4-405:1
+    Visibility: public -/
+@[rust_loop_body]
+def bound_v.jobs_bound_loop.body
+  (jobs : alloc.vec.Vec (Std.U32 × Std.U32)) (bound : Std.U64) (k : Std.Usize)
+  :
+  Result (ControlFlow (Std.U64 × Std.Usize) (Option Std.U64))
+  := do
+  let i := alloc.vec.Vec.len jobs
+  if k < i
+  then
+    let (i1, i2) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U32 ×
+        Std.U32)) jobs k
+    let i3 ← lift (UScalar.cast .U64 i1)
+    let i4 ← lift (UScalar.cast .U64 i2)
+    let per_job ← i3 + i4
+    let o ← lift (U64.checked_add bound per_job)
+    match o with
+    | none => ok (done none)
+    | some x => let k1 ← k + 1#usize
+                ok (cont (x, k1))
+  else ok (done (some bound))
+
+/-- [rsk_link::bound_v::jobs_bound]: loop 0:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 386:4-405:1
+    Visibility: public -/
+@[rust_loop]
+def bound_v.jobs_bound_loop
+  (jobs : alloc.vec.Vec (Std.U32 × Std.U32)) (bound : Std.U64) (k : Std.Usize)
+  :
+  Result (Option Std.U64)
+  := do
+  loop
+    (fun (bound1, k1) => bound_v.jobs_bound_loop.body jobs bound1 k1)
+    (bound, k)
+
+/-- [rsk_link::bound_v::jobs_bound]:
+    Source: 'crates/rsk-link/src/bound_v.rs', lines 379:0-405:1
+    Visibility: public -/
+@[reducible]
+def bound_v.jobs_bound
+  (jobs : alloc.vec.Vec (Std.U32 × Std.U32)) : Result (Option Std.U64) := do
+  bound_v.jobs_bound_loop jobs 0#u64 0#usize
+
 /-- [rsk_link::cert::Node]
     Source: 'crates/rsk-link/src/cert.rs', lines 18:0-33:1
     Visibility: public -/
@@ -220,41 +669,909 @@ def cert.check
   let n := alloc.vec.Vec.len g
   cert.check_loop g panic_usage n true 0#usize
 
-/-- [rsk_link::thumb::FpClass]
-    Source: 'crates/rsk-link/src/thumb.rs', lines 60:0-69:1
+/-- [rsk_link::flow_v::BIG]
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 43:0-43:37
     Visibility: public -/
-@[discriminant isize]
-inductive thumb.FpClass where
-| Move : thumb.FpClass
-| Arith : thumb.FpClass
-| FpscrWrite : thumb.FpClass
-| FpscrRead : thumb.FpClass
+@[global_simps, irreducible] def flow_v.BIG : Std.I64 := 1099511627776#i64
 
-/-- [rsk_link::thumb::Effect]
-    Source: 'crates/rsk-link/src/thumb.rs', lines 10:0-56:1
+/-- [rsk_link::flow_v::hw]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 50:0-55:1
     Visibility: public -/
-@[discriminant isize]
-inductive thumb.Effect where
-| SpDown : Std.U32 → thumb.Effect
-| SpUp : Std.U32 → thumb.Effect
-| SpDynamic : thumb.Effect
-| SpUnread : thumb.Effect
-| Call : Std.U32 → thumb.Effect
-| Branch : Std.U32 → thumb.Effect
-| IndirectCall : Std.U8 → thumb.Effect
-| IndirectBranch : Std.U8 → thumb.Effect
-| Return : thumb.Effect
-| Constant : Std.U8 → Std.U32 → thumb.Effect
-| SwitchTable : thumb.Effect
-| Svc : Std.U8 → thumb.Effect
-| Fp : thumb.FpClass → thumb.Effect
-| Msr : Std.U8 → thumb.Effect
-| Mrs : Std.U8 → thumb.Effect
-| Cps : thumb.Effect
-| CompareBranch : Std.U32 → thumb.Effect
-| Nop : thumb.Effect
-| Dsb : thumb.Effect
-| Other : thumb.Effect
+def flow_v.hw (code : Slice Std.U8) (off : Std.Usize) : Result Std.U32 := do
+  let i ← Slice.index_usize code off
+  let i1 ← lift (UScalar.cast .U32 i)
+  let i2 ← off + 1#usize
+  let i3 ← Slice.index_usize code i2
+  let i4 ← lift (UScalar.cast .U32 i3)
+  let i5 ← i4 <<< 8#u32
+  ok (i1 ||| i5)
+
+/-- [rsk_link::flow_v::len_of]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 62:0-66:1
+    Visibility: public -/
+def flow_v.len_of (h : Std.U32) : Result Std.U32 := do
+  let i ← h >>> 11#u32
+  if i >= 29#u32
+  then ok 4#u32
+  else ok 2#u32
+
+/-- [rsk_link::flow_v::placed_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 76:0-90:1
+    Visibility: public -/
+def flow_v.placed_check
+  (code : Slice Std.U8) (base : Std.U32) (x : thumb.Insn) : Result Bool := do
+  if x.address < base
+  then ok false
+  else
+    if x.len != 2#u32
+    then
+      if x.len != 4#u32
+      then ok false
+      else
+        let i ← x.address - base
+        let off ← lift (UScalar.cast .Usize i)
+        let i1 := Slice.len code
+        if off > i1
+        then ok false
+        else
+          let i2 ← lift (UScalar.cast .Usize x.len)
+          let i3 := Slice.len code
+          let i4 ← i3 - off
+          if i2 > i4
+          then ok false
+          else
+            let i5 ← flow_v.hw code off
+            let i6 ← flow_v.len_of i5
+            ok (x.len = i6)
+    else
+      let i ← x.address - base
+      let off ← lift (UScalar.cast .Usize i)
+      let i1 := Slice.len code
+      if off > i1
+      then ok false
+      else
+        let i2 ← lift (UScalar.cast .Usize x.len)
+        let i3 := Slice.len code
+        let i4 ← i3 - off
+        if i2 > i4
+        then ok false
+        else
+          let i5 ← flow_v.hw code off
+          let i6 ← flow_v.len_of i5
+          ok (x.len = i6)
+
+/-- [rsk_link::flow_v::halves]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 101:0-110:1
+    Visibility: public -/
+def flow_v.halves
+  (code : Slice Std.U8) (base : Std.U32) (x : thumb.Insn) :
+  Result (Std.U32 × Std.U32)
+  := do
+  let i ← x.address - base
+  let off ← lift (UScalar.cast .Usize i)
+  let a ← flow_v.hw code off
+  let total := Slice.len code
+  if x.len = 4#u32
+  then
+    let i1 ← total - off
+    if i1 >= 4#usize
+    then let i2 ← off + 2#usize
+         let b ← flow_v.hw code i2
+         ok (a, b)
+    else ok (a, 0#u32)
+  else ok (a, 0#u32)
+
+/-- [rsk_link::flow_v::has]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 175:4-187:1 -/
+@[rust_loop_body]
+def flow_v.has_loop.body
+  (v : alloc.vec.Vec Std.U32) (c : Std.U32) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) v i
+    if i2 = c
+    then ok (done true)
+    else let i3 ← i + 1#usize
+         ok (cont i3)
+  else ok (done false)
+
+/-- [rsk_link::flow_v::has]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 175:4-187:1 -/
+@[rust_loop]
+def flow_v.has_loop
+  (v : alloc.vec.Vec Std.U32) (c : Std.U32) (i : Std.Usize) : Result Bool := do
+  loop
+    (fun i1 => flow_v.has_loop.body v c i1)
+    i
+
+/-- [rsk_link::flow_v::has]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 171:0-187:1 -/
+@[reducible]
+def flow_v.has (v : alloc.vec.Vec Std.U32) (c : Std.U32) : Result Bool := do
+  flow_v.has_loop v c 0#usize
+
+/-- [rsk_link::flow_v::hard_of]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 189:0-201:1
+    Visibility: public -/
+def flow_v.hard_of
+  (x : thumb.Insn) (h1 : Std.U32) (h2 : Std.U32)
+  (noreturn : alloc.vec.Vec Std.U32) :
+  Result Bool
+  := do
+  match x.effect with
+  | thumb.Effect.SpDown _ => ok false
+  | thumb.Effect.SpUp _ => ok false
+  | thumb.Effect.SpDynamic => ok false
+  | thumb.Effect.SpUnread => ok false
+  | thumb.Effect.Call c => flow_v.has noreturn c
+  | thumb.Effect.Branch _ =>
+    if x.len = 2#u32
+    then let i ← lift (h1 &&& 63488#u32)
+         ok (i = 57344#u32)
+    else
+      let i ← lift (h1 &&& 63488#u32)
+      if i = 61440#u32
+      then let i1 ← lift (h2 &&& 53248#u32)
+           ok (i1 = 36864#u32)
+      else ok false
+  | thumb.Effect.IndirectCall _ => ok false
+  | thumb.Effect.IndirectBranch _ => ok true
+  | thumb.Effect.Return => ok true
+  | thumb.Effect.Constant _ _ => ok false
+  | thumb.Effect.SwitchTable => ok true
+  | thumb.Effect.Svc _ => ok false
+  | thumb.Effect.Fp _ => ok false
+  | thumb.Effect.Msr _ => ok false
+  | thumb.Effect.Mrs _ => ok false
+  | thumb.Effect.Cps => ok false
+  | thumb.Effect.CompareBranch _ => ok false
+  | thumb.Effect.Nop => ok false
+  | thumb.Effect.Dsb => ok false
+  | thumb.Effect.Other =>
+    if x.len = 2#u32
+    then let i ← lift (h1 &&& 65280#u32)
+         ok (i = 56832#u32)
+    else ok false
+
+/-- [rsk_link::flow_v::delta_of]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 214:0-222:1
+    Visibility: public -/
+def flow_v.delta_of (e : thumb.Effect) (c : Bool) : Result Std.I64 := do
+  match e with
+  | thumb.Effect.SpDown n => ok (UScalar.hcast .I64 n)
+  | thumb.Effect.SpUp n =>
+    if c
+    then ok 0#i64
+    else let i ← lift (UScalar.hcast .I64 n)
+         -. i
+  | thumb.Effect.SpDynamic => ok 0#i64
+  | thumb.Effect.SpUnread => ok 0#i64
+  | thumb.Effect.Call _ => ok 0#i64
+  | thumb.Effect.Branch _ => ok 0#i64
+  | thumb.Effect.IndirectCall _ => ok 0#i64
+  | thumb.Effect.IndirectBranch _ => ok 0#i64
+  | thumb.Effect.Return => ok 0#i64
+  | thumb.Effect.Constant _ _ => ok 0#i64
+  | thumb.Effect.SwitchTable => ok 0#i64
+  | thumb.Effect.Svc _ => ok 0#i64
+  | thumb.Effect.Fp _ => ok 0#i64
+  | thumb.Effect.Msr _ => ok 0#i64
+  | thumb.Effect.Mrs _ => ok 0#i64
+  | thumb.Effect.Cps => ok 0#i64
+  | thumb.Effect.CompareBranch _ => ok 0#i64
+  | thumb.Effect.Nop => ok 0#i64
+  | thumb.Effect.Dsb => ok 0#i64
+  | thumb.Effect.Other => ok 0#i64
+
+/-- [rsk_link::flow_v::lands_at]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 229:0-238:1 -/
+def flow_v.lands_at
+  (insns : alloc.vec.Vec thumb.Insn) (d : alloc.vec.Vec Std.I64) (t : Std.U32)
+  (need : Std.I64) (j : Std.Usize) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len insns
+  if j < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns j
+    if i1.address = t
+    then
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.I64) d j
+      ok (i2 >= need)
+    else ok false
+  else ok false
+
+/-- [rsk_link::flow_v::lands_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 246:4-255:5 -/
+@[rust_loop_body]
+def flow_v.lands_check_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (d : alloc.vec.Vec Std.I64) (t : Std.U32)
+  (need : Std.I64) (found : Bool) (j : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  let i := alloc.vec.Vec.len insns
+  if j < i
+  then
+    if found
+    then ok (done found)
+    else
+      let found1 ← flow_v.lands_at insns d t need j
+      let j1 ← j + 1#usize
+      ok (cont (found1, j1))
+  else ok (done found)
+
+/-- [rsk_link::flow_v::lands_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 246:4-255:5 -/
+@[rust_loop]
+def flow_v.lands_check_loop
+  (insns : alloc.vec.Vec thumb.Insn) (d : alloc.vec.Vec Std.I64) (t : Std.U32)
+  (need : Std.I64) (found : Bool) (j : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (found1, j1) => flow_v.lands_check_loop.body insns d t need found1 j1)
+    (found, j)
+
+/-- [rsk_link::flow_v::lands_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 240:0-257:1 -/
+def flow_v.lands_check
+  (insns : alloc.vec.Vec thumb.Insn) (d : alloc.vec.Vec Std.I64) (t : Std.U32)
+  (need : Std.I64) (hint : Std.Usize) :
+  Result Bool
+  := do
+  let found ← flow_v.lands_at insns d t need hint
+  flow_v.lands_check_loop insns d t need found 0#usize
+
+/-- [rsk_link::flow_v::slot_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 351:0-380:1 -/
+def flow_v.slot_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (d : alloc.vec.Vec Std.I64) (a : Std.U32) (wide : Bool) (lim : Std.U32)
+  (pos : Std.U32) (need : Std.I64) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .U64 base)
+  let i1 := Slice.len code
+  let i2 ← lift (UScalar.cast .U64 i1)
+  let «end» ← i + i2
+  let i3 ← pos - base
+  let off ← lift (UScalar.cast .Usize i3)
+  let e ←
+    if wide
+    then flow_v.hw code off
+    else do
+         let i4 ← Slice.index_usize code off
+         ok (UScalar.cast .U32 i4)
+  let i4 ← lift (UScalar.cast .U64 a)
+  let i5 ← i4 + 4#u64
+  let i6 ← lift (UScalar.cast .U64 e)
+  let i7 ← 2#u64 * i6
+  let t ← i5 + i7
+  let pad ←
+    if wide
+    then ok false
+    else
+      do
+      let i8 ← pos + 1#u32
+      if i8 = lim
+      then let i9 ← lift (UScalar.cast .U64 lim)
+           ok (t < i9)
+      else ok false
+  if pad
+  then ok true
+  else
+    if t >= «end»
+    then ok false
+    else
+      let i8 ← lift (UScalar.cast .U32 t)
+      let i9 := alloc.vec.Vec.len insns
+      flow_v.lands_check insns d i8 need i9
+
+/-- [rsk_link::flow_v::table_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 328:4-346:5 -/
+@[rust_loop_body]
+def flow_v.table_check_loop.body
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (d : alloc.vec.Vec Std.I64) (lim : Std.U32) (a : Std.U32) (wide : Bool)
+  (sz : Std.U32) (need : Std.I64) (pos : Std.U32) (good : Bool) :
+  Result (ControlFlow (Std.U32 × Bool) Bool)
+  := do
+  if pos < lim
+  then
+    if good
+    then
+      let good1 ← flow_v.slot_check code base insns d a wide lim pos need
+      let pos1 ← pos + sz
+      ok (cont (pos1, good1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_link::flow_v::table_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 328:4-346:5 -/
+@[rust_loop]
+def flow_v.table_check_loop
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (d : alloc.vec.Vec Std.I64) (lim : Std.U32) (a : Std.U32) (wide : Bool)
+  (sz : Std.U32) (need : Std.I64) (pos : Std.U32) (good : Bool) :
+  Result Bool
+  := do
+  loop
+    (fun (pos1, good1) => flow_v.table_check_loop.body code base insns d lim a
+      wide sz need pos1 good1)
+    (pos, good)
+
+/-- [rsk_link::flow_v::table_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 302:0-348:1 -/
+def flow_v.table_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (d : alloc.vec.Vec Std.I64) (i : Std.Usize) (lim : Std.U32) :
+  Result Bool
+  := do
+  let x ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+      insns i
+  let (h1, h2) ← flow_v.halves code base x
+  if h1 != 59615#u32
+  then ok false
+  else
+    if x.len != 4#u32
+    then ok false
+    else
+      let i1 ← lift (UScalar.cast .U64 base)
+      let i2 := Slice.len code
+      let i3 ← lift (UScalar.cast .U64 i2)
+      let «end» ← i1 + i3
+      let i4 ← lift (UScalar.cast .U64 lim)
+      let i5 ← lift (UScalar.cast .U64 x.address)
+      let i6 ← i5 + 4#u64
+      if i4 < i6
+      then ok false
+      else
+        let i7 ← lift (UScalar.cast .U64 lim)
+        if i7 > «end»
+        then ok false
+        else
+          let i8 ← lift (h2 &&& 16#u32)
+          let sz ← if i8 != 0#u32
+                     then ok 2#u32
+                     else ok 1#u32
+          let i9 ← lim - x.address
+          let i10 ← i9 - 4#u32
+          let i11 ← i10 % sz
+          if i11 != 0#u32
+          then ok false
+          else
+            let need ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                Std.I64) d i
+            let pos ← x.address + 4#u32
+            flow_v.table_check_loop code base insns d lim x.address (i8 !=
+              0#u32) sz need pos true
+
+/-- [rsk_link::flow_v::fall_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 411:0-442:1 -/
+def flow_v.fall_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (i : Std.Usize) (need : Std.I64) :
+  Result Bool
+  := do
+  let x ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+      insns i
+  let i1 ← lift (UScalar.cast .U64 base)
+  let i2 := Slice.len code
+  let i3 ← lift (UScalar.cast .U64 i2)
+  let «end» ← i1 + i3
+  let (h1, h2) ← flow_v.halves code base x
+  let i4 ← lift (UScalar.cast .U64 x.address)
+  let i5 ← lift (UScalar.cast .U64 x.len)
+  let next ← i4 + i5
+  let b ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) cond i
+  let stops ← if b
+                then ok false
+                else flow_v.hard_of x h1 h2 noreturn
+  if stops
+  then ok true
+  else
+    let call_at_end ←
+      match x.effect with
+      | thumb.Effect.SpDown _ => ok false
+      | thumb.Effect.SpUp _ => ok false
+      | thumb.Effect.SpDynamic => ok false
+      | thumb.Effect.SpUnread => ok false
+      | thumb.Effect.Call _ => ok (next = «end»)
+      | thumb.Effect.Branch _ => ok false
+      | thumb.Effect.IndirectCall _ => ok false
+      | thumb.Effect.IndirectBranch _ => ok false
+      | thumb.Effect.Return => ok false
+      | thumb.Effect.Constant _ _ => ok false
+      | thumb.Effect.SwitchTable => ok false
+      | thumb.Effect.Svc _ => ok false
+      | thumb.Effect.Fp _ => ok false
+      | thumb.Effect.Msr _ => ok false
+      | thumb.Effect.Mrs _ => ok false
+      | thumb.Effect.Cps => ok false
+      | thumb.Effect.CompareBranch _ => ok false
+      | thumb.Effect.Nop => ok false
+      | thumb.Effect.Dsb => ok false
+      | thumb.Effect.Other => ok false
+    if call_at_end
+    then ok true
+    else
+      let i6 ← lift (UScalar.cast .U64 core.num.U32.MAX)
+      if next > i6
+      then ok false
+      else
+        let i7 := alloc.vec.Vec.len insns
+        let i8 ← i7 - 1#usize
+        let hint ←
+          if i < i8
+          then i + 1#usize
+          else ok (alloc.vec.Vec.len insns)
+        let i9 ← lift (UScalar.cast .U32 next)
+        flow_v.lands_check insns d i9 need hint
+
+/-- [rsk_link::flow_v::branch_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 445:0-468:1 -/
+def flow_v.branch_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (d : alloc.vec.Vec Std.I64) (i : Std.Usize) (need : Std.I64) :
+  Result Bool
+  := do
+  let x ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+      insns i
+  let i1 ← lift (UScalar.cast .U64 base)
+  let i2 := Slice.len code
+  let i3 ← lift (UScalar.cast .U64 i2)
+  let «end» ← i1 + i3
+  let i4 := alloc.vec.Vec.len insns
+  let i5 ← i4 - 1#usize
+  let lim ←
+    if i < i5
+    then
+      do
+      let i6 ← i + 1#usize
+      let i7 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+          insns i6
+      ok i7.address
+    else ok (UScalar.cast .U32 «end»)
+  match x.effect with
+  | thumb.Effect.SpDown _ => ok true
+  | thumb.Effect.SpUp _ => ok true
+  | thumb.Effect.SpDynamic => ok true
+  | thumb.Effect.SpUnread => ok true
+  | thumb.Effect.Call _ => ok true
+  | thumb.Effect.Branch t =>
+    if base <= t
+    then
+      let i6 ← lift (UScalar.cast .U64 t)
+      if i6 < «end»
+      then
+        let i7 := alloc.vec.Vec.len insns
+        flow_v.lands_check insns d t need i7
+      else ok true
+    else ok true
+  | thumb.Effect.IndirectCall _ => ok true
+  | thumb.Effect.IndirectBranch _ => ok true
+  | thumb.Effect.Return => ok true
+  | thumb.Effect.Constant _ _ => ok true
+  | thumb.Effect.SwitchTable => flow_v.table_check code base insns d i lim
+  | thumb.Effect.Svc _ => ok true
+  | thumb.Effect.Fp _ => ok true
+  | thumb.Effect.Msr _ => ok true
+  | thumb.Effect.Mrs _ => ok true
+  | thumb.Effect.Cps => ok true
+  | thumb.Effect.CompareBranch t =>
+    if base <= t
+    then
+      let i6 ← lift (UScalar.cast .U64 t)
+      if i6 < «end»
+      then
+        let i7 := alloc.vec.Vec.len insns
+        flow_v.lands_check insns d t need i7
+      else ok true
+    else ok true
+  | thumb.Effect.Nop => ok true
+  | thumb.Effect.Dsb => ok true
+  | thumb.Effect.Other => ok true
+
+/-- [rsk_link::flow_v::node_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 470:0-499:1 -/
+def flow_v.node_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (frame : Std.U32) (i : Std.Usize) :
+  Result Bool
+  := do
+  let x ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+      insns i
+  let b ← flow_v.placed_check code base x
+  if b
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.I64) d i
+    let i2 ← -. flow_v.BIG
+    if i1 < i2
+    then ok false
+    else
+      if i1 > flow_v.BIG
+      then ok false
+      else
+        let (e, dn) ←
+          match x.effect with
+          | thumb.Effect.SpDown n =>
+            do
+            let dn1 ← lift (UScalar.hcast .I64 n)
+            ok (x.effect, dn1)
+          | thumb.Effect.SpUp _ => ok (x.effect, 0#i64)
+          | thumb.Effect.SpDynamic => ok (thumb.Effect.SpDynamic, 0#i64)
+          | thumb.Effect.SpUnread => ok (thumb.Effect.SpUnread, 0#i64)
+          | thumb.Effect.Call _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Branch _ => ok (x.effect, 0#i64)
+          | thumb.Effect.IndirectCall _ => ok (x.effect, 0#i64)
+          | thumb.Effect.IndirectBranch _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Return => ok (thumb.Effect.Return, 0#i64)
+          | thumb.Effect.Constant _ _ => ok (x.effect, 0#i64)
+          | thumb.Effect.SwitchTable => ok (thumb.Effect.SwitchTable, 0#i64)
+          | thumb.Effect.Svc _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Fp _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Msr _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Mrs _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Cps => ok (thumb.Effect.Cps, 0#i64)
+          | thumb.Effect.CompareBranch _ => ok (x.effect, 0#i64)
+          | thumb.Effect.Nop => ok (thumb.Effect.Nop, 0#i64)
+          | thumb.Effect.Dsb => ok (thumb.Effect.Dsb, 0#i64)
+          | thumb.Effect.Other => ok (thumb.Effect.Other, 0#i64)
+        let i3 ← i1 + dn
+        let i4 ← lift (UScalar.hcast .I64 frame)
+        if i3 > i4
+        then ok false
+        else
+          let b1 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool)
+              cond i
+          let i5 ← flow_v.delta_of e b1
+          let need ← i1 + i5
+          let b2 ← flow_v.fall_check code base insns cond noreturn d i need
+          if b2
+          then flow_v.branch_check code base insns d i need
+          else ok false
+  else ok false
+
+/-- [rsk_link::flow_v::marked]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 507:4-520:1 -/
+@[rust_loop_body]
+def flow_v.marked_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (cond : alloc.vec.Vec Bool) (q : Std.U64)
+  (j : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := alloc.vec.Vec.len insns
+  if j < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns j
+    let i2 ← lift (UScalar.cast .U64 i1.address)
+    if i2 = q
+    then
+      let b ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) cond j
+      if b
+      then let j1 ← j + 1#usize
+           ok (cont j1)
+      else ok (done false)
+    else let j1 ← j + 1#usize
+         ok (cont j1)
+  else ok (done true)
+
+/-- [rsk_link::flow_v::marked]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 507:4-520:1 -/
+@[rust_loop]
+def flow_v.marked_loop
+  (insns : alloc.vec.Vec thumb.Insn) (cond : alloc.vec.Vec Bool) (q : Std.U64)
+  (j : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun j1 => flow_v.marked_loop.body insns cond q j1)
+    j
+
+/-- [rsk_link::flow_v::marked]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 502:0-520:1 -/
+@[reducible]
+def flow_v.marked
+  (insns : alloc.vec.Vec thumb.Insn) (cond : alloc.vec.Vec Bool) (q : Std.U64)
+  :
+  Result Bool
+  := do
+  flow_v.marked_loop insns cond q 0#usize
+
+/-- [rsk_link::flow_v::order_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 542:4-556:1 -/
+@[rust_loop_body]
+def flow_v.order_check_loop.body
+  (insns : alloc.vec.Vec thumb.Insn) (n : Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i1 ← n - 1#usize
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i
+    let i3 ← i + 1#usize
+    let i4 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+        insns i3
+    if i2.address >= i4.address
+    then ok (done false)
+    else ok (cont i3)
+  else ok (done true)
+
+/-- [rsk_link::flow_v::order_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 542:4-556:1 -/
+@[rust_loop]
+def flow_v.order_check_loop
+  (insns : alloc.vec.Vec thumb.Insn) (n : Std.Usize) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => flow_v.order_check_loop.body insns n i1)
+    i
+
+/-- [rsk_link::flow_v::order_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 536:0-556:1 -/
+def flow_v.order_check (insns : alloc.vec.Vec thumb.Insn) : Result Bool := do
+  let n := alloc.vec.Vec.len insns
+  flow_v.order_check_loop insns n 0#usize
+
+/-- [rsk_link::flow_v::nodes_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 568:4-584:1 -/
+@[rust_loop_body]
+def flow_v.nodes_check_loop.body
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (frame : Std.U32) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if i < n
+  then
+    let b ← flow_v.node_check code base insns cond noreturn d frame i
+    if b
+    then let i1 ← i + 1#usize
+         ok (cont i1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_link::flow_v::nodes_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 568:4-584:1 -/
+@[rust_loop]
+def flow_v.nodes_check_loop
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (frame : Std.U32) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  loop
+    (fun i1 => flow_v.nodes_check_loop.body code base insns cond noreturn d
+      frame n i1)
+    i
+
+/-- [rsk_link::flow_v::nodes_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 559:0-584:1 -/
+def flow_v.nodes_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (frame : Std.U32) :
+  Result Bool
+  := do
+  let n := alloc.vec.Vec.len insns
+  flow_v.nodes_check_loop code base insns cond noreturn d frame n 0#usize
+
+/-- [rsk_link::flow_v::it_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 603:4-630:1 -/
+@[rust_loop_body]
+def flow_v.it_check_loop.body
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (count : Std.Usize) (q : Std.U64) (m : Std.Usize)
+  :
+  Result (ControlFlow (Std.U64 × Std.Usize) Bool)
+  := do
+  if m < count
+  then
+    let b ← flow_v.marked insns cond q
+    if b
+    then
+      let i ← lift (UScalar.cast .U64 base)
+      let step ←
+        if q >= i
+        then
+          do
+          let i1 ← lift (UScalar.cast .U64 base)
+          let i2 ← q - i1
+          let i3 ← i2 + 1#u64
+          let i4 := Slice.len code
+          let i5 ← lift (UScalar.cast .U64 i4)
+          if i3 < i5
+          then
+            let i6 ← lift (UScalar.cast .U64 base)
+            let i7 ← q - i6
+            let i8 ← lift (UScalar.cast .Usize i7)
+            let i9 ← flow_v.hw code i8
+            let i10 ← flow_v.len_of i9
+            ok (UScalar.cast .U64 i10)
+          else ok 2#u64
+        else ok 2#u64
+      let q1 ← q + step
+      let m1 ← m + 1#usize
+      ok (cont (q1, m1))
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_link::flow_v::it_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 603:4-630:1 -/
+@[rust_loop]
+def flow_v.it_check_loop
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (count : Std.Usize) (q : Std.U64) (m : Std.Usize)
+  :
+  Result Bool
+  := do
+  loop
+    (fun (q1, m1) => flow_v.it_check_loop.body code base insns cond count q1
+      m1)
+    (q, m)
+
+/-- [rsk_link::flow_v::it_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 587:0-630:1 -/
+def flow_v.it_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (p : Std.Usize) :
+  Result Bool
+  := do
+  let x ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice thumb.Insn)
+      insns p
+  let (h1, _) ← flow_v.halves code base x
+  if x.len = 2#u32
+  then
+    let i ← lift (h1 &&& 65280#u32)
+    if i = 48896#u32
+    then
+      let i1 ← lift (h1 &&& 15#u32)
+      if i1 != 0#u32
+      then
+        let i2 ← lift (h1 &&& 1#u32)
+        let count ←
+          if i2 != 0#u32
+          then ok 4#usize
+          else
+            do
+            let i3 ← lift (h1 &&& 2#u32)
+            if i3 != 0#u32
+            then ok 3#usize
+            else
+              let i4 ← lift (h1 &&& 4#u32)
+              if i4 != 0#u32
+              then ok 2#usize
+              else ok 1#usize
+        let i3 ← lift (UScalar.cast .U64 x.address)
+        let q ← i3 + 2#u64
+        flow_v.it_check_loop code base insns cond count q 0#usize
+      else ok true
+    else ok true
+  else ok true
+
+/-- [rsk_link::flow_v::marks_check]: loop body 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 642:4-658:1 -/
+@[rust_loop_body]
+def flow_v.marks_check_loop.body
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (n : Std.Usize) (p : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if p < n
+  then
+    let b ← flow_v.it_check code base insns cond p
+    if b
+    then let p1 ← p + 1#usize
+         ok (cont p1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_link::flow_v::marks_check]: loop 0:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 642:4-658:1 -/
+@[rust_loop]
+def flow_v.marks_check_loop
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (n : Std.Usize) (p : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun p1 => flow_v.marks_check_loop.body code base insns cond n p1)
+    p
+
+/-- [rsk_link::flow_v::marks_check]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 633:0-658:1 -/
+def flow_v.marks_check
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) :
+  Result Bool
+  := do
+  let n := alloc.vec.Vec.len insns
+  flow_v.marks_check_loop code base insns cond n 0#usize
+
+/-- [rsk_link::flow_v::flow_ok]:
+    Source: 'crates/rsk-link/src/flow_v.rs', lines 662:0-685:1
+    Visibility: public -/
+def flow_v.flow_ok
+  (code : Slice Std.U8) (base : Std.U32) (insns : alloc.vec.Vec thumb.Insn)
+  (cond : alloc.vec.Vec Bool) (noreturn : alloc.vec.Vec Std.U32)
+  (d : alloc.vec.Vec Std.I64) (frame : Std.U32) :
+  Result Bool
+  := do
+  let n := alloc.vec.Vec.len insns
+  if n < 1#usize
+  then ok false
+  else
+    let i := alloc.vec.Vec.len cond
+    if i != n
+    then ok false
+    else
+      let i1 := alloc.vec.Vec.len d
+      if i1 != n
+      then ok false
+      else
+        let i2 := Slice.len code
+        let i3 ← lift (UScalar.cast .U64 i2)
+        let i4 ← lift (UScalar.cast .U64 core.num.U32.MAX)
+        if i3 > i4
+        then ok false
+        else
+          let i5 ← lift (UScalar.cast .U64 base)
+          let i6 := Slice.len code
+          let i7 ← lift (UScalar.cast .U64 i6)
+          let i8 ← i5 + i7
+          let i9 ← lift (UScalar.cast .U64 core.num.U32.MAX)
+          if i8 > i9
+          then ok false
+          else
+            let i10 ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                thumb.Insn) insns 0#usize
+            if i10.address != base
+            then ok false
+            else
+              let i11 ←
+                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                  Std.I64) d 0#usize
+              if i11 != 0#i64
+              then ok false
+              else
+                let b ← flow_v.order_check insns
+                if b
+                then
+                  let b1 ←
+                    flow_v.nodes_check code base insns cond noreturn d frame
+                  if b1
+                  then flow_v.marks_check code base insns cond
+                  else ok false
+                else ok false
 
 /-- [rsk_link::thumb::sign_extend]:
     Source: 'crates/rsk-link/src/thumb.rs', lines 79:0-82:1 -/

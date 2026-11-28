@@ -94,6 +94,11 @@ def KeepsSp : Instr → Prop
   | .cbz _ _ _ => True
   | .bl _ => True
   | .bx _ => True
+  | .subspS _ => False
+  | .addspS _ => False
+  | .strpre _ _ => False
+  | .ldrpost _ _ => False
+  | .strdpre _ _ _ => False
 
 theorem eff_keeps_sp (i : Instr) (len : W) (s t : St) (h : eff i len s = some t)
     (hk : KeepsSp i) : t.sp = s.sp := by
@@ -167,6 +172,11 @@ theorem eff_keeps_sp (i : Instr) (len : W) (s t : St) (h : eff i len s = some t)
   | bx rm =>
     unfold eff at h; (try dsimp only at h)
     rw [← Option.some.inj h]
+  | subspS imm => exact False.elim hk
+  | addspS imm => exact False.elim hk
+  | strpre rt imm => exact False.elim hk
+  | ldrpost rt imm => exact False.elim hk
+  | strdpre rt rt2 imm => exact False.elim hk
 
 theorem eff_push_sp (regs : Nat) (len : W) (s t : St) (h : eff (.push regs) len s = some t) :
     t.sp = s.sp - BitVec.ofNat 32 (4 * (maskRegs regs).length) := by
@@ -191,6 +201,33 @@ theorem eff_addsp_sp (imm : W) (len : W) (s t : St) (h : eff (.addsp imm) len s 
     t.sp = s.sp + imm := by
   unfold eff at h; (try dsimp only at h)
   rw [← Option.some.inj h]
+
+theorem eff_subspS_sp (imm : W) (len : W) (s t : St) (h : eff (.subspS imm) len s = some t) :
+    t.sp = s.sp - imm := by
+  unfold eff at h; (try dsimp only at h)
+  rw [← Option.some.inj h]
+
+theorem eff_addspS_sp (imm : W) (len : W) (s t : St) (h : eff (.addspS imm) len s = some t) :
+    t.sp = s.sp + imm := by
+  unfold eff at h; (try dsimp only at h)
+  rw [← Option.some.inj h]
+
+theorem eff_strpre_sp (rt : Nat) (imm : W) (len : W) (s t : St)
+    (h : eff (.strpre rt imm) len s = some t) : t.sp = s.sp - imm := by
+  unfold eff at h; (try dsimp only at h)
+  rw [← Option.some.inj h]
+
+theorem eff_ldrpost_sp (rt : Nat) (imm : W) (len : W) (s t : St)
+    (h : eff (.ldrpost rt imm) len s = some t) : t.sp = s.sp + imm := by
+  unfold eff at h; (try dsimp only at h)
+  rw [← Option.some.inj h]
+
+theorem eff_strdpre_sp (rt rt2 : Nat) (imm : W) (len : W) (s t : St)
+    (h : eff (.strdpre rt rt2 imm) len s = some t) : t.sp = s.sp - imm := by
+  unfold eff at h; (try dsimp only at h)
+  split at h
+  · exact absurd h (by simp)
+  · rw [← Option.some.inj h]
 
 theorem eff_vpush_sp (d regs : Nat) (len : W) (s t : St)
     (h : eff (.vpush d regs) len s = some t) : t.sp = s.sp - BitVec.ofNat 32 (4 * regs) := by
@@ -767,6 +804,68 @@ theorem d32_agrees (a b pc : Nat) (ha : a < 65536) (hb : b < 65536) (hpc : pc < 
     refine ⟨_, hD, ?_, trivial⟩
     intro len s t ht
     exact eff_addsp_sp _ len s t ht
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- subs sp, sp, #const (T2 with S; 2026-11-27)
+    obtain ⟨w, hw, e⟩ := map_some hd
+    subst e
+    have hD : D32 a b pc = some (.spDown (expand12 (imm12 a b))) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    have q := eff_subspS_sp _ len s t ht
+    show t.sp = s.sp - BitVec.ofNat 32 (expand12 (imm12 a b))
+    rw [q, expand12_agrees (imm12 a b) w (by rw [imm12_eq]; exact hw)]
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- adds sp, sp, #const (T3 with S)
+    obtain ⟨w, hw, e⟩ := map_some hd
+    subst e
+    have hD : D32 a b pc = some (.spUp (expand12 (imm12 a b))) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    have q := eff_addspS_sp _ len s t ht
+    show t.sp = s.sp + BitVec.ofNat 32 (expand12 (imm12 a b))
+    rw [q, expand12_agrees (imm12 a b) w (by rw [imm12_eq]; exact hw)]
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- str rt, [sp, #-imm8]!
+    rcases ite_some_cases hd with ⟨c2, hd⟩ | ⟨c2, hd⟩
+    · exact absurd hd (by simp)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D32 a b pc = some (.spDown (b % 256)) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    exact eff_strpre_sp _ _ len s t ht
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- ldr rt, [sp], #imm8
+    rcases ite_some_cases hd with ⟨c2, hd⟩ | ⟨c2, hd⟩
+    · exact absurd hd (by simp)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D32 a b pc = some (.spUp (b % 256)) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    exact eff_ldrpost_sp _ _ len s t ht
+  rcases ite_some_cases hd with ⟨c, hd⟩ | ⟨cn, hd⟩
+  · -- strd rt, rt2, [sp, #-imm8*4]!
+    rcases ite_some_cases hd with ⟨c2, hd⟩ | ⟨c2, hd⟩
+    · exact absurd hd (by simp)
+    have e := Option.some.inj hd
+    subst e
+    have hD : D32 a b pc = some (.spDown (4 * (b % 256))) := by
+      unfold D32
+      eval_ifs
+    refine ⟨_, hD, ?_, trivial⟩
+    intro len s t ht
+    have q := eff_strdpre_sp _ _ _ len s t ht
+    show t.sp = s.sp - BitVec.ofNat 32 (4 * (b % 256))
+    rw [q, Nat.mul_comm]
   exact absurd hd (by simp)
 
 end LinkThumb

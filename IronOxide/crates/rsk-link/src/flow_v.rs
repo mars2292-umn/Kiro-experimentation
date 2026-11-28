@@ -226,26 +226,34 @@ pub open spec fn lands(insns: Seq<Insn>, d: Seq<i64>, t: int, need: int) -> bool
     exists|j: int| 0 <= j < insns.len() && (#[trigger] insns[j]).address as int == t && d[j] as int >= need
 }
 
+fn lands_at(insns: &Vec<Insn>, d: &Vec<i64>, t: u32, need: i64, j: usize) -> (r: bool)
+    requires d@.len() == insns@.len(),
+    ensures r ==> j < insns@.len() && insns@[j as int].address == t && d@[j as int] >= need,
+{
+    if j < insns.len() {
+        insns[j].address == t && d[j] >= need
+    } else {
+        false
+    }
+}
+
 fn lands_check(insns: &Vec<Insn>, d: &Vec<i64>, t: u32, need: i64, hint: usize) -> (r: bool)
     requires d@.len() == insns@.len(),
     ensures r ==> lands(insns@, d@, t as int, need as int),
 {
-    if hint < insns.len() && insns[hint].address == t && d[hint] >= need {
-        return true;
-    }
+    let mut found = lands_at(insns, d, t, need, hint);
     let mut j: usize = 0;
-    while j < insns.len()
+    while j < insns.len() && !found
         invariant
             j <= insns.len(),
             d@.len() == insns@.len(),
+            found ==> lands(insns@, d@, t as int, need as int),
         decreases insns.len() - j,
     {
-        if insns[j].address == t && d[j] >= need {
-            return true;
-        }
+        found = lands_at(insns, d, t, need, j);
         j += 1;
     }
-    false
+    found
 }
 
 /// The bytes of one entry of a table: 2 for `tbh` (bit 4 of the second
@@ -316,7 +324,8 @@ fn table_check(code: &[u8], base: u32, insns: &Vec<Insn>, d: &Vec<i64>, i: usize
     }
     let need = d[i];
     let mut pos: u32 = a + 4;
-    while pos < lim
+    let mut good = true;
+    while pos < lim && good
         invariant
             a as int + 4 <= pos <= lim,
             lim as int <= base as int + code@.len(),
@@ -329,34 +338,45 @@ fn table_check(code: &[u8], base: u32, insns: &Vec<Insn>, d: &Vec<i64>, i: usize
             (lim - a - 4) % (sz as int) == 0,
             (pos - a - 4) % (sz as int) == 0,
             d@.len() == insns@.len(),
-            forall|q: int| a as int + 4 <= q < pos && (q - a - 4) % (sz as int) == 0 ==> #[trigger] tslot_ok(code@, base, insns@, d@, a as int, sz as int, lim as int, q, need as int),
+            good ==> forall|q: int| a as int + 4 <= q < pos && (q - a - 4) % (sz as int) == 0 ==> #[trigger] tslot_ok(code@, base, insns@, d@, a as int, sz as int, lim as int, q, need as int),
         decreases lim - pos,
     {
-        let off = (pos - base) as usize;
-        let e: u32 = if wide { hw(code, off) } else { code[off] as u32 };
-        assert(e as int == tentry(code@, pos as int - base as int, sz as int));
-        assert(e <= 0xFFFF) by {
-            if wide {
-                let lo = code@[off as int];
-                let hi = code@[off as int + 1];
-                assert(((lo as u32) | ((hi as u32) << 8u32)) <= 0xFFFF) by (bit_vector);
-            }
-        }
-        let t: u64 = a as u64 + 4 + 2 * (e as u64);
-        assert(t as int == ttarget(code@, base, a as int, sz as int, pos as int));
-        let pad = !wide && pos + 1 == lim && t < lim as u64;
-        if !pad {
-            if t >= end {
-                return false;
-            }
-            if !lands_check(insns, d, t as u32, need, insns.len()) {
-                return false;
-            }
-        }
-        assert(tslot_ok(code@, base, insns@, d@, a as int, sz as int, lim as int, pos as int, need as int));
+        good = slot_check(code, base, insns, d, a, wide, lim, pos, need);
         pos += sz;
     }
-    true
+    good
+}
+
+/// The entry at `pos` of the table of the instruction at `a`.
+fn slot_check(code: &[u8], base: u32, insns: &Vec<Insn>, d: &Vec<i64>, a: u32, wide: bool, lim: u32, pos: u32, need: i64) -> (r: bool)
+    requires
+        d@.len() == insns@.len(),
+        base as int + code@.len() <= u32::MAX,
+        base <= a,
+        a as int + 4 <= pos < lim,
+        lim as int <= base as int + code@.len(),
+        (lim - pos) % (if wide { 2int } else { 1int }) == 0,
+    ensures r ==> tslot_ok(code@, base, insns@, d@, a as int, if wide { 2int } else { 1int }, lim as int, pos as int, need as int),
+{
+    let end: u64 = base as u64 + code.len() as u64;
+    let off = (pos - base) as usize;
+    let e: u32 = if wide { hw(code, off) } else { code[off] as u32 };
+    assert(e <= 0xFFFF) by {
+        if wide {
+            let lo = code@[off as int];
+            let hi = code@[off as int + 1];
+            assert(((lo as u32) | ((hi as u32) << 8u32)) <= 0xFFFF) by (bit_vector);
+        }
+    }
+    let t: u64 = a as u64 + 4 + 2 * (e as u64);
+    let pad = !wide && pos + 1 == lim && t < lim as u64;
+    if pad {
+        true
+    } else if t >= end {
+        false
+    } else {
+        lands_check(insns, d, t as u32, need, insns.len())
+    }
 }
 
 /// A call as the last instruction of the body: control that returned
@@ -387,6 +407,66 @@ pub open spec fn node_ok(code: Seq<u8>, base: u32, insns: Seq<Insn>, cond: Seq<b
     }
 }
 
+/// The passage to the next address.
+fn fall_check(code: &[u8], base: u32, insns: &Vec<Insn>, cond: &Vec<bool>, noreturn: &Vec<u32>, d: &Vec<i64>, i: usize, need: i64) -> (r: bool)
+    requires
+        i < insns@.len(),
+        d@.len() == insns@.len(),
+        cond@.len() == insns@.len(),
+        base as int + code@.len() <= u32::MAX,
+        placed(code@, base, insns@[i as int]),
+    ensures
+        r ==> ((cond@[i as int] || !hard(insns@[i as int], h1s(code@, base, insns@[i as int]), h2s(code@, base, insns@[i as int]), noreturn@)) ==> (lands(insns@, d@, insns@[i as int].address as int + insns@[i as int].len as int, need as int) || ends_in_call(insns@[i as int], base as int + code@.len()))),
+{
+    let x = &insns[i];
+    let end: u64 = base as u64 + code.len() as u64;
+    let (h1, h2) = halves(code, base, x);
+    let next: u64 = x.address as u64 + x.len as u64;
+    let stops = !cond[i] && hard_of(x, h1, h2, noreturn);
+    if stops {
+        true
+    } else {
+        let call_at_end = match &x.effect {
+            Effect::Call(_) => next == end,
+            _ => false,
+        };
+        if call_at_end {
+            true
+        } else if next > u32::MAX as u64 {
+            false
+        } else {
+            let hint = if i < insns.len() - 1 { i + 1 } else { insns.len() };
+            lands_check(insns, d, next as u32, need, hint)
+        }
+    }
+}
+
+/// The passages a branch or a table makes.
+fn branch_check(code: &[u8], base: u32, insns: &Vec<Insn>, d: &Vec<i64>, i: usize, need: i64) -> (r: bool)
+    requires
+        i < insns@.len(),
+        d@.len() == insns@.len(),
+        base as int + code@.len() <= u32::MAX,
+        placed(code@, base, insns@[i as int]),
+    ensures
+        r ==> match insns@[i as int].effect {
+            Effect::Branch(t) => (base <= t && (t as int) < base as int + code@.len()) ==> lands(insns@, d@, t as int, need as int),
+            Effect::CompareBranch(t) => (base <= t && (t as int) < base as int + code@.len()) ==> lands(insns@, d@, t as int, need as int),
+            Effect::SwitchTable => table_ok(code@, base, insns@, d@, i as int, if i + 1 < insns@.len() { insns@[i as int + 1].address as int } else { base as int + code@.len() }),
+            _ => true,
+        },
+{
+    let x = &insns[i];
+    let end: u64 = base as u64 + code.len() as u64;
+    let lim: u32 = if i < insns.len() - 1 { insns[i + 1].address } else { end as u32 };
+    match &x.effect {
+        Effect::Branch(t) => if base <= *t && (*t as u64) < end { lands_check(insns, d, *t, need, insns.len()) } else { true },
+        Effect::CompareBranch(t) => if base <= *t && (*t as u64) < end { lands_check(insns, d, *t, need, insns.len()) } else { true },
+        Effect::SwitchTable => table_check(code, base, insns, d, i, lim),
+        _ => true,
+    }
+}
+
 fn node_check(code: &[u8], base: u32, insns: &Vec<Insn>, cond: &Vec<bool>, noreturn: &Vec<u32>, d: &Vec<i64>, frame: u32, i: usize) -> (r: bool)
     requires
         i < insns@.len(),
@@ -397,56 +477,24 @@ fn node_check(code: &[u8], base: u32, insns: &Vec<Insn>, cond: &Vec<bool>, noret
 {
     let x = &insns[i];
     if !placed_check(code, base, x) {
-        return false;
-    }
-    if d[i] < -BIG || d[i] > BIG {
-        return false;
-    }
-    let dn: i64 = match &x.effect {
-        Effect::SpDown(n) => *n as i64,
-        _ => 0,
-    };
-    if d[i] + dn > frame as i64 {
-        return false;
-    }
-    let end: u64 = base as u64 + code.len() as u64;
-    let need: i64 = d[i] + delta_of(&x.effect, cond[i]);
-    let (h1, h2) = halves(code, base, x);
-    let next: u64 = x.address as u64 + x.len as u64;
-    if cond[i] || !hard_of(x, h1, h2, noreturn) {
-        let call_at_end = match &x.effect {
-            Effect::Call(_) => next == end,
-            _ => false,
+        false
+    } else if d[i] < -BIG || d[i] > BIG {
+        false
+    } else {
+        let dn: i64 = match &x.effect {
+            Effect::SpDown(n) => *n as i64,
+            _ => 0,
         };
-        if !call_at_end {
-            if next > u32::MAX as u64 {
-                return false;
-            }
-            if !lands_check(insns, d, next as u32, need, i + 1) {
-                return false;
+        if d[i] + dn > frame as i64 {
+            false
+        } else {
+            let need: i64 = d[i] + delta_of(&x.effect, cond[i]);
+            if !fall_check(code, base, insns, cond, noreturn, d, i, need) {
+                false
+            } else {
+                branch_check(code, base, insns, d, i, need)
             }
         }
-    }
-    let lim: u32 = if i < insns.len() - 1 { insns[i + 1].address } else { end as u32 };
-    match &x.effect {
-        Effect::Branch(t) => {
-            if base <= *t && (*t as u64) < end {
-                if !lands_check(insns, d, *t, need, insns.len()) {
-                    return false;
-                }
-            }
-            true
-        }
-        Effect::CompareBranch(t) => {
-            if base <= *t && (*t as u64) < end {
-                if !lands_check(insns, d, *t, need, insns.len()) {
-                    return false;
-                }
-            }
-            true
-        }
-        Effect::SwitchTable => table_check(code, base, insns, d, i, lim),
-        _ => true,
     }
 }
 

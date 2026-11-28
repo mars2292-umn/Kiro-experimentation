@@ -125,6 +125,20 @@ pub open spec fn edge(e: Effect, address: u32, end: u32, t: u32) -> bool {
     }
 }
 
+/// The edge instruction `e` of the body `[address, end)` makes, if it
+/// makes one. (A function of its own since 2026-11-27, so that the loop of
+/// `direct_of` has one place where it pushes: for its Lean translation.)
+pub fn edge_of(e: &Effect, address: u32, end: u32) -> (r: Option<u32>)
+    ensures forall|t: u32| #[trigger] edge(*e, address, end, t) <==> r == Some(t),
+{
+    match e {
+        Effect::Call(t) => Some(*t),
+        Effect::Branch(t) => if *t < address || *t >= end { Some(*t) } else { None },
+        Effect::CompareBranch(t) => if *t < address || *t >= end { Some(*t) } else { None },
+        _ => None,
+    }
+}
+
 /// The direct edges of a body: exactly the targets of its calls and of its
 /// branches that leave it.
 pub fn direct_of(insns: &Vec<Insn>, address: u32, end: u32) -> (v: Vec<u32>)
@@ -140,12 +154,12 @@ pub fn direct_of(insns: &Vec<Insn>, address: u32, end: u32) -> (v: Vec<u32>)
         decreases insns.len() - i,
     {
         let ghost before = v@;
-        let ghost e = insns@[i as int].effect;
-        match &insns[i].effect {
-            Effect::Call(t) => {
-                v.push(*t);
+        let o = edge_of(&insns[i].effect, address, end);
+        match o {
+            Some(t) => {
+                v.push(t);
                 assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
-                    lemma_pushed(before, *t, u);
+                    lemma_pushed(before, t, u);
                     if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
                         let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);
                         if j < i {
@@ -157,55 +171,7 @@ pub fn direct_of(insns: &Vec<Insn>, address: u32, end: u32) -> (v: Vec<u32>)
                     }
                 }
             }
-            Effect::Branch(t) => {
-                if *t < address || *t >= end {
-                    v.push(*t);
-                    assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
-                        lemma_pushed(before, *t, u);
-                        if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
-                            let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);
-                            if j < i {
-                                assert(before.contains(u));
-                            }
-                        }
-                        if v@.contains(u) && !before.contains(u) {
-                            assert(edge(insns@[i as int].effect, address, end, u));
-                        }
-                    }
-                } else {
-                    assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
-                        if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
-                            let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);
-                            assert(j < i);
-                        }
-                    }
-                }
-            }
-            Effect::CompareBranch(t) => {
-                if *t < address || *t >= end {
-                    v.push(*t);
-                    assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
-                        lemma_pushed(before, *t, u);
-                        if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
-                            let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);
-                            if j < i {
-                                assert(before.contains(u));
-                            }
-                        }
-                        if v@.contains(u) && !before.contains(u) {
-                            assert(edge(insns@[i as int].effect, address, end, u));
-                        }
-                    }
-                } else {
-                    assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
-                        if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
-                            let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);
-                            assert(j < i);
-                        }
-                    }
-                }
-            }
-            _ => {
+            None => {
                 assert forall|u: u32| v@.contains(u) <==> exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) by {
                     if exists|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u) {
                         let j = choose|j: int| 0 <= j < i + 1 && edge((#[trigger] insns@[j]).effect, address, end, u);

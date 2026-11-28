@@ -122,6 +122,17 @@ theorem eff_masks {i : Instr} {len : W} {a a' : Arm.St} (h : eff i len a = some 
   | cbz nz rn off => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
   | bl off => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
   | bx rm => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
+  | subspS imm => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
+  | addspS imm => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
+  | strpre rt imm => simp only [eff, Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
+  | ldrpost rt imm =>
+    simp only [eff, Option.some.injEq] at h; subst h
+    exact ⟨setR_primask _ _ _, setR_faultmask _ _ _⟩
+  | strdpre rt rt2 imm =>
+    simp only [eff] at h
+    split at h
+    · simp at h
+    · simp only [Option.some.injEq] at h; subst h; exact ⟨rfl, rfl⟩
 
 /-- **An instruction other than `cps` leaves both masks**, executed or
 skipped by its condition. -/

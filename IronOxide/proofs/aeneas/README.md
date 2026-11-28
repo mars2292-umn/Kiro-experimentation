@@ -528,12 +528,12 @@ Kernel_Unsafe_Module.
 
 ## The Link_Checker (`lean/Tools/Link.lean`)
 
-The certificate checker and the two static decoders of `crates/rsk-link`:
+The certificate checker, the two static decoders and, since 2026-11-27, the nodes, the bounds and the body certificate (`bound_v.rs`, `flow_v.rs`) of `crates/rsk-link`:
 
 ```
 cd crates/rsk-link
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from 'crate::cert::check,crate::thumb::decode16_static,crate::thumb::decode32_static' \
+    --start-from 'crate::cert::check,crate::thumb::decode16_static,crate::thumb::decode32_static,crate::bound_v::frame_of,crate::bound_v::dynamic_of,crate::bound_v::direct_of,crate::bound_v::unread_of,crate::bound_v::msp_value,crate::bound_v::jobs_bound,crate::flow_v::flow_ok' \
     --dest-file /tmp/link.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest /tmp/link-out /tmp/link.llbc   # copy Link.lean to lean/Tools/
 ```
@@ -541,8 +541,11 @@ cd crates/rsk-link
 No axiom in the output (`count_ones` is written out as `ones16` in
 `thumb.rs` for that; `rotate_right` as a shift in `thumb_expand_imm`, since
 2026-11-27, for the same reason). After a change of `cert.rs` or of the
-decoders in `thumb.rs`: regenerate, then `lake build Tools.LinkCertProofs
-Tools.LinkThumbArm`. `Tools/LinkThumbProofs.lean` (the 16-bit decoder),
+decoders in `thumb.rs`, of `bound_v.rs` or of `flow_v.rs`: regenerate, then
+`lake build Tools` (`Tools/LinkBoundProofs.lean`, `Tools/LinkFlowProofs.lean`
+and `Tools/LinkFlowCert.lean` are over the last two). A function that
+returns from inside a loop nested in a branch, or pushes in several arms
+of a match, is not translated: end the loop by a flag, push in one place. `Tools/LinkThumbProofs.lean` (the 16-bit decoder),
 `Tools/LinkThumbUnread.lean` (`thumb_expand_imm`, `sp_unread`) and
 `Tools/LinkThumbProofs32.lean` (the 32-bit decoder) follow the extracted
 functions line by line: a new test in a decoder is one or two more `step`s

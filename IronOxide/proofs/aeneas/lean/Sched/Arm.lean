@@ -169,6 +169,18 @@ inductive Instr where
   | bl (off : W)
   /-- `bx rm`. -/
   | bx (rm : Nat)
+  /-- `subs sp, sp, #imm` (the flags written). The five forms from here on
+  were added on 2026-11-27 for the Link_Checker's decoder
+  (`Tools/LinkThumbSpec.lean`); no stub contains one. -/
+  | subspS (imm : W)
+  /-- `adds sp, sp, #imm`. -/
+  | addspS (imm : W)
+  /-- `str rt, [sp, #-imm]!`: the store of one register below SP. -/
+  | strpre (rt : Nat) (imm : W)
+  /-- `ldr rt, [sp], #imm`: the load of one register from SP. -/
+  | ldrpost (rt : Nat) (imm : W)
+  /-- `strd rt, rt2, [sp, #-imm]!`. -/
+  | strdpre (rt rt2 : Nat) (imm : W)
   deriving DecidableEq, Repr
 
 /-! ## The decoders (chapter A7, by encoding) -/
@@ -326,6 +338,29 @@ def decode32 (h1 h2 : Nat) : Option Instr :=
   -- ADD (SP plus immediate) T4: 11110 i 1 0000 0 1101 | 0 imm3 1101 imm8
   else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x20D ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
     some (.addsp (BitVec.ofNat 32 (imm12Of h1 h2)))
+  -- The five forms below were added later on 2026-11-27, for the same
+  -- comparison; no stub contains one.
+  -- SUB (SP minus immediate) T2 with S: 11110 i 0 1101 1 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x1BD ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    (expandImm (imm12Of h1 h2)).map .subspS
+  -- ADD (SP plus immediate) T3 with S: 11110 i 0 1000 1 1101 | 0 imm3 1101 imm8
+  else if h1 / 2048 = 30 ∧ h1 % 1024 = 0x11D ∧ h2 / 32768 = 0 ∧ h2 / 256 % 16 = 13 then
+    (expandImm (imm12Of h1 h2)).map .addspS
+  -- STR (immediate) T4 with Rn the SP, P = 1, U = 0, W = 1:
+  -- 1111 1000 0100 1101 | Rt 1 1 0 1 imm8 (A7.7.161; Rt not SP or PC)
+  else if h1 = 0xF84D ∧ h2 / 256 % 16 = 13 then
+    if h2 / 4096 = 15 ∨ h2 / 4096 = 13 then none
+    else some (.strpre (h2 / 4096) (BitVec.ofNat 32 (h2 % 256)))
+  -- LDR (immediate) T4 with Rn the SP, P = 0, U = 1, W = 1:
+  -- 1111 1000 0101 1101 | Rt 1 0 1 1 imm8 (A7.7.43; Rt = PC is a branch)
+  else if h1 = 0xF85D ∧ h2 / 256 % 16 = 11 then
+    if h2 / 4096 = 15 ∨ h2 / 4096 = 13 then none
+    else some (.ldrpost (h2 / 4096) (BitVec.ofNat 32 (h2 % 256)))
+  -- STRD (immediate) T1 with Rn the SP, P = 1, U = 0, W = 1:
+  -- 1110 1001 0110 1101 | Rt Rt2 imm8 (A7.7.166; neither register SP or PC)
+  else if h1 = 0xE96D then
+    if h2 / 4096 = 15 ∨ h2 / 4096 = 13 ∨ h2 / 256 % 16 = 15 ∨ h2 / 256 % 16 = 13 then none
+    else some (.strdpre (h2 / 4096) (h2 / 256 % 16) (BitVec.ofNat 32 (h2 % 256 * 4)))
   else none
 
 /-! ## Conditions and the IT block (A7.3) -/
@@ -469,6 +504,31 @@ def eff (i : Instr) (len : W) (s : St) : Option St :=
     -- A7.7.18: LR is the return address with bit 0 set
     some { s with lr := next ||| 1#32, pc := s.pc + 4#32 + off }
   | .bx rm => some { s with pc := getR s rm }
+  | .subspS imm =>
+    -- A7.7.176 with S: the flags of `AddWithCarry(SP, NOT(imm), '1')`
+    let f := subFlags s.sp imm
+    some { s with sp := s.sp - imm, n := f.1, z := f.2.1, c := f.2.2.1, v := f.2.2.2, pc := next }
+  | .addspS imm =>
+    -- A7.7.5 with S: the flags of `AddWithCarry(SP, imm, '0')`
+    let r := s.sp + imm
+    some { s with
+      sp := r, n := r.msb, z := decide (r = 0#32),
+      c := decide (4294967296 ≤ s.sp.toNat + imm.toNat),
+      v := decide (s.sp.msb = imm.msb ∧ r.msb ≠ s.sp.msb), pc := next }
+  | .strpre rt imm =>
+    -- A7.7.161, index and writeback: the word is stored at SP - imm, which
+    -- becomes SP
+    let a := s.sp - imm
+    some { s with mem := wrw s.mem a (getR s rt), sp := a, pc := next }
+  | .ldrpost rt imm =>
+    -- A7.7.43, post-indexed: the word at SP is loaded, and SP + imm becomes SP
+    some { setR s rt (rdw s.mem s.sp) with sp := s.sp + imm, pc := next }
+  | .strdpre rt rt2 imm =>
+    -- A7.7.166, index and writeback (MemA: the address a multiple of 4)
+    let a := s.sp - imm
+    if a.toNat % 4 ≠ 0 then none
+    else some { s with
+      mem := wrw (wrw s.mem a (getR s rt)) (a + 4#32) (getR s rt2), sp := a, pc := next }
 
 /-- One instruction: `it` sets ITSTATE; a conditional branch tests its own
 condition; any other instruction is executed when the current condition

@@ -27,9 +27,10 @@ what such heights give, for runs of any length, loops included:
 
 A certificate here is the heights with the three conditions (`Cert`), over
 instructions numbered from 0 and passages given as a relation. That the
-conditions are the ones `flow_ok` checks (`flow_spec`: `d[0] == 0`, `lands`
-with `need = d[i] + delta`, `d[i] + down <= frame`) is by reading the two
-texts: the check is verified in Verus and this theorem is in Lean.
+compiled `flow_ok` answers true only for such heights, with the passages
+of `Tools/LinkFlowCert.lean` (`Pass`), is proven there
+(`flow_ok_within_frame`); when this file was written it was by reading the
+Verus text.
 
 What a step is taken to do: `SpStepC`, which is `SpStep` (the decoder's
 reading, proven against the instruction semantics for the forms it has,

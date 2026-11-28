@@ -4409,10 +4409,10 @@ prover = "lean"
 # 2026-11-27: the certificate of a body's control flow and stack heights (rsk-link/src/flow_v.rs).
 [[mutation]]
 id = "flow-passage-lands-at-any-height"
-kills = "flow_v::lands_check (R37.1; 2026-11-27): a passage must land on an instruction whose height is at least the height left plus what the instruction left adds; with any height accepted a loop that lowers SP each time round has a certificate"
+kills = "flow_v::lands_at (R37.1; 2026-11-27): a passage must land on an instruction whose height is at least the height left plus what the instruction left adds; with any height accepted a loop that lowers SP each time round has a certificate"
 file = "crates/rsk-link/src/flow_v.rs"
-find = "        if insns[j].address == t && d[j] >= need {\n            return true;\n        }\n        j += 1;"
-replace = "        if insns[j].address == t {\n            return true;\n        }\n        j += 1;"
+find = "        insns[j].address == t && d[j] >= need\n"
+replace = "        insns[j].address == t\n"
 expect = ["flow_v.rs"]
 package = "rsk-link"
 
@@ -4436,10 +4436,10 @@ package = "rsk-link"
 
 [[mutation]]
 id = "flow-table-entry-outside-the-body"
-kills = "flow_v::table_check: every entry of a `tbb`/`tbh` table branches to an instruction of the list in the body; an entry past the body's end is refused"
+kills = "flow_v::slot_check: every entry of a `tbb`/`tbh` table branches to an instruction of the list in the body; an entry past the body's end is refused"
 file = "crates/rsk-link/src/flow_v.rs"
-find = "            if t >= end {\n                return false;\n            }\n            if !lands_check(insns, d, t as u32, need, insns.len()) {\n                return false;\n            }\n"
-replace = "            if t < end && !lands_check(insns, d, t as u32, need, insns.len()) {\n                return false;\n            }\n"
+find = "    } else if t >= end {\n        false\n    } else {\n        lands_check(insns, d, t as u32, need, insns.len())"
+replace = "    } else if t >= end {\n        true\n    } else {\n        lands_check(insns, d, t as u32, need, insns.len())"
 expect = ["flow_v.rs"]
 package = "rsk-link"
 
@@ -4447,8 +4447,8 @@ package = "rsk-link"
 id = "flow-height-over-the-frame"
 kills = "flow_v::node_check: every height plus the instruction's own decrement is within the frame the bound is computed from"
 file = "crates/rsk-link/src/flow_v.rs"
-find = "    if d[i] + dn > frame as i64 {\n        return false;\n    }\n"
-replace = ""
+find = "        if d[i] + dn > frame as i64 {\n            false\n        } else {"
+replace = "        if false {\n            false\n        } else {"
 expect = ["flow_v.rs"]
 package = "rsk-link"
 
@@ -4460,6 +4460,25 @@ find = "let count: usize = if h1 & 1 != 0 { 4 } else"
 replace = "let count: usize = if h1 & 1 != 0 { 3 } else"
 expect = ["flow_v.rs"]
 package = "rsk-link"
+
+# 2026-11-27: the Link_Checker's nodes, bounds and body certificate on the code as compiled (Tools/LinkBoundProofs.lean, Tools/LinkFlowProofs.lean).
+[[mutation]]
+id = "lean-code-frame-skips-a-decrement"
+kills = "`frame_of_spec` (Tools/LinkBoundProofs.lean; run 2026-11-27, killed there): the compiled `frame_of` returns the sum of the decrements the decoder read in the body, saturating; with a decrement not added the frame is below the sum that `descent_le_frame` bounds the descent by"
+file = "proofs/aeneas/lean/Tools/Link.lean"
+find = "      | thumb.Effect.SpDown n => ok (core.num.U32.saturating_add f n)"
+replace = "      | thumb.Effect.SpDown n => ok f"
+expect = ["Tools/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-flow-lands-at-any-height"
+kills = "`lands_at_ok` (Tools/LinkFlowProofs.lean; run 2026-11-27, killed there): the compiled check accepts a passage only onto an instruction whose height is at least the height left plus the weight; with the height not compared `flow_ok_sound` and `flow_ok_within_frame` have no heights to bound a path by"
+file = "proofs/aeneas/lean/Tools/Link.lean"
+find = "      ok (i2 >= need)\n    else ok false\n  else ok false"
+replace = "      ok true\n    else ok false\n  else ok false"
+expect = ["Tools/"]
+prover = "lean"
 
 # 2026-11-26: the Link_Checker's nodes and bounds (rsk-link/src/bound_v.rs).
 [[mutation]]
@@ -4473,10 +4492,10 @@ package = "rsk-link"
 
 [[mutation]]
 id = "link-edge-of-a-leaving-branch-dropped"
-kills = "bound_v::direct_of (R37.1; 2026-11-26): the direct edges are exactly the calls and the branches that leave the body; a tail call (a branch beyond the body's end) left out loses its callee's stack from the walk"
+kills = "bound_v::edge_of, which `direct_of` takes each edge from since 2026-11-27 (R37.1; 2026-11-26): the direct edges are exactly the calls and the branches that leave the body; a tail call (a branch beyond the body's end) left out loses its callee's stack from the walk"
 file = "crates/rsk-link/src/bound_v.rs"
-find = "            Effect::Branch(t) => {\n                if *t < address || *t >= end {\n"
-replace = "            Effect::Branch(t) => {\n                if *t < address {\n"
+find = "        Effect::Branch(t) => if *t < address || *t >= end { Some(*t) } else { None },\n"
+replace = "        Effect::Branch(t) => if *t < address { Some(*t) } else { None },\n"
 expect = ["bound_v.rs"]
 package = "rsk-link"
 
